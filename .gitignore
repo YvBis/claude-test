@@ -1,0 +1,57 @@
+# Symfony
+/app/cache/*!/.gitignore
+/var/*
+!/var/log/.gitignore
+!/var/log/dev.log
+!/var/log/prod.log
+/bin/console
+/composer
+symfony.lock
+
+# Environment
+.env.local
+.env.*.local
+/var/log/dev*.log
+/var/log/prod*.log
+
+# IDE
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+
+# Dependency directories
+/vendor/
+/node_modules/
+
+# Composer
+composer.lock
+!composer.lock
+
+# Build outputs
+/build/
+/dist/
+*.pid
+*.native
+
+# Testing
+.phpunit.result.cache
+coverage/
+
+# Debug
+*.log
+
+# Hidden directories (explicitly keep .gitignore content under them)
+!/.codegraph/
+!/.codegraph/.gitignore
+!/.memsearch/
+!/.memsearch/.gitignore
+!/.claude/
+!/.claude/.gitignore
+
+# Misc
+*.swp
+*.swo
+*~
