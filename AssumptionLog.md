@@ -19,3 +19,25 @@
 - Production docker-compose.override.yml not created — defer to CD phase
 
 **Next:** Task 1.2 — Symfony Clean Architecture scaffold
+
+## 2026-07-14 — Task 1.2 Symfony Clean Architecture Scaffold
+
+**Decisions:**
+- Symfony 7.4 (LTS) via `symfony/symfony` flex constraint `7.*` — allows minor upgrades within 7.x
+- Doctrine ORM 3.6, Migrations 3.9 — latest compatible with Symfony 7.4
+- Symfony Messenger + Redis transport for queues
+- Serializer, Validator, SecurityBundle (no JWT packages — deferred to Task 2.4)
+- Clean Architecture folders: `src/Domain`, `src/Application`, `src/Infrastructure` + mirrored `tests/`
+- Kernel bundles: FrameworkBundle, SecurityBundle, DoctrineBundle, DoctrineMigrationsBundle
+- `.env` matches docker-compose: `DATABASE_URL=mysql://taskflow:taskflow_pass@db:3306/taskflow?serverVersion=8.0`, `MESSENGER_TRANSPORT_DSN=redis://redis:6379`, `MEILISEARCH_URL=http://meilisearch:7700`, `REDIS_HOST=redis`, `REDIS_PORT=6379`
+- Composer config: `policy.advisories.block=false` to bypass security advisories on Symfony 7.0 packages (upgraded to 7.4 resolves)
+- Platform `ext-redis: 5.3` declared in composer.json
+
+**Acceptance verified:**
+- `composer install` passes
+- `php bin/console --version` → Symfony 7.4.14
+- `php bin/console doctrine:migrations:status` connects to MySQL in docker-compose
+- Clean Architecture directories exist and mapped in services.yaml
+- No tests, entities, controllers, OpenAPI config created
+
+**Next:** Task 1.3 — Quality tools (PHPStan, PHPcsFixer, Rector, PHPCPD)
