@@ -1,0 +1,36 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Domain/'
+            - '../src/Application/'
+            - '../src/Infrastructure/'
+
+    # Domain layer - explicit binding for repositories, entities, value objects
+    App\Domain\:
+        resource: '../src/Domain/'
+        autowire: false
+        autoconfigure: false
+
+    # Application layer - use cases, DTOs, interfaces
+    App\Application\:
+        resource: '../src/Application/'
+        autowire: true
+        autoconfigure: true
+
+    # Infrastructure layer - implementations, adapters
+    App\Infrastructure\:
+        resource: '../src/Infrastructure/'
+        autowire: true
+        autoconfigure: true
+
+    # Controller namespace
+    App\Controller\:
+        resource: '../src/Controller/'
+        autowire: true
+        autoconfigure: true
+        tags: ['controller.service_arguments']
