@@ -1,0 +1,22 @@
+includes:
+    - vendor/phpstan/phpstan-symfony/extension.neon
+    - vendor/phpstan/phpstan-doctrine/extension.neon
+    - vendor/phpstan/phpstan-deprecation-rules/rules.neon
+
+parameters:
+    paths:
+        - src
+        - tests
+
+    level: 6
+
+    excludePaths:
+        - var/*
+        - vendor/*
+        - migrations/*
+        - public/*
+        - src/Kernel.php
+
+    ignoreErrors:
+        - '#^Parameter .* of method .* has no value type specified in @param annotation.#'
+        - '#^Missing iterable value type.*#'

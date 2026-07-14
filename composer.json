@@ -26,6 +26,13 @@
         "symfony/yaml": "^7.0"
     },
     "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.55",
+        "phpstan/phpstan": "^1.12",
+        "phpstan/phpstan-deprecation-rules": "^1.1",
+        "phpstan/phpstan-doctrine": "^1.3",
+        "phpstan/phpstan-symfony": "^1.3",
+        "rector/rector": "1.2.10",
+        "sebastian/phpcpd": "^6.0"
     },
     "config": {
         "allow-plugins": {
@@ -66,7 +73,20 @@
         ],
         "post-update-cmd": [
             "@auto-scripts"
-        ]
+        ],
+        "phpstan": "phpstan analyse src tests --memory-limit=512M",
+        "phpcs:fix": "php-cs-fixer fix --ansi --allow-risky=yes",
+        "phpcs:check": "php-cs-fixer fix --ansi --allow-risky=yes --dry-run --diff",
+        "rector:dry-run": "rector process src --dry-run --ansi",
+        "rector:fix": "rector process src --ansi",
+        "phpcpd": "phpcpd src tests --exclude=vendor,var,migrations",
+        "ci:static": [
+            "@phpstan",
+            "@phpcs:check",
+            "@rector:dry-run",
+            "@phpcpd"
+        ],
+        "ci:lint": "@phpcs:check"
     },
     "conflict": {
         "symfony/symfony": "*"
