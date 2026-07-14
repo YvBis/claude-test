@@ -69,3 +69,7 @@ coverage/
 /.php-cs-fixer.php
 /.php-cs-fixer.cache
 ###< friendsofphp/php-cs-fixer ###
+
+# Local env files
+.env
+.env.dev
