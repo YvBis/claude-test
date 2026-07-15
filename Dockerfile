@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip \
+    && pecl install xdebug \
+    && docker-php-ext-enable xdebug \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apt-get clean \

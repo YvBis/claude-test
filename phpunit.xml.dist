@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         executionOrder="depends"
+         forceCoversAnnotation="false"
+         beStrictAboutCoversAnnotation="false"
+         beStrictAboutOutputDuringTests="true"
+         beStrictAboutTodoAnnotatedTests="true"
+         failOnRisky="true"
+         failOnWarning="true"
+         processIsolation="false"
+         cacheResult="true"
+         verbose="false">
+    <testsuites>
+        <testsuite name="Domain">
+            <directory>tests/Domain</directory>
+        </testsuite>
+        <testsuite name="Application">
+            <directory>tests/Application</directory>
+        </testsuite>
+    </testsuites>
+
+    <coverage processUncoveredFiles="true">
+        <include>
+            <directory suffix=".php">src/Domain</directory>
+            <directory suffix=".php">src/Application</directory>
+        </include>
+        <exclude>
+            <directory suffix=".php">src/Infrastructure</directory>
+            <file>src/Kernel.php</file>
+        </exclude>
+        <report>
+            <clover outputFile="var/coverage/clover.xml"/>
+            <html outputDirectory="var/coverage/html"/>
+        </report>
+    </coverage>
+
+    <php>
+        <env name="APP_ENV" value="test"/>
+    </php>
+</phpunit>

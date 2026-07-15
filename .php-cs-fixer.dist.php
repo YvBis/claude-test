@@ -9,6 +9,7 @@ $finder = (new PhpCsFixer\Finder())
     ->notPath([
         'config/bundles.php',
         'config/reference.php',
+        'composer-setup.php',
     ])
 ;
 
