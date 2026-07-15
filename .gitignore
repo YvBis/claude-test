@@ -4,7 +4,6 @@
 !/var/log/.gitignore
 !/var/log/dev.log
 !/var/log/prod.log
-/bin/console
 /composer
 symfony.lock
 
