@@ -19,8 +19,3 @@ doctrine:
                 prefix: 'App'
                 alias: App
 
-when@test:
-    doctrine:
-        dbal:
-            driver: 'pdo_sqlite'
-            path: '%kernel.cache_dir%/test.db'

@@ -1,0 +1,213 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COMPOSER_CACHE_DIR: ~/.composer/cache
+
+jobs:
+  static-analysis:
+    name: Static Analysis & Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: taskflow_test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -proot_password"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=5s --health-retries=10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, mbstring, exif, pcntl, bcmath, gd, zip, redis, xdebug
+          ini-values: xdebug.mode=coverage
+          coverage: xdebug
+          tools: composer:v2
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.COMPOSER_CACHE_DIR }}
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-
+
+      - name: Cache PHPStan
+        uses: actions/cache@v4
+        with:
+          path: var/cache/phpstan
+          key: phpstan-${{ hashFiles('phpstan.neon', 'composer.lock') }}
+          restore-keys: |
+            phpstan-
+
+      - name: Cache PHP-CS-Fixer
+        uses: actions/cache@v4
+        with:
+          path: var/cache/.php-cs-fixer.cache
+          key: phpcsfixer-${{ hashFiles('.php-cs-fixer.dist.php', 'composer.lock') }}
+          restore-keys: |
+            phpcsfixer-
+
+      - name: Setup .env for CI
+        run: cp .env.test .env
+
+      - name: Install dependencies
+        run: composer install --no-progress --no-interaction
+
+      - name: Run static analysis (PHPStan, PHPcsFixer check, Rector dry-run, PHPCPD)
+        run: composer ci:static:quality
+
+  unit-tests:
+    name: Unit Tests with Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: taskflow_test
+          MYSQL_USER: test
+          MYSQL_PASSWORD: test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -proot_password"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=5s --health-retries=10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, mbstring, exif, pcntl, bcmath, gd, zip, redis, xdebug
+          ini-values: xdebug.mode=coverage
+          coverage: xdebug
+          tools: composer:v2
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.COMPOSER_CACHE_DIR }}
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-
+
+      - name: Setup .env for CI
+        run: cp .env.test .env
+
+      - name: Install dependencies
+        run: composer install --no-progress --no-interaction
+
+      - name: Create test database
+        run: php bin/console doctrine:database:create --if-not-exists --env=test
+        env:
+          DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
+
+      - name: Run migrations
+        run: |
+          php bin/console doctrine:migrations:migrate --no-interaction --env=test || true
+        env:
+          DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
+
+      - name: Run PHPUnit with coverage
+        run: composer phpunit
+        env:
+          DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: var/coverage/
+          retention-days: 7
+
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, mbstring, exif, pcntl, bcmath, gd, zip, redis
+          tools: composer:v2
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.COMPOSER_CACHE_DIR }}
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            composer-
+
+      - name: Setup .env for CI
+        run: cp .env.test .env
+
+      - name: Install dependencies
+        run: composer install --no-progress --no-interaction
+
+      - name: Run composer audit
+        run: composer audit --locked --no-check-all || true
+
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [static-analysis, unit-tests, dependency-audit]
+    if: always()
+    steps:
+      - name: Determine overall status
+        run: |
+          STATUS="${{ needs.static-analysis.result }} ${{ needs.unit-tests.result }} ${{ needs.dependency-audit.result }}"
+          echo "Static Analysis: ${{ needs.static-analysis.result }}"
+          echo "Unit Tests: ${{ needs.unit-tests.result }}"
+          echo "Dependency Audit: ${{ needs.dependency-audit.result }}"
+          if echo "$STATUS" | grep -q "failure\|cancelled"; then
+            echo "::error::One or more jobs failed"
+            exit 1
+          fi
+          echo "All jobs passed"

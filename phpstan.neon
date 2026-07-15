@@ -14,7 +14,3 @@ parameters:
         - migrations/*
         - public/*
         - src/Kernel.php
-
-    ignoreErrors:
-        - '#^Parameter .* of method .* has no value type specified in @param annotation.#'
-        - '#^Missing iterable value type.*#'
