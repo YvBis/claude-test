@@ -75,3 +75,22 @@
 - Full CI suite passes locally: PHPStan L6, PHPcsFixer, Rector, PHPCPD, PHPUnit 4/4
 
 **Next:** Task 2.1 — User Entity with roles and is_active
+
+## 2026-07-16 — Task 2.1 User Entity
+
+**Decisions:**
+- Role VO: `user`, `admin` only (no `guest` — unauthenticated handled by Symfony Security firewall `anonymous:` in Task 2.4)
+- UUID: `ramsey/uuid ^4.7` added to `require` (UUID v7 via `Uuid::uuid7()`)
+- Value Objects: `UserId`, `Email`, `Role`, `PasswordHash` — all `#[ORM\Embeddable]`, readonly
+- PasswordHash: bcrypt cost 13, `__toString()` returns `***` (never leaks hash)
+- Entity: `User` in `src/Domain/User/Entity/User.php` with factory methods `register()`, `createAdmin()`
+- Domain methods: `changeName()`, `changeEmail()`, `changePassword()`, `promoteToAdmin()`, `demoteToUser()`, `activate()`, `deactivate()`, `verifyPassword()`
+- Timestamps: `created_at`/`updated_at` auto-managed via `#[ORM\PreUpdate]` + constructor
+- No Repository, Migration, Auth, API — all deferred to Tasks 2.2, 2.3, 2.4
+
+**Tests:** 69 tests pass (4 VO + 1 Entity + existing 4 example)
+- Domain layer coverage established
+
+**CI:** All quality gates pass (PHPStan L6, PHPcsFixer, Rector, PHPCPD, PHPUnit)
+
+**Next:** Task 2.2 — UserRepository + Migration
