@@ -41,3 +41,37 @@
 - No tests, entities, controllers, OpenAPI config created
 
 **Next:** Task 1.3 — Quality tools (PHPStan, PHPcsFixer, Rector, PHPCPD)
+
+## 2026-07-16 — Task 1.6 OpenAPI/Swagger Documentation
+
+**Decisions:**
+- NelmioApiDocBundle ^4.30 in `require-dev` only (dev environment only)
+- Config in `config/packages/dev/api_doc.yaml` with:
+  - Areas: `default` covering `/health` and `/api/` paths
+  - Security schemes: Bearer JWT (deferred auth, defined for future use)
+  - Server: `http://localhost:8000` for dev
+  - Swagger UI: Stoplight Elements (HTML at `/api/doc`)
+  - OpenAPI JSON spec: `/api/doc.json`
+  - Redoc explicitly excluded per user request (Task 2.4)
+- HealthController GET `/health` with `#[OA\Get]` attribute for spec verification
+- Composer scripts: `openapi:generate` (dumps JSON to `public/api/openapi.json`), `openapi:validate` (YAML lint)
+- Added `symfony/twig-bundle`, `symfony/asset`, `twig/twig`, `twig/intl-extra` for HTML renderer
+- Docker compose: `env_file: .env`, `REDIS_HOST`, `REDIS_PORT` for app service
+
+**Issues encountered & fixed:**
+- Bundle not loading: Added to `Kernel::registerBundles()` for dev/test only
+- Config format: Used `areas` (not deprecated `routes` key)
+- Routing: Fixed `Kernel::configureRoutes()` attribute imports with proper path
+- Swagger UI controller: `nelmio_api_doc.controller.swagger_ui` doesn't exist; used `nelmio_api_doc.controller.stoplight` (or `redocly`)
+- "Area 'default' not supported": TwigBundle + Asset required for HTML renderer; added both
+- Route for OpenAPI JSON: `nelmio_api_doc.controller.swagger_json` (not `open_api`)
+
+**Acceptance verified:**
+- `GET /health` → 200 with JSON `{status: "ok", timestamp: "..."}`
+- `GET /api/doc` → 200 HTML (Stoplight Swagger UI)
+- `GET /api/doc.json` → 200 JSON OpenAPI 3.0 spec with health endpoint
+- `composer openapi:generate` → writes spec to `public/api/openapi.json`
+- `composer openapi:validate` → passes
+- Full CI suite passes locally: PHPStan L6, PHPcsFixer, Rector, PHPCPD, PHPUnit 4/4
+
+**Next:** Task 2.1 — User Entity with roles and is_active
