@@ -16,10 +16,15 @@ class Kernel extends BaseKernel
     {
         $bundles = [
             new \Symfony\Bundle\FrameworkBundle\FrameworkBundle(),
+            new \Symfony\Bundle\TwigBundle\TwigBundle(),
             new \Symfony\Bundle\SecurityBundle\SecurityBundle(),
             new \Doctrine\Bundle\DoctrineBundle\DoctrineBundle(),
             new \Doctrine\Bundle\MigrationsBundle\DoctrineMigrationsBundle(),
         ];
+
+        if ('dev' === $this->environment || 'test' === $this->environment) {
+            $bundles[] = new \Nelmio\ApiDocBundle\NelmioApiDocBundle();
+        }
 
         foreach ($bundles as $bundle) {
             yield $bundle;
@@ -34,5 +39,8 @@ class Kernel extends BaseKernel
 
     protected function configureRoutes(RoutingConfigurator $routes): void
     {
+        $configDir = $this->getProjectDir().'/config';
+        $routes->import($configDir.'/{routes}/'.$this->environment.'/*.{php,yaml}');
+        $routes->import($configDir.'/{routes}/*.{php,yaml}');
     }
 }

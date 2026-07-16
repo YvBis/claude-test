@@ -1,0 +1,30 @@
+nelmio_api_doc:
+    documentation:
+        info:
+            title: 'TaskFlow API'
+            version: '1.0.0'
+            description: 'REST API for managing personal collections'
+        securityDefinitions:
+            Bearer:
+                type: http
+                scheme: bearer
+                bearerFormat: JWT
+        security:
+            - Bearer: []
+        components:
+            securitySchemes:
+                Bearer:
+                    type: http
+                    scheme: bearer
+                    bearerFormat: JWT
+        servers:
+            - url: 'http://localhost:8000'
+              description: 'Development server'
+    areas:
+        default:
+            path_patterns:
+                - '^/health'
+                - '^/api/'
+            host_patterns: []
+    models:
+        use_jms: false
