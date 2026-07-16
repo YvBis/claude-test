@@ -9,7 +9,6 @@ services:
     volumes:
       - ./:/var/www/html
       - /var/www/html/var
-      - /var/www/html/vendor
     working_dir: /var/www/html
     environment:
       - DATABASE_URL=mysql://taskflow:taskflow_pass@db:3306/taskflow?serverVersion=8.0
