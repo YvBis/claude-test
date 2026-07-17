@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Domain\User\ValueObject;
 
 use Doctrine\ORM\Mapping as ORM;
@@ -8,6 +10,8 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Embeddable]
 final readonly class PasswordHash
 {
+    public const int BCRYPT_COST = 13;
+
     #[ORM\Column(name: 'hash', type: 'string', length: 255)]
     #[Assert\NotBlank]
     #[Assert\Length(min: 60, max: 255)]
@@ -34,7 +38,7 @@ final readonly class PasswordHash
         }
 
         /** @var string|false $hash */
-        $hash = \password_hash($plainPassword, PASSWORD_BCRYPT, ['cost' => 13]);
+        $hash = \password_hash($plainPassword, PASSWORD_BCRYPT, ['cost' => self::BCRYPT_COST]);
 
         if (false === $hash) {
             throw new \RuntimeException('Password hashing failed');
@@ -60,7 +64,7 @@ final readonly class PasswordHash
 
     public function needsRehash(): bool
     {
-        return \password_needs_rehash($this->hash, PASSWORD_BCRYPT, ['cost' => 13]);
+        return \password_needs_rehash($this->hash, PASSWORD_BCRYPT, ['cost' => self::BCRYPT_COST]);
     }
 
     public function equals(self $other): bool
