@@ -94,3 +94,28 @@
 **CI:** All quality gates pass (PHPStan L6, PHPcsFixer, Rector, PHPCPD, PHPUnit)
 
 **Next:** Task 2.2 — UserRepository + Migration
+
+## 2026-07-17 — Task 2.2 UserRepository + Migration
+
+**Decisions:**
+- Interface: `save`, `remove`, `findById`, `findByEmail`, `findAll`, `existsByEmail` in Domain layer
+- Repository renamed `find()` to `findById()` to avoid conflict with `ServiceEntityRepository::find()`
+- User Entity: ID changed from embedded `UserId` VO to raw `VARBINARY(16)` string for Doctrine `@ORM\Id` mapping; VO used only in domain layer via `UserId::fromBytes()` / `toBytes()`
+- Migration: `users` table with `VARBINARY(16)` PK, unique email, indexes on email/is_active
+- Integration tests only (KernelTestCase + real MySQL) — 7 tests covering all CRUD operations
+- Interface mock tests removed — deemed overhead (integration tests cover contracts)
+
+**Issues encountered & fixed:**
+- "No identifier/primary key specified for Entity User" → Added `#[ORM\Id]` + `#[ORM\Column(type='binary', length=16)]` on raw string `$id`
+- "Declaration of find() must be compatible" → Renamed interface method to `findById()`
+- "could not find driver" → Started docker compose (taskflow_app, db, redis, meilisearch)
+- PHP-CS-Fixer: "No newline at end of file" → Added trailing newlines to 4 files
+- Rector dry-run: Missing `#[\Override]` attributes → Ran `rector:fix` to add them
+
+**Acceptance verified:**
+- All quality gates pass: PHPStan L6, PHPcsFixer, Rector, PHPCPD, PHPUnit (69 tests)
+- Coverage ≥ 80% on domain/application layers
+- Migration applies cleanly (`doctrine:migrations:migrate`)
+- PR #12 created
+
+**Next:** Task 2.3 — Registration service + API endpoint (POST /api/register)
