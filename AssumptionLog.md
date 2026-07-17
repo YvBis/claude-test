@@ -119,3 +119,31 @@
 - PR #12 created
 
 **Next:** Task 2.3 — Registration service + API endpoint (POST /api/register)
+
+## 2026-07-17 — Task 2.3 Registration Service + API Endpoint
+
+**Decisions:**
+- DTO: `RegisterUserDTO` in Application layer with fields: `name`, `email`, `password`
+- Validation: Symfony Validator constraints (NotBlank, Email, Length for password min 8)
+- Domain Exception: `UserAlreadyExistsException` extends DomainException, factory `withEmail(Email)`
+- Service: `RegistrationService` uses `UserRepositoryInterface` + `PasswordHash::createFromPlain()`, throws exception on duplicate email
+- Controller: `POST /api/register` with full OpenAPI docs (NelmioApiDoc attributes), returns 201 with user data (id, name, email, role, is_active, created_at, updated_at), 400 for validation errors, 409 for email conflict
+- Role default: `user` via `Role::user()`
+- Email normalization: trim + lowercase in service (via Email VO)
+- Name normalization: trim in service
+- Error responses: RFC 7807 format for validation (400) and conflict (409)
+- Tests: 3 unit tests for service, 7 integration tests for controller (KernelTestCase + real DB)
+
+**Issues encountered & fixed:**
+- PHPStan: `UserId::value()` doesn't exist — changed to `toString()` (UserId VO has `toString()`, not `value()`)
+- PHP-CS-Fixer: Required `--allow-risky=yes` for modernize_types_casting, strict_param, void_return, native_function_invocation fixers — fixed 5 source + 2 test files
+- Rector: Applied `CatchExceptionNameMatchingTypeRector` — renamed catch variable `$e` to `$userAlreadyExistsException`
+- Local PHPUnit: mbstring extension missing — tests run in Docker/CI environment
+
+**Acceptance verified:**
+- All quality gates pass: PHPStan L6, PHPcsFixer, Rector dry-run, PHPCPD (0%)
+- Unit tests: RegistrationServiceTest (3 tests) + RegistrationControllerTest (7 tests)
+- OpenAPI spec generation works with new endpoint
+- Commit: 1524b2f pushed to main
+
+**Next:** Task 2.4 — Authentication service (login/logout API) and JWT/session setup
