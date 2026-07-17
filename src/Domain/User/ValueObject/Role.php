@@ -1,68 +1,65 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Domain\User\ValueObject;
 
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Embeddable]
 final readonly class Role
 {
-    public const string USER = 'user';
+    #[ORM\Column(name: 'role', type: Types::STRING, length: 20)]
+    #[Assert\Choice(choices: [RoleEnum::USER->value, RoleEnum::ADMIN->value])]
+    private RoleEnum $role;
 
-    public const string ADMIN = 'admin';
-
-    #[ORM\Column(name: 'role', type: 'string', length: 20)]
-    #[Assert\Choice(choices: [self::USER, self::ADMIN])]
-    private string $role;
-
-    private function __construct(string $role)
+    private function __construct(RoleEnum $role)
     {
-        $this->role = \strtolower($role);
+        $this->role = $role;
     }
 
     public static function user(): self
     {
-        return new self(self::USER);
+        return new self(RoleEnum::USER);
     }
 
     public static function admin(): self
     {
-        return new self(self::ADMIN);
+        return new self(RoleEnum::ADMIN);
     }
 
     public static function fromString(string $role): self
     {
-        $normalized = \strtolower($role);
-
-        if (!\in_array($normalized, [self::USER, self::ADMIN], true)) {
-            throw new \InvalidArgumentException(
-                \sprintf('Invalid role: %s. Allowed: user, admin', $role)
-            );
+        try {
+            $enum = RoleEnum::from(\strtolower($role));
+        } catch (\ValueError $valueError) {
+            throw new \InvalidArgumentException(\sprintf('Invalid role: %s. Allowed: user, admin', $role), $valueError->getCode(), $valueError);
         }
 
-        return new self($normalized);
+        return new self($enum);
     }
 
     public function value(): string
     {
-        return $this->role;
+        return $this->role->value;
     }
 
     public function isUser(): bool
     {
-        return self::USER === $this->role;
+        return RoleEnum::USER === $this->role;
     }
 
     public function isAdmin(): bool
     {
-        return self::ADMIN === $this->role;
+        return RoleEnum::ADMIN === $this->role;
     }
 
     /** @return array<string> */
     public static function values(): array
     {
-        return [self::USER, self::ADMIN];
+        return [RoleEnum::USER->value, RoleEnum::ADMIN->value];
     }
 
     public function equals(self $other): bool
@@ -73,6 +70,12 @@ final readonly class Role
     #[\Override]
     public function __toString(): string
     {
-        return $this->role;
+        return $this->role->value;
     }
+}
+
+enum RoleEnum: string
+{
+    case USER = 'user';
+    case ADMIN = 'admin';
 }
