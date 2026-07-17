@@ -20,8 +20,9 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\HasLifecycleCallbacks]
 final class User
 {
-    #[ORM\Embedded(class: UserId::class, columnPrefix: false)]
-    private UserId $id;
+    #[ORM\Id]
+    #[ORM\Column(name: 'id', type: 'binary', length: 16)]
+    private string $id;
 
     #[ORM\Embedded(class: Email::class, columnPrefix: false)]
     #[Assert\Valid]
@@ -51,7 +52,7 @@ final class User
     private \DateTimeImmutable $updatedAt;
 
     private function __construct(
-        UserId $id,
+        string $id,
         string $name,
         Email $email,
         PasswordHash $passwordHash,
@@ -75,7 +76,7 @@ final class User
         ?Role $role = null
     ): self {
         return new self(
-            id: UserId::generate(),
+            id: UserId::generate()->toBytes(),
             name: $name,
             email: $email,
             passwordHash: $passwordHash,
@@ -90,7 +91,7 @@ final class User
         PasswordHash $passwordHash
     ): self {
         return new self(
-            id: UserId::generate(),
+            id: UserId::generate()->toBytes(),
             name: $name,
             email: $email,
             passwordHash: $passwordHash,
@@ -101,7 +102,7 @@ final class User
 
     public function getId(): UserId
     {
-        return $this->id;
+        return UserId::fromBytes($this->id);
     }
 
     public function getName(): string
