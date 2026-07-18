@@ -2,6 +2,9 @@ when@dev:
     api:
         resource: ../../../src/Controller/
         type: attribute
+    api_infrastructure:
+        resource: ../../../src/Infrastructure/Api/Controller/
+        type: attribute
     api_swagger_ui:
         path: /api/doc
         controller: nelmio_api_doc.controller.stoplight

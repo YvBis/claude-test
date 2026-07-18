@@ -44,14 +44,21 @@ final class DoctrineUserRepository extends ServiceEntityRepository implements Us
     #[\Override]
     public function findByEmail(Email $email): ?User
     {
-        return $this->findOneBy(['email' => $email->value()]);
+        return $this->createQueryBuilder('u')
+            ->where('u.email.email = :email')
+            ->setParameter('email', $email->value())
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 
     /** @return array<User> */
     #[\Override]
     public function findAll(): array
     {
-        return $this->findBy([], ['createdAt' => 'DESC']);
+        return $this->createQueryBuilder('u')
+            ->orderBy('u.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
     }
 
     #[\Override]
@@ -59,7 +66,7 @@ final class DoctrineUserRepository extends ServiceEntityRepository implements Us
     {
         $count = $this->createQueryBuilder('u')
             ->select('COUNT(u.id)')
-            ->where('u.email = :email')
+            ->where('u.email.email = :email')
             ->setParameter('email', $email->value())
             ->getQuery()
             ->getSingleScalarResult();
