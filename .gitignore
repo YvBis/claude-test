@@ -64,6 +64,9 @@ coverage/
 /vendor/
 ###< symfony/framework-bundle ###
 
+# JWT keys
+config/jwt/*.pem
+
 ###> friendsofphp/php-cs-fixer ###
 /.php-cs-fixer.php
 /.php-cs-fixer.cache

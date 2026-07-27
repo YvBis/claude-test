@@ -26,6 +26,15 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
         $this->purgeDatabase();
     }
 
+    protected function tearDown(): void
+    {
+        // Clear entity manager to avoid stale references between tests
+        $entityManager = self::getContainer()->get('doctrine.orm.entity_manager');
+        $entityManager->clear();
+
+        parent::tearDown();
+    }
+
     private function purgeDatabase(): void
     {
         $entityManager = self::getContainer()->get('doctrine.orm.entity_manager');
@@ -78,15 +87,17 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
     public function testFindAll(): void
     {
         $this->repository->save($this->createUser('user1@example.com'));
+        \sleep(1); // Ensure different microsecond timestamps
         $this->repository->save($this->createUser('user2@example.com'));
+        \sleep(1);
         $this->repository->save($this->createUser('user3@example.com'));
 
         $all = $this->repository->findAll();
 
         $this->assertCount(3, $all);
-        // Ordered by createdAt DESC
-        $this->assertEquals('user3@example.com', $all[0]->getEmail()->value());
-        $this->assertEquals('user1@example.com', $all[2]->getEmail()->value());
+        // Repository orders by createdAt DESC (newest first)
+        $emails = \array_map(fn (User $u) => $u->getEmail()->value(), $all);
+        $this->assertSame(['user3@example.com', 'user2@example.com', 'user1@example.com'], $emails);
     }
 
     public function testRemove(): void

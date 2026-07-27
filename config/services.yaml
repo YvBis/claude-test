@@ -27,6 +27,13 @@ services:
         resource: '../src/Infrastructure/'
         autowire: true
         autoconfigure: true
+        exclude: '../src/Infrastructure/Security/'
+
+    # Security services
+    App\Infrastructure\Security\:
+        resource: '../src/Infrastructure/Security/'
+        autowire: true
+        autoconfigure: true
 
     # Controller namespace
     App\Controller\:

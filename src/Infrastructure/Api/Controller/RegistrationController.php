@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Infrastructure\Api\Controller;
 
 use App\Application\DTO\RegisterUserDTO;
+use App\Application\Exception\ValidationException;
 use App\Application\User\Service\RegistrationService;
 use App\Domain\User\Exception\UserAlreadyExistsException;
 use OpenApi\Attributes as OA;
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -16,7 +16,10 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
-final class RegistrationController extends AbstractController
+/**
+ * @extends AbstractApiController<RegisterUserDTO>
+ */
+final class RegistrationController extends AbstractApiController
 {
     #[Route('/api/register', name: 'api_register', methods: ['POST'])]
     #[OA\Post(
@@ -84,19 +87,10 @@ final class RegistrationController extends AbstractController
         SerializerInterface $serializer,
         ValidatorInterface $validator
     ): JsonResponse {
-        $dto = $serializer->deserialize($request->getContent(), RegisterUserDTO::class, 'json');
-
-        $errors = $validator->validate($dto);
-        if (\count($errors) > 0) {
-            $messages = [];
-            foreach ($errors as $error) {
-                $messages[] = $error->getMessage();
-            }
-
-            return new JsonResponse([
-                'error' => 'Validation failed',
-                'details' => $messages,
-            ], Response::HTTP_BAD_REQUEST);
+        try {
+            $dto = $this->deserializeAndValidate($request->getContent(), RegisterUserDTO::class, $serializer, $validator);
+        } catch (ValidationException $validationException) {
+            return $this->createValidationErrorResponse($validationException->getDetails());
         }
 
         try {

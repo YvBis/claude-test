@@ -10,6 +10,8 @@ use App\Domain\User\ValueObject\Role;
 use App\Domain\User\ValueObject\UserId;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
+use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity]
@@ -18,7 +20,7 @@ use Symfony\Component\Validator\Constraints as Assert;
     new ORM\Index(name: 'idx_user_is_active', columns: ['is_active']),
 ])]
 #[ORM\HasLifecycleCallbacks]
-final class User
+final class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]
     #[ORM\Column(name: 'id', type: 'binary', length: 16)]
@@ -51,7 +53,11 @@ final class User
     #[ORM\Column(name: 'updated_at', type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $updatedAt;
 
-    private function __construct(
+    /**
+     * @internal This constructor is public to allow test object creation.
+     * Use User::register() or User::createAdmin() for production code.
+     */
+    public function __construct(
         string $id,
         string $name,
         Email $email,
@@ -201,6 +207,30 @@ final class User
     public function verifyPassword(string $plainPassword): bool
     {
         return $this->passwordHash->verify($plainPassword);
+    }
+
+    #[\Override]
+    public function getRoles(): array
+    {
+        return ['ROLE_'.\strtoupper($this->role->value())];
+    }
+
+    #[\Override]
+    public function getPassword(): string
+    {
+        return $this->passwordHash->value();
+    }
+
+    #[\Override]
+    public function getUserIdentifier(): string
+    {
+        return $this->email->value();
+    }
+
+    #[\Override]
+    public function eraseCredentials(): void
+    {
+        // No sensitive data to erase
     }
 
     #[ORM\PreUpdate]

@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Domain\User\ValueObject;
 
-use Doctrine\DBAL\Types\Types;
+use App\Infrastructure\Doctrine\Type\RoleEnumType;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Embeddable]
 final readonly class Role
 {
-    #[ORM\Column(name: 'role', type: Types::STRING, length: 20)]
+    #[ORM\Column(name: 'role', type: RoleEnumType::NAME, length: 20)]
     #[Assert\Choice(choices: [RoleEnum::USER->value, RoleEnum::ADMIN->value])]
     private RoleEnum $role;
 

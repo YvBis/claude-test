@@ -2,16 +2,12 @@
 
 declare(strict_types=1);
 
-namespace App\Application\DTO;
+namespace App\Application\User\DTO;
 
 use Symfony\Component\Validator\Constraints as Assert;
 
-final readonly class RegisterUserDTO
+final readonly class LoginUserDTO
 {
-    #[Assert\NotBlank(message: 'Name cannot be empty')]
-    #[Assert\Length(min: 2, max: 100, minMessage: 'Name must be at least {{ limit }} characters', maxMessage: 'Name cannot exceed {{ limit }} characters')]
-    public string $name;
-
     #[Assert\NotBlank(message: 'Email cannot be empty')]
     #[Assert\Email(mode: 'html5', message: 'Invalid email format')]
     #[Assert\Length(max: 255)]
@@ -22,11 +18,9 @@ final readonly class RegisterUserDTO
     public string $password;
 
     public function __construct(
-        string $name,
         string $email,
         string $password
     ) {
-        $this->name = \trim($name);
         $this->email = \strtolower(\trim($email));
         $this->password = $password;
     }

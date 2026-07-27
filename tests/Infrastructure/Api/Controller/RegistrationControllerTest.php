@@ -6,19 +6,40 @@ namespace App\Tests\Infrastructure\Api\Controller;
 
 use App\Domain\User\Entity\User;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
-use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
-class RegistrationControllerTest extends KernelTestCase
+class RegistrationControllerTest extends WebTestCase
 {
     private KernelBrowser $client;
+    private array $createdUserEmails = [];
 
     protected function setUp(): void
     {
         $this->client = static::createClient();
     }
 
+    protected function tearDown(): void
+    {
+        try {
+            // Full database truncation for test isolation
+            $entityManager = static::getContainer()->get('doctrine.orm.entity_manager');
+            $connection = $entityManager->getConnection();
+            $connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
+            $connection->executeStatement('TRUNCATE TABLE users');
+            $connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
+            $entityManager->clear();
+        } catch (\Throwable) {
+            // Ignore cleanup errors
+        }
+
+        $this->createdUserEmails = [];
+
+        parent::tearDown();
+    }
+
     public function testRegisterReturns201AndUserData(): void
     {
+        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "John Doe",
             "email": "john@example.com",
@@ -42,6 +63,7 @@ class RegistrationControllerTest extends KernelTestCase
 
     public function testRegisterValidatesNameRequired(): void
     {
+        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "",
             "email": "john@example.com",
@@ -56,6 +78,7 @@ class RegistrationControllerTest extends KernelTestCase
 
     public function testRegisterValidatesEmailFormat(): void
     {
+        // Don't add to cleanup - invalid email won't be persisted
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "John Doe",
             "email": "not-an-email",
@@ -70,6 +93,7 @@ class RegistrationControllerTest extends KernelTestCase
 
     public function testRegisterValidatesPasswordMinLength(): void
     {
+        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "John Doe",
             "email": "john@example.com",
@@ -84,6 +108,7 @@ class RegistrationControllerTest extends KernelTestCase
 
     public function testRegisterReturns409WhenEmailExists(): void
     {
+        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "John Doe",
             "email": "john@example.com",
@@ -105,6 +130,7 @@ class RegistrationControllerTest extends KernelTestCase
 
     public function testRegisterTrimsNameAndLowercasesEmail(): void
     {
+        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "  John Doe  ",
             "email": "  JOHN@EXAMPLE.COM  ",
@@ -119,6 +145,7 @@ class RegistrationControllerTest extends KernelTestCase
 
     public function testUserPersistedInDatabase(): void
     {
+        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "John Doe",
             "email": "john@example.com",
@@ -131,7 +158,9 @@ class RegistrationControllerTest extends KernelTestCase
 
         $entityManager = static::getContainer()->get('doctrine.orm.entity_manager');
         $repository = $entityManager->getRepository(User::class);
-        $user = $repository->find($userId);
+        // Use the custom repository's findById which handles binary UUID conversion
+        $customRepo = static::getContainer()->get(\App\Infrastructure\User\Repository\DoctrineUserRepository::class);
+        $user = $customRepo->findById(\App\Domain\User\ValueObject\UserId::fromString($userId));
 
         $this->assertNotNull($user);
         $this->assertSame('John Doe', $user->getName());
