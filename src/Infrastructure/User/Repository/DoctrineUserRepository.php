@@ -38,7 +38,7 @@ final class DoctrineUserRepository extends ServiceEntityRepository implements Us
     #[\Override]
     public function findById(UserId $id): ?User
     {
-        return $this->find($id->toString());
+        return $this->find($id->toBytes());
     }
 
     #[\Override]

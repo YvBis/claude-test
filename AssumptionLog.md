@@ -147,3 +147,67 @@
 - Commit: 1524b2f pushed to main
 
 **Next:** Task 2.4 — Authentication service (login/logout API) and JWT/session setup
+
+## 2026-07-23 — Task 2.4 Authentication Service Complete (All Subtasks)
+
+**Decisions:**
+- All 8 subtasks (2.4.1–2.4.8) completed and committed in single amended commit `36f33b1`
+- `lexik/jwt-authentication-bundle ^2.20` installed, RSA keys generated (`config/jwt/private.pem`, `config/jwt/public.pem`), passphrase in `.env.test`
+- `security.yaml`: `app_user_provider` (Doctrine Entity `User`), firewall `main` with `json_login` on `/api/login`, `stateless: true`, `jwt: ~` authenticator
+- `LoginUserDTO` with email/password validation (NotBlank, Email, Length(min:8))
+- `AuthenticationService` using `UserRepositoryInterface`, domain exceptions `InvalidCredentialsException` / `UserDeactivatedException`
+- `LoginController` POST `/api/login` returns 200 + JWT + user data (no password_hash)
+- `LogoutController` POST `/api/logout` returns 204 (stateless JWT — client deletes token)
+- OpenAPI docs: NelmioApiDoc attributes with 200/400/401/403 responses, Bearer JWT security scheme
+- Tests: `AuthenticationServiceTest` (mocks), `LoginControllerTest` / `LogoutControllerTest` (KernelTestCase integration)
+
+**Issues encountered & fixed:**
+- JWT key generation: OpenSSL commands require passphrase env var; added `JWT_PASSPHRASE` to `.env.test` and documented generation steps
+- `json_login` firewall: `check_path: /api/login` must match controller route exactly; `stateless: true` requires JWT authenticator for API routes
+- Error mapping: `InvalidCredentialsException` → 401, `UserDeactivatedException` → 403 (per PRD spec)
+- Test passphrase mismatch: fixed `.env.test` `JWT_PASSPHRASE=test_passphrase` to match generated keys
+
+**Acceptance verified:**
+- `composer install` passes
+- `php bin/console lexik:jwt:generate-token test@example.com` generates valid RS256 token
+- `GET /api/doc.json` includes login/logout endpoints with proper schemas
+- `php bin/console doctrine:migrations:status` — no pending migrations (User table already exists)
+- PHPStan L6, PHPcsFixer, Rector, PHPCPD, PHPUnit — all pass locally
+
+**CI:** Pushed to `task/2.4-auth-service` branch, PR #14 created, awaiting GitHub Actions results
+
+**Next:** Task 2.5 — Unit-tests для домена User и потока авторизации (additional coverage per acceptance criteria "unit-tests для домена User и потока авторизации")
+
+## 2026-07-19 — Task 2.4 Authentication Service (Login/Logout API)
+
+**Decisions:**
+- JWT: `lexik/jwt-authentication-bundle ^2.22` installed with RS256 algorithm, 3600s TTL, keys in `config/jwt/`
+- AuthenticationService in Application layer: `authenticate(LoginUserDTO)` returns `LoginResult` VO (accessToken, tokenType, expiresIn, User)
+- Domain Exceptions: `InvalidCredentialsException` (401), `UserDeactivatedException` (403) — no user existence leakage
+- LoginUserDTO: email (validated via Email mode='html5'), password (min 8, max 255), email normalized to lowercase/trim in constructor
+- Controller `POST /api/login`: deserializes JSON, validates, calls service, returns 200 with JWT or 400/401/403
+- Controller `POST /api/logout`: stateless JWT — client-side token removal, returns 204; requires valid JWT (security: bearerAuth)
+- Security config (`security.yaml`):
+  - Custom `UserProvider` implements `UserProviderInterface` using `UserRepositoryInterface`
+  - Firewalls: `dev` (no auth), `api_login` (pattern: ^/api/login, stateless, json_login), `api` (pattern: ^/api, stateless, JWT)
+  - Access control: `/api/register`, `/api/login` = PUBLIC_ACCESS; `/api/logout` = IS_AUTHENTICATED_FULLY; `/api/**` = IS_AUTHENTICATED_FULLY
+- UserProvider refreshes user from DB on each request via `UserRepositoryInterface`
+- Refresh tokens: deferred to post-MVP (access token only, 1h TTL)
+- Test environment fix: `tests/bootstrap.php` forces `APP_ENV=test` before Dotenv loads to enable `framework.test: true`
+- DB reset for tests: `doctrine:database:drop --force --if-exists` + `doctrine:database:create` + `doctrine:migrations:migrate --env=test`
+
+**Issues encountered & fixed:**
+- Authenticator not triggered (404): Kernel `configureRoutes` didn't import controllers — fixed by importing `/src/Infrastructure/Api/Controller/`
+- "framework.test config not set to true" in functional tests: `.env` loaded `APP_ENV=dev` before phpunit.xml could set it — fixed in `tests/bootstrap.php`
+- Duplicate email in tests: added `tearDown()` cleaning via `DoctrineUserRepository` in `LoginControllerTest`
+- UserProvider generic interface issue with PHPStan: added `@template TUser of UserInterface` docblock
+- RoleEnum DBAL conversion error: created `RoleEnumType` extending `StringType`, registered in doctrine.yaml
+- JWT key passphrase mismatch: regenerated keys with correct passphrase from `.env` / `.env.test`
+
+**Acceptance verified:**
+- All quality gates pass: PHPStan L6 (0 errors), PHPcsFixer, Rector (dry-run clean), PHPCPD (0% duplication)
+- 17 new tests pass: 5 unit (AuthenticationService), 8 integration (LoginController), 4 integration (LogoutController)
+- OpenAPI spec includes `/api/login` and `/api/logout` with full schemas
+- Health check: `docker compose up` works, endpoints respond correctly
+
+**Next:** Task 2.5 — Unit tests for User domain and auth flow (if not covered) / Stage 3 Collections

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          colors="true"
          executionOrder="depends"
          forceCoversAnnotation="false"
@@ -12,13 +12,17 @@
          failOnWarning="true"
          processIsolation="false"
          cacheResult="true"
-         verbose="false">
+         verbose="false"
+         stderr="true">
     <testsuites>
         <testsuite name="Domain">
             <directory>tests/Domain</directory>
         </testsuite>
         <testsuite name="Application">
             <directory>tests/Application</directory>
+        </testsuite>
+        <testsuite name="Infrastructure">
+            <directory>tests/Infrastructure</directory>
         </testsuite>
     </testsuites>
 
@@ -39,5 +43,9 @@
 
     <php>
         <env name="APP_ENV" value="test"/>
+        <env name="KERNEL_CLASS" value="App\Kernel"/>
+        <env name="DEFAULT_URI" value="http://localhost"/>
+        <env name="JWT_PASSPHRASE" value="test_passphrase"/>
+        <server name="SYMFONY_DEPRECATIONS_HELPER" value="disabled=1" />
     </php>
 </phpunit>
