@@ -237,3 +237,17 @@
 - No manual DB cleanup calls remain in test files
 
 **Next:** Task 2.5 — Unit tests for User domain and auth flow / Stage 3 Collections
+
+## 2026-07-28 — Task 2.5 Unit-тесты для домена User и потока авторизации
+
+**Decisions:**
+- Unit tests for User domain and auth flow were already implemented (as discovered during exploration)
+- No additional work needed; task marked as done in Roadmap.md
+- Verified that existing test suite passes and covers User entity, repositories, registration, login, logout
+
+**Acceptance verified:**
+- All tests pass (PHPUnit)
+- CI green on main
+- Roadmap updated: Этап 2 (Пользователь) now 5/5 tasks done
+
+**Next:** Task 3.1 — Сущность Collection с owner, theme, image, description
