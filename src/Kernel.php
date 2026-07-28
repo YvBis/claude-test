@@ -61,10 +61,17 @@ class Kernel extends BaseKernel
     protected function configureRoutes(RoutingConfigurator $routes): void
     {
         $configDir = $this->getProjectDir().'/config';
-        \error_log("[KERNEL DEBUG] configureRoutes: env={$this->environment}");
+        if ('test' !== $this->environment) {
+            \error_log("[KERNEL DEBUG] configureRoutes: env={$this->environment}");
+        }
         $routes->import($configDir.'/{routes}/'.$this->environment.'/*.{php,yaml}');
         $routes->import($configDir.'/{routes}/*.{php,yaml}');
         // Import attribute routes from Controllers
         $routes->import($this->getProjectDir().'/src/Infrastructure/Api/Controller/', 'attribute');
+    }
+
+    public function isDebug(): bool
+    {
+        return 'test' !== $this->environment && parent::isDebug();
     }
 }
