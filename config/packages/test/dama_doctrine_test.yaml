@@ -1,0 +1,4 @@
+dama_doctrine_test:
+    enable_static_connection: true
+    connection_keys:
+        default: default

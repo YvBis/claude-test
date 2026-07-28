@@ -17,39 +17,16 @@ class LoginControllerTest extends WebTestCase
 {
     private KernelBrowser $client;
     private EntityManagerInterface $entityManager;
-    private array $createdUserEmails = [];
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->client = static::createClient();
         $this->entityManager = static::getContainer()->get('doctrine.orm.entity_manager');
-
-        // Ensure clean database for each test
-        $this->purgeDatabase();
-    }
-
-    private function purgeDatabase(): void
-    {
-        $connection = $this->entityManager->getConnection();
-        $connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
-        $connection->executeStatement('TRUNCATE TABLE users');
-        $connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
     }
 
     protected function tearDown(): void
     {
-        // Clean up created users using the repository
-        $repository = static::getContainer()->get(\App\Infrastructure\User\Repository\DoctrineUserRepository::class);
-        foreach ($this->createdUserEmails as $emailString) {
-            $email = Email::fromString($emailString);
-            $user = $repository->findByEmail($email);
-            if ($user) {
-                $repository->remove($user);
-            }
-        }
-        $this->createdUserEmails = [];
-
         // Clear entity manager to avoid stale references between tests
         $this->entityManager->clear();
 
@@ -201,6 +178,5 @@ class LoginControllerTest extends WebTestCase
         );
         $this->entityManager->persist($user);
         $this->entityManager->flush();
-        $this->createdUserEmails[] = $email;
     }
 }

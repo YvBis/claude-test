@@ -11,7 +11,6 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 class RegistrationControllerTest extends WebTestCase
 {
     private KernelBrowser $client;
-    private array $createdUserEmails = [];
 
     protected function setUp(): void
     {
@@ -20,26 +19,15 @@ class RegistrationControllerTest extends WebTestCase
 
     protected function tearDown(): void
     {
-        try {
-            // Full database truncation for test isolation
-            $entityManager = static::getContainer()->get('doctrine.orm.entity_manager');
-            $connection = $entityManager->getConnection();
-            $connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
-            $connection->executeStatement('TRUNCATE TABLE users');
-            $connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
-            $entityManager->clear();
-        } catch (\Throwable) {
-            // Ignore cleanup errors
-        }
-
-        $this->createdUserEmails = [];
+        // Clear entity manager to avoid stale references between tests
+        $entityManager = static::getContainer()->get('doctrine.orm.entity_manager');
+        $entityManager->clear();
 
         parent::tearDown();
     }
 
     public function testRegisterReturns201AndUserData(): void
     {
-        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "John Doe",
             "email": "john@example.com",
@@ -63,7 +51,6 @@ class RegistrationControllerTest extends WebTestCase
 
     public function testRegisterValidatesNameRequired(): void
     {
-        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "",
             "email": "john@example.com",
@@ -93,7 +80,6 @@ class RegistrationControllerTest extends WebTestCase
 
     public function testRegisterValidatesPasswordMinLength(): void
     {
-        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "John Doe",
             "email": "john@example.com",
@@ -108,7 +94,6 @@ class RegistrationControllerTest extends WebTestCase
 
     public function testRegisterReturns409WhenEmailExists(): void
     {
-        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "John Doe",
             "email": "john@example.com",
@@ -130,7 +115,6 @@ class RegistrationControllerTest extends WebTestCase
 
     public function testRegisterTrimsNameAndLowercasesEmail(): void
     {
-        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "  John Doe  ",
             "email": "  JOHN@EXAMPLE.COM  ",
@@ -145,7 +129,6 @@ class RegistrationControllerTest extends WebTestCase
 
     public function testUserPersistedInDatabase(): void
     {
-        $this->createdUserEmails[] = 'john@example.com';
         $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{
             "name": "John Doe",
             "email": "john@example.com",
