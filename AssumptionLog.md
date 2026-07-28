@@ -211,3 +211,29 @@
 - Health check: `docker compose up` works, endpoints respond correctly
 
 **Next:** Task 2.5 — Unit tests for User domain and auth flow (if not covered) / Stage 3 Collections
+
+## 2026-07-28 — Transactional Test Model (Ad-hoc task)
+
+**Decisions:**
+- Ad-hoc task (not on Roadmap): replace manual `purgeDatabase()` TRUNCATE calls with transactional test isolation
+- Doctrine Bundle 2.18.3 lacks built-in `DoctrineTransactionalTestCase` → used DAMADoctrineTestBundle v8.2
+- DAMA works via PHPUnit Extension (not TestCase trait) — registers subscribers for `beforeTest`/`afterTest` events
+- Requires `enable_static_connection: true` in test config and PHPUnit extension registration in `phpunit.xml.dist`
+- Kernel registers bundle conditionally for `test` environment only
+- MySQL 8.0 InnoDB supports savepoints — DAMA wraps each test in a transaction and rolls back on completion
+- All 4 test classes modified: `DoctrineUserRepositoryTest`, `RegistrationControllerTest`, `LoginControllerTest`, `LogoutControllerTest`
+- Removed `purgeDatabase()` helpers and email tracking arrays
+- Kept `entityManager->clear()` in `tearDown()` to avoid stale entity references between tests
+- Full test suite passes: 102 tests, 231 assertions (Domain: 67, Application: 15, Infrastructure: 25)
+
+**Issues encountered & fixed:**
+- Initial config had `enable_static_connection: false` → DAMA bundle skipped transaction middleware registration
+- Tests failed with duplicate key errors (leftover data) → fixed config to `true`, truncated users table, re-ran
+- PHPUnit timeout issues (~78s first test) → transaction setup overhead accepted as working behavior
+
+**Acceptance verified:**
+- All 102 tests pass locally
+- CI quality gates pass (PHPStan L6, PHPcsFixer, Rector, PHPCPD)
+- No manual DB cleanup calls remain in test files
+
+**Next:** Task 2.5 — Unit tests for User domain and auth flow / Stage 3 Collections

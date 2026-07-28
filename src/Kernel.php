@@ -26,6 +26,10 @@ class Kernel extends BaseKernel
             $bundles[] = new \Nelmio\ApiDocBundle\NelmioApiDocBundle();
         }
 
+        if ('test' === $this->environment) {
+            $bundles[] = new \DAMA\DoctrineTestBundle\DAMADoctrineTestBundle();
+        }
+
         foreach ($bundles as $bundle) {
             yield $bundle;
         }

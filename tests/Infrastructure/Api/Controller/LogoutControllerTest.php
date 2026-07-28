@@ -24,17 +24,14 @@ class LogoutControllerTest extends WebTestCase
         parent::setUp();
         $this->client = static::createClient();
         $this->entityManager = static::getContainer()->get('doctrine.orm.entity_manager');
-
-        // Ensure clean database for each test
-        $this->purgeDatabase();
     }
 
-    private function purgeDatabase(): void
+    protected function tearDown(): void
     {
-        $connection = $this->entityManager->getConnection();
-        $connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
-        $connection->executeStatement('TRUNCATE TABLE users');
-        $connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
+        // Clear entity manager to avoid stale references between tests
+        $this->entityManager->clear();
+
+        parent::tearDown();
     }
 
     public function testLogoutReturns204WithValidToken(): void
@@ -99,7 +96,6 @@ class LogoutControllerTest extends WebTestCase
 
     private function createUser(string $name, string $email, string $password): User
     {
-        $entityManager = static::getContainer()->get('doctrine.orm.entity_manager');
         $user = new User(
             id: UserId::generate()->toBytes(),
             name: $name,
@@ -108,8 +104,8 @@ class LogoutControllerTest extends WebTestCase
             role: Role::user(),
             isActive: true
         );
-        $entityManager->persist($user);
-        $entityManager->flush();
+        $this->entityManager->persist($user);
+        $this->entityManager->flush();
 
         return $user;
     }

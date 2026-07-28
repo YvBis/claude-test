@@ -21,9 +21,6 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
         self::bootKernel();
         $container = static::getContainer();
         $this->repository = $container->get(DoctrineUserRepository::class);
-
-        // Clean database
-        $this->purgeDatabase();
     }
 
     protected function tearDown(): void
@@ -33,15 +30,6 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
         $entityManager->clear();
 
         parent::tearDown();
-    }
-
-    private function purgeDatabase(): void
-    {
-        $entityManager = self::getContainer()->get('doctrine.orm.entity_manager');
-        $connection = $entityManager->getConnection();
-        $connection->executeStatement('SET FOREIGN_KEY_CHECKS=0');
-        $connection->executeStatement('TRUNCATE TABLE users');
-        $connection->executeStatement('SET FOREIGN_KEY_CHECKS=1');
     }
 
     public function testSaveAndFindById(): void
