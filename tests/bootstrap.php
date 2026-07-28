@@ -3,6 +3,8 @@
 // Force APP_ENV=test BEFORE anything else loads
 $_SERVER['APP_ENV'] = 'test';
 $_ENV['APP_ENV'] = 'test';
+$_SERVER['APP_DEBUG'] = '0';
+$_ENV['APP_DEBUG'] = '0';
 
 use Symfony\Component\Dotenv\Dotenv;
 

@@ -1,2 +1,8 @@
 framework:
     test: true
+    profiler:
+        collect: false
+    router:
+        strict_requirements: null
+    cache:
+        app: cache.adapter.apcu
