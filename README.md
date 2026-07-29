@@ -103,15 +103,17 @@ curl -I http://localhost:8000/api/register
 
 ```
 src/
-├── Controller/          # Контроллеры API
-├── Domain/              # Доменная слой (сущности, репозитории, исключения)
-│   ├── User/            # Пример домена: пользователь
-│   └── ...              # Другие домены (Collection, Item, etc.)
+├── Controller/          # Системные контроллеры (health check и др.)
+├── Domain/              # Доменный слой (сущности, value objects, репозитории, исключения)
+│   └── User/            # Домен пользователя
 ├── Application/         # Сервисы приложения (use cases), DTO
-├── Infrastructure/      # Инфраструктурный слой (реализации репозиториев, контроллеры API)
-│   ├── Api/             # Контроллеры API
-│   ├── User/            # Реализация репозитория пользователя
-│   └── ...              
+│   └── User/            # Сервисы пользователя
+├── Infrastructure/      # Инфраструктурный слой
+│   ├── Api/             # Контроллеры REST API
+│   │   └── Controller/  # API контроллеры (Login, Registration, Logout)
+│   ├── User/            # Реализация репозитория и security провайдеров пользователя
+│   ├── Doctrine/        # Doctrine типы и расширения
+│   └── Security/        # Реализация security провайдеров
 ├── Kernel.php           # Ядро Symfony
 └── ...
 
