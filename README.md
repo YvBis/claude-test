@@ -71,7 +71,7 @@ TaskFlow — это REST API для управления личными колл
 > **Примечание**: Если документация API не открывается, инициализируйте кэш:
 > ```bash
 > docker compose exec app mkdir -p var/cache/dev var/cache/prod var/log
-> docker compose exec app chmod -R 777 var/cache var/log
+> docker compose exec app chown -R www-data:www-data var/cache var/log
 > ```
 
 ## Запуск тестов
@@ -105,15 +105,23 @@ curl -I http://localhost:8000/api/register
 src/
 ├── Controller/          # Системные контроллеры (health check и др.)
 ├── Domain/              # Доменный слой (сущности, value objects, репозитории, исключения)
-│   └── User/            # Домен пользователя
+│   └── User/
+│       ├── Entity/      # Доменные сущности (User)
+│       ├── Repository/  # Интерфейсы репозиториев
+│       ├── ValueObject/ # Value objects (UserId, Email, PasswordHash, Role)
+│       └── Exception/   # Доменные исключения
 ├── Application/         # Сервисы приложения (use cases), DTO
-│   └── User/            # Сервисы пользователя
+│   └── User/
+│       ├── DTO/         # Data Transfer Objects
+│       └── Service/     # Сервисы приложения (Registration, Authentication)
 ├── Infrastructure/      # Инфраструктурный слой
-│   ├── Api/             # Контроллеры REST API
-│   │   └── Controller/  # API контроллеры (Login, Registration, Logout)
-│   ├── User/            # Реализация репозитория и security провайдеров пользователя
+│   ├── Api/
+│   │   └── Controller/  # REST API контроллеры (Login, Registration, Logout)
+│   ├── User/
+│   │   └── Repository/  # Реализация репозитория пользователя (Doctrine)
 │   ├── Doctrine/        # Doctrine типы и расширения
-│   └── Security/        # Реализация security провайдеров
+│   ├── Security/        # Security провайдеры
+│   └── Common/          # Marker интерфейсы слоёв
 ├── Kernel.php           # Ядро Symfony
 └── ...
 
