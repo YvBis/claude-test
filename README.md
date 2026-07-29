@@ -73,16 +73,22 @@ TaskFlow — это REST API для управления личными колл
 
 Для запуска unit тестов:
 ```bash
-docker compose exec app vendor/bin/phpunit
+docker compose exec app composer phpunit:no-coverage
 ```
 
 Для запуска проверок качества кода (linting, static analysis, и т.д.):
 ```bash
-docker compose exec app vendor/bin/php-cs-fixer fix --dry-run
-docker compose exec app vendor/bin/phpstan analyse
-docker compose exec app vendor/bin/rector process --dry-run
-docker compose exec app vendor/bin/phpcpd --src src
+docker compose exec app composer phpcs:check
+docker compose exec app composer phpstan
+docker compose exec app composer rector:dry-run
+docker compose exec app composer phpcpd
 docker compose exec app composer audit
+```
+
+Доступен составной шорткат для CI:
+```bash
+docker compose exec app composer ci:all       # все проверки + тесты
+docker compose exec app composer ci:static:quality  # только статический анализ
 ```
 
 ## Smoke tests
