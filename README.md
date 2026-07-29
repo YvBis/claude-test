@@ -126,7 +126,7 @@ src/
 └── ...
 
 tests/                   # Юнит-тесты
-var/                     # VARIABLE данные (логи, кэш, etc.)
+# var/                   # Runtime данные (логи, кэш, etc.)
 var/log/
 var/cache/
 var/data/
