@@ -60,12 +60,7 @@ TaskFlow — это REST API для управления личными колл
    docker compose exec app php bin/console doctrine:migrations:migrate
    ```
 
-5. (Опционально) Загрузить фикстуры для разработки:
-   ```bash
-   docker compose exec app php bin/console doctrine:fixtures:load
-   ```
-
-6. Приложение будет доступно по адресу: [http://localhost:8000](http://localhost:8000)
+5. Приложение будет доступно по адресу: [http://localhost:8000](http://localhost:8000)
    Документация API: [http://localhost:8000/api/doc](http://localhost:8000/api/doc)
 
 > **Примечание**: Если документация API не открывается, инициализируйте кэш:
