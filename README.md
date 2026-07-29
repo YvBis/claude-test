@@ -68,6 +68,12 @@ TaskFlow — это REST API для управления личными колл
 6. Приложение будет доступно по адресу: [http://localhost:8000](http://localhost:8000)
    Документация API: [http://localhost:8000/api/doc](http://localhost:8000/api/doc)
 
+> **Примечание**: Если документация API не открывается, инициализируйте кэш:
+> ```bash
+> docker compose exec app mkdir -p var/cache/dev var/cache/prod var/log
+> docker compose exec app chmod -R 777 var/cache var/log
+> ```
+
 ## Запуск тестов
 
 Для запуска unit тестов:
@@ -83,6 +89,15 @@ docker compose exec app vendor/bin/rector process --dry-run
 docker compose exec app vendor/bin/phpcpd --src src
 docker compose exec app composer audit
 ```
+
+## Smoke tests
+
+После запуска приложения проверьте доступность основных эндпоинтов:
+```bash
+curl -I http://localhost:8000/api/doc
+curl -I http://localhost:8000/api/register
+```
+Должен возвращаться HTTP 200 или 401 (для защищённых эндпоинтов).
 
 ## Структура проекта
 
@@ -101,7 +116,7 @@ src/
 └── ...
 
 tests/                   # Юнит-тесты
-var/                     #_VARIABLE данные (логи, кэш, etc.)
+var/                     # VARIABLE данные (логи, кэш, etc.)
 var/log/
 var/cache/
 var/data/
