@@ -66,8 +66,8 @@ final class Collection
         $this->owner = $owner;
         $this->name = $name;
         $this->theme = $theme;
-        $this->description = $description;
-        $this->image = $image;
+        $this->description = self::normalizeDescription($description);
+        $this->image = self::normalizeImage($image);
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
     }
@@ -143,21 +143,36 @@ final class Collection
 
     public function changeDescription(?string $description): void
     {
-        if (null !== $description) {
-            $description = \trim($description);
-            if ('' === $description) {
-                $description = null;
-            }
-        }
-
-        $this->description = $description;
+        $this->description = self::normalizeDescription($description);
         $this->touch();
     }
 
     public function changeImage(?string $image): void
     {
-        $this->image = null === $image ? null : \trim($image);
+        $this->image = self::normalizeImage($image);
         $this->touch();
+    }
+
+    private static function normalizeDescription(?string $description): ?string
+    {
+        if (null === $description) {
+            return null;
+        }
+
+        $description = \trim($description);
+
+        return '' === $description ? null : $description;
+    }
+
+    private static function normalizeImage(?string $image): ?string
+    {
+        if (null === $image) {
+            return null;
+        }
+
+        $image = \trim($image);
+
+        return '' === $image ? null : $image;
     }
 
     public function reassignOwner(User $owner): void

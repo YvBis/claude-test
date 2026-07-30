@@ -121,6 +121,34 @@ final class CollectionTest extends TestCase
         $this->assertNull($collection->getImage());
     }
 
+    public function testCreateNormalizesDescriptionWhitespaceToNull(): void
+    {
+        $collection = $this->createCollection(description: '   ');
+
+        $this->assertNull($collection->getDescription());
+    }
+
+    public function testCreateTrimsDescriptionWhitespace(): void
+    {
+        $collection = $this->createCollection(description: '  A reading list.  ');
+
+        $this->assertSame('A reading list.', $collection->getDescription());
+    }
+
+    public function testCreateNormalizesEmptyImageToNull(): void
+    {
+        $collection = $this->createCollection(image: '');
+
+        $this->assertNull($collection->getImage());
+    }
+
+    public function testCreateTrimsImageWhitespace(): void
+    {
+        $collection = $this->createCollection(image: "  https://example.com/x.png  ");
+
+        $this->assertSame('https://example.com/x.png', $collection->getImage());
+    }
+
     public function testReassignOwnerSwitchesOwnership(): void
     {
         $collection = $this->createCollection();
