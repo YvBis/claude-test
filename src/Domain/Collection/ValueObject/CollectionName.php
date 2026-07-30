@@ -18,7 +18,7 @@ final readonly class CollectionName
 
     #[ORM\Column(name: 'name', type: 'string', length: 100)]
     #[Assert\NotBlank]
-    #[Assert\Length(min: 3, max: 100)]
+    #[Assert\Length(min: self::MIN_NAME_LENGTH, max: self::MAX_NAME_LENGTH)]
     private string $value;
 
     private function __construct(string $value)
