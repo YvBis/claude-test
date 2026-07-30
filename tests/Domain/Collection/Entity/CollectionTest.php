@@ -144,7 +144,7 @@ final class CollectionTest extends TestCase
 
     public function testCreateTrimsImageWhitespace(): void
     {
-        $collection = $this->createCollection(image: "  https://example.com/x.png  ");
+        $collection = $this->createCollection(image: '  https://example.com/x.png  ');
 
         $this->assertSame('https://example.com/x.png', $collection->getImage());
     }

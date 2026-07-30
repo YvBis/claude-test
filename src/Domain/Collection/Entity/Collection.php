@@ -67,7 +67,7 @@ final class Collection
         $this->name = $name;
         $this->theme = $theme;
         $this->description = self::normalizeDescription($description);
-        $this->image = self::normalizeImage($image);
+        $this->image = $this->normalizeImage($image);
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
     }
@@ -143,17 +143,17 @@ final class Collection
 
     public function changeDescription(?string $description): void
     {
-        $this->description = self::normalizeDescription($description);
+        $this->description = $this->normalizeDescription($description);
         $this->touch();
     }
 
     public function changeImage(?string $image): void
     {
-        $this->image = self::normalizeImage($image);
+        $this->image = $this->normalizeImage($image);
         $this->touch();
     }
 
-    private static function normalizeDescription(?string $description): ?string
+    private function normalizeDescription(?string $description): ?string
     {
         if (null === $description) {
             return null;
@@ -164,7 +164,7 @@ final class Collection
         return '' === $description ? null : $description;
     }
 
-    private static function normalizeImage(?string $image): ?string
+    private function normalizeImage(?string $image): ?string
     {
         if (null === $image) {
             return null;
