@@ -66,7 +66,7 @@ final class Collection
         $this->owner = $owner;
         $this->name = $name;
         $this->theme = $theme;
-        $this->description = self::normalizeDescription($description);
+        $this->description = $this->normalizeDescription($description);
         $this->image = $this->normalizeImage($image);
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();

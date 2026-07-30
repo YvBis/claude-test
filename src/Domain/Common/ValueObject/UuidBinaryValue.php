@@ -11,7 +11,7 @@ use Ramsey\Uuid\Uuid;
  *
  * The owning class must declare a private string property named `$uuid`
  * holding the raw 16-byte representation, and forward construction via
- * `UuidBinaryId::fromBytes($uuid)` (or equivalent static helper) so the
+ * `UuidBinaryValue::fromBytes($uuid)` (or equivalent static helper) so the
  * byte invariants can be enforced.
  */
 trait UuidBinaryValue
