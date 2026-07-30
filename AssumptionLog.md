@@ -251,3 +251,30 @@
 - Roadmap updated: Этап 2 (Пользователь) now 5/5 tasks done
 
 **Next:** Task 3.1 — Сущность Collection с owner, theme, image, description
+
+## 2026-07-30 — Task 3.1 amendment (review findings)
+
+**Reviewer findings addressed (PR #20 review):**
+
+1. **Issue 1 (Medium) — constructor don't normalize description/image unlike mutators.** CONFIRMED.
+   - Root cause: `Collection::__construct` assigned raw values; `changeDescription`/`changeImage` post-trimmed and converted empty to null.
+   - Resolution: introduced private statics `Collection::normalizeDescription` and `Collection::normalizeImage`; constructor + both mutators now go through same helpers. Behaviour identical for all 4 entry paths (`create()`, direct `__construct`, `changeDescription`, `changeImage`).
+   - Tests added to `tests/Domain/Collection/Entity/CollectionTest.php`:
+     - `testCreateNormalizesDescriptionWhitespaceToNull` — `create(description: '   ')` → null
+     - `testCreateTrimsDescriptionWhitespace` — `'  A reading list.  '` → `'A reading list.'`
+     - `testCreateNormalizesEmptyImageToNull` — `create(image: '')` → null
+     - `testCreateTrimsImageWhitespace` — leading/trailing whitespace stripped
+   - PHPUnit Domain/Collection expected: 44 tests / ~84 assertions (was 14 entity + 26 VO = 40; +4 entity tests from amendment; +4 image/description normalization cases).
+
+2. **Issue 2 (Low) — `CollectionName` min-length 3 stricter than PRD.** CONFIRMED, recorded as intentional design decision (no code change).
+   - PRD §3.1 line 41 only says: empty + >100 rejected.
+   - Implementation enforces `MIN_LENGTH = 3` (UX feedback: prevents noise names like `"a"`, `"ab"`).
+   - Decision: keep stricter threshold. UX improvement over PRD minimum.
+   - PRD acceptance criterion line 41 still holds vacuously (3-char minimum still rejects empty + strips >100).
+
+**Acceptance verified (locally):**
+- `php -l` clean on `src/Domain/Collection/Entity/Collection.php` and modified test file
+- PHPUnit execution deferred to Docker-CI (mbstring missing locally — sandbox env, not project; see CLAUDE.md §3)
+- Branch: `task/3.1-collection-entity`, head `d347a2c` + amendment commit.
+
+**Follow-up:** open Task 3.2 once PR #20 merged.
