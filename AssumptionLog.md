@@ -278,3 +278,38 @@
 - Branch: `task/3.1-collection-entity`, head `d347a2c` + amendment commit.
 
 **Follow-up:** open Task 3.2 once PR #20 merged.
+
+## 2026-07-31 — Chore: PHPUnit suite perf (Quick wins 1–4)
+
+**Scope:** ad-hoc chore, not PRD. Hypothesis: xdebug active unconditionally; sleep/usleep and placeholders inflate baseline. User approved Quick wins 1–4 only (skip docker-network MySQL migration, skip Paratest).
+
+**Decisions:**
+- `docker/php/custom.ini`: `xdebug.mode = off` + `start_with_request = no`. PHP precedence: env `XDEBUG_MODE` > ini `xdebug.mode`. Dockerfile unchanged (xdebug stays installed, inert by default).
+- `composer.json` scripts: coverage scripts prefixed with `XDEBUG_MODE=coverage`. New aliases: `phpunit:no-coverage` (default fast), `test` (= `phpunit:no-coverage`), `coverage:check` (opt-in coverage + junit). Existing `ci:test` aliases retargeted at `phpunit:no-coverage`.
+- Domain entities (`User`, `Collection`): constructor + factories + mutators accept `?\DateTimeImmutable $at = null`, default to `new DateTimeImmutable()`. Backward compatible — all existing call sites stay valid. Doctrine `#[ORM\PreUpdate]` lifecycle callbacks extracted into `onPreUpdate(PreUpdateEventArgs $args)` to avoid signature collision with business `touch($at)`.
+- Tests: replaced `usleep(1000)` × 11 in `UserTest` and `CollectionTest` with `new DateTimeImmutable('+1 microsecond')`. Replaced `sleep(1)` × 2 in `DoctrineUserRepositoryTest::testFindAll` with stepped `modify('+N seconds')` offsets from a base.
+- Placeholder `tests/{Domain,Application}/ExampleTest.php` deleted. Replaced with `SuitesSelfCheckTest.php` marker in each layer (1 trivial `assertTrue(true)` per suite to assert non-empty membership on testsuite discovery).
+
+**Measured locally (Docker):**
+| Command | Before | After | Δ |
+|---------|--------|-------|---|
+| `composer phpunit:no-coverage` | ~2:20 | 49s | **−65%** |
+| `composer coverage:check` | green | 1:17 green | unchanged |
+| `composer ci:all` | green | 3:45 green | unchanged |
+
+Sleep/usleep elimination ≈ 3s saved (negligible). The dominant gain is xdebug off-by-default. Coverage runs opt-in when needed.
+
+**Branching:** isolated branch `chore/test-suite-perf` (off `main`). 4 conventional commits:
+1. `chore(perf): gate xdebug to opt-in via XDEBUG_MODE env; default to off`
+2. `refactor(User,Collection): accept explicit DateTimeImmutable for deterministic timing`
+3. `test(User,Collection,DoctrineUserRepository): drop sleep/usleep; inject explicit DateTimeImmutable`
+4. `chore(tests): remove placeholder ExampleTest; add suite self-check markers`
+
+**Verification:** PR #21 opened (`YvBis/claude-test#21`). Local gates all green. GitHub `mergeable_state` reached `clean`. Remote CI check-runs not visible (PAT scope `checks:read` missing; `get_status` returns 0 required-status total — repo branch protection apparently does not require status checks for `main`). Treating as: local verification is the source of truth for this chore; remote Actions surface uncertain.
+
+**Assumptions / uncertainties:**
+- Repo has branch protection with no required status checks ⇒ GitHub treats PR `mergeable_state: clean` despite no check runs. Local verification substituted.
+- `phpunit.xml.dist` `processUncoveredFiles="true"` triggers informational `XDEBUG_MODE=coverage` warning on `phpunit:no-coverage`. Harmless; not gated. Could be removed by splitting coverage stanza into a coverage-only suite, deferred.
+- xdebug enabled in Dockerfile stays installed; profile/coverage works when `XDEBUG_MODE=coverage` set explicitly. No image rebuild needed beyond `docker compose build app` for `custom.ini` change.
+
+**Follow-up:** merge PR #21 when convenient. Stage 3 roadmap tasks (3.2+) remain open.
