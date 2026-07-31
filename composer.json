@@ -93,9 +93,10 @@
         "rector:dry-run": "rector process src --dry-run --ansi",
         "rector:fix": "rector process src --ansi",
         "phpcpd": "phpcpd src tests --exclude=vendor,var,migrations --min-lines=15",
-        "phpunit": "phpunit --coverage-clover=var/coverage/clover.xml --coverage-html=var/coverage/html",
+        "phpunit": "XDEBUG_MODE=coverage phpunit --coverage-clover=var/coverage/clover.xml --coverage-html=var/coverage/html",
         "phpunit:no-coverage": "phpunit",
-        "coverage:check": "phpunit --coverage-clover=var/coverage/clover.xml --coverage-html=var/coverage/html --coverage-php=var/coverage/coverage.php --log-junit=var/coverage/junit.xml",
+        "test": "@phpunit:no-coverage",
+        "coverage:check": "XDEBUG_MODE=coverage phpunit --coverage-clover=var/coverage/clover.xml --coverage-html=var/coverage/html --coverage-php=var/coverage/coverage.php --log-junit=var/coverage/junit.xml",
         "openapi:generate": "php bin/console nelmio:apidoc:dump --format=json --no-pretty > public/api/openapi.json",
         "openapi:validate": "php bin/console lint:yaml public/api/openapi.json || true",
         "ci:static:quality": [
