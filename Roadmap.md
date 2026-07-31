@@ -38,6 +38,13 @@
 | 3.5 | [ ] Валидация тем (Books/Games/Movies/Drinks) | todo |
 | 3.6 | [ ] Unit-тесты для домена Collection | todo |
 
+## Review Backlog
+
+| Задача | Описание | Статус |  Why |
+|--------|----------|--------|------|
+| review-1 | [review] Audit Symfony Clock production binding for explicit `timezone=` arg on `NativeClock`; verify container init order against PHP `date_default_timezone_set` | todo | From session 2026-07-31: deferred from Clock refactor (could surface TZ drift in rare container-bootstrap reordering) |
+| review-2 | [review] `composer audit` warning: pre-existing symfony/cache `CVE-2026-45073` (medium SQL injection). Bump `symfony/cache` to mitigated version | todo | From session 2026-07-31: surfaced during `composer require symfony/clock` |
+
 ## Этап 4: Доменная модель — Айтем
 
 ### Управление айтемами с динамическими полями

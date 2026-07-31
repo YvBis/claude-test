@@ -313,3 +313,48 @@ Sleep/usleep elimination ≈ 3s saved (negligible). The dominant gain is xdebug 
 - xdebug enabled in Dockerfile stays installed; profile/coverage works when `XDEBUG_MODE=coverage` set explicitly. No image rebuild needed beyond `docker compose build app` for `custom.ini` change.
 
 **Follow-up:** merge PR #21 when convenient. Stage 3 roadmap tasks (3.2+) remain open.
+
+## 2026-07-31 — Chore follow-up: replace `$at`-injection with Symfony Clock (Quick win 5)
+
+**Scope:** ad-hoc follow-up to the previous chore. User flagged the `?\DateTimeImmutable $at = null` parameter threading across `User` and `Collection` (constructor + factories + 12 mutators) as noisy — asked for the Symfony Clock abstraction (`https://symfony.com/doc/7.4/components/clock.html`) instead.
+
+**Decisions:**
+- `composer require symfony/clock 7.*` — matched existing `extra.symfony.require` `7.*` pin.
+- `Symfony\Component\Clock\ClockAwareTrait` on both entities ⇒ dropped every `$at`, `$createdAt`, `$updatedAt` parameter. `now()` aliased to private `clockNow()` to avoid name collision with the trait.
+- `config/services.yaml`: bind `Symfony\Component\Clock\ClockInterface` → `NativeClock` (production) with `when@test` override → `MockClock('2026-01-01 00:00:00')` (public:true for container inspection).
+- Doctrine `postLoad` listener `App\Infrastructure\Doctrine\Listener\ClockInjectListener` (autoconfigured via `#[AsEntityListener(event: 'postLoad')]`) injects the autowired `ClockInterface` post-hydration. Critical: without this, `ClockAwareTrait`'s lazy `??= new Clock()` fallback would instantiate a fresh `Clock` facade per `new` entity — defeating global `Clock::set()` test overrides on freshly-constructed entities that never went through postLoad.
+- `Doctrine\Persistence\Event\LifecycleEventArgs` import dropped (php-cs-fixer unused — already covered by `PostLoadEventArgs`).
+- Test DOMAIN scenarios: `setUp` constructs `MockClock('2026-01-01 10:00:00')` + `Clock::set($this->clock)`; individual tests do `$this->clock->modify('+1 microsecond')` before triggering the mutator. `tearDown` resets `Clock::set(new NativeClock())` to avoid cross-test bleed (the trait's static facade otherwise survives between tests).
+- Test KERNEL (`DoctrineUserRepositoryTest`): constructs its own `MockClock('2026-01-01 00:00:00')` rather than fetching from the container. Rationale: `static::getContainer()->get(ClockInterface::class)` returns the wrapped `ServiceLocator` proxy from the test container — not the underlying `MockClock` instance. Direct construction keeps the test honest about what clock it controls.
+
+**Measured (locally):**
+
+| Command | Before this chore | After | Δ |
+|---------|-------------------|-------|---|
+| `composer phpunit:no-coverage` | 49s (144 tests) | 55s (144 tests, + 1 test added) | flat |
+| `composer coverage:check` | 1:17 green | 1:06 green | flat |
+| `composer ci:all` | 3:45 green | similar green | flat |
+
+Wall-clock neutral — perf was a side benefit, the user's ask was code cleanliness. The Clock base timing gain is hidden behind xdebug-off gating from the prior chore.
+
+**Branching:** 3 new commits atop `chore/test-suite-perf` (`ee8d892` head):
+1. `chore(deps): add symfony/clock` (630f1dc)
+2. `chore(services,doctrine): bind ClockInterface + register ClockInjectListener for postLoad hydration` (961fb99)
+3. `refactor(User,Collection): replace $at-injection with Symfony ClockAwareTrait; tests drive time via MockClock` (ee8d892)
+
+**Architectural trade-off (recorded):** Domain entities now `use` `Symfony\Component\Clock\ClockAwareTrait` — couples the Domain layer to a framework-specific trait. The trade-off accepted: `ClockAwareTrait` is a thin wrapper over PSR-20 `Psr\Clock\ClockInterface` plus autoconfiguration glue; alternative (custom in-house trait of `Psr\Clock\ClockInterface`) costs code with no functional gain. Domain still depends only on the `Psr` abstraction for behaviour; the Symfony trait only ships `setClock()`/`now()` helpers.
+
+**Assumptions / uncertainties:**
+- Per-entity `private readonly ClockInterface $clock` field set by postLoad listener cannot be reassigned on the same entity instance (readonly). Tests therefore MUST use the static `Clock::set` facade + the trait's lazy `new Clock()` fallback rather than mutator-level injection. Documented.
+- `composer audit` warning present post-install for `symfony/cache` (pre-existing CVE — `CVE-2026-45073`, medium SQL injection). Out of scope; defer to `[review]` task. Not introduced by this chore.
+- Production binding to `NativeClock` without property-default timezone constructor argument. Symfony `NativeClock::__construct` defaults to `date_default_timezone` at instantiation time. If the container creates `NativeClock` ahead of PHP's timezone init, persistent servers may want explicit `withTimeZone()` chain — deferred to `[review]` if production surfaces TZ drift.
+
+**Verification:** local gates green: 144/144 tests, PHPStan L6 clean, phpcs clean, rector dry-run clean, phpcpd 0%. Remote CI on PR #21 pending; same PAT `checks:read` gap as the prior chore — local verification is source of truth.
+
+**Follow-up:** wait for CI; merge PR #21; Stage 3 (3.2+) is the next roadmap task.
+
+## 2026-07-31 — Task 3.1 staged for merge (review on hold)
+
+**Status:** Task 3.1 PR #20 review comments resolved in amendments; awaiting Copilot automated review pass before merge.
+
+**Decisions recorded earlier (2026-07-30 entry) remain valid — no new architectural decisions.**
