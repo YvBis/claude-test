@@ -9,27 +9,40 @@ use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
 use App\Domain\User\ValueObject\Role;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Clock\Clock;
+use Symfony\Component\Clock\MockClock;
 
 final class UserTest extends TestCase
 {
+    private MockClock $clock;
+
+    protected function setUp(): void
+    {
+        $this->clock = new MockClock('2026-01-01 10:00:00');
+        Clock::set($this->clock);
+    }
+
+    protected function tearDown(): void
+    {
+        Clock::set(new \Symfony\Component\Clock\NativeClock());
+    }
+
     public function testRegisterCreatesUserWithDefaults(): void
     {
-        $email = Email::fromString('user@example.com');
-        $password = PasswordHash::createFromPlain('password123');
-
-        $user = User::register('John Doe', $email, $password);
+        $user = User::register(
+            'John Doe',
+            Email::fromString('user@example.com'),
+            PasswordHash::createFromPlain('password123')
+        );
 
         $this->assertInstanceOf(User::class, $user);
         $this->assertEquals('John Doe', $user->getName());
-        $this->assertEquals($email, $user->getEmail());
-        $this->assertEquals($password, $user->getPasswordHash());
+        $this->assertEquals('user@example.com', $user->getEmail()->value());
         $this->assertTrue($user->isActive());
         $this->assertTrue($user->getRole()->isUser());
-        $this->assertNotNull($user->getCreatedAt());
-        $this->assertNotNull($user->getUpdatedAt());
-        $this->assertLessThanOrEqual(
-            new \DateTimeImmutable('+1 second'),
-            $user->getCreatedAt()
+        $this->assertEquals(
+            $this->clock->now()->getTimestamp(),
+            $user->getCreatedAt()->getTimestamp()
         );
         $this->assertEquals(
             $user->getCreatedAt()->getTimestamp(),
@@ -39,24 +52,30 @@ final class UserTest extends TestCase
 
     public function testRegisterWithCustomRole(): void
     {
-        $email = Email::fromString('admin@example.com');
-        $password = PasswordHash::createFromPlain('password123');
-        $role = Role::admin();
-
-        $user = User::register('Admin User', $email, $password, $role);
+        $user = User::register(
+            'Admin User',
+            Email::fromString('admin@example.com'),
+            PasswordHash::createFromPlain('password123'),
+            Role::admin()
+        );
 
         $this->assertTrue($user->getRole()->isAdmin());
     }
 
     public function testCreateAdminCreatesAdminUser(): void
     {
-        $email = Email::fromString('admin@example.com');
-        $password = PasswordHash::createFromPlain('password123');
-
-        $user = User::createAdmin('Admin User', $email, $password);
+        $user = User::createAdmin(
+            'Admin User',
+            Email::fromString('admin@example.com'),
+            PasswordHash::createFromPlain('password123')
+        );
 
         $this->assertTrue($user->getRole()->isAdmin());
         $this->assertTrue($user->isActive());
+        $this->assertEquals(
+            $user->getCreatedAt()->getTimestamp(),
+            $user->getUpdatedAt()->getTimestamp()
+        );
     }
 
     public function testChangeNameUpdatesNameAndTimestamp(): void
@@ -64,7 +83,8 @@ final class UserTest extends TestCase
         $user = $this->createUser();
         $originalUpdatedAt = $user->getUpdatedAt();
 
-        $user->changeName('Jane Doe', new \DateTimeImmutable('+1 microsecond'));
+        $this->clock->modify('+1 microsecond');
+        $user->changeName('Jane Doe');
 
         $this->assertEquals('Jane Doe', $user->getName());
         $this->assertGreaterThan($originalUpdatedAt, $user->getUpdatedAt());
@@ -96,7 +116,8 @@ final class UserTest extends TestCase
         $originalUpdatedAt = $user->getUpdatedAt();
         $newEmail = Email::fromString('new@example.com');
 
-        $user->changeEmail($newEmail, new \DateTimeImmutable('+1 microsecond'));
+        $this->clock->modify('+1 microsecond');
+        $user->changeEmail($newEmail);
 
         $this->assertEquals($newEmail, $user->getEmail());
         $this->assertGreaterThan($originalUpdatedAt, $user->getUpdatedAt());
@@ -108,7 +129,8 @@ final class UserTest extends TestCase
         $originalUpdatedAt = $user->getUpdatedAt();
         $newHash = PasswordHash::createFromPlain('newpassword123');
 
-        $user->changePassword($newHash, new \DateTimeImmutable('+1 microsecond'));
+        $this->clock->modify('+1 microsecond');
+        $user->changePassword($newHash);
 
         $this->assertEquals($newHash, $user->getPasswordHash());
         $this->assertGreaterThan($originalUpdatedAt, $user->getUpdatedAt());
@@ -119,7 +141,8 @@ final class UserTest extends TestCase
         $user = $this->createUser();
         $this->assertTrue($user->getRole()->isUser());
 
-        $user->promoteToAdmin(new \DateTimeImmutable('+1 microsecond'));
+        $this->clock->modify('+1 microsecond');
+        $user->promoteToAdmin();
 
         $this->assertTrue($user->getRole()->isAdmin());
         $this->assertGreaterThan($user->getCreatedAt(), $user->getUpdatedAt());
@@ -148,7 +171,8 @@ final class UserTest extends TestCase
         );
         $this->assertTrue($user->getRole()->isAdmin());
 
-        $user->demoteToUser(new \DateTimeImmutable('+1 microsecond'));
+        $this->clock->modify('+1 microsecond');
+        $user->demoteToUser();
 
         $this->assertTrue($user->getRole()->isUser());
         $this->assertGreaterThan($user->getCreatedAt(), $user->getUpdatedAt());
@@ -170,7 +194,8 @@ final class UserTest extends TestCase
         $user->deactivate();
         $this->assertFalse($user->isActive());
 
-        $user->activate(new \DateTimeImmutable('+1 microsecond'));
+        $this->clock->modify('+1 microsecond');
+        $user->activate();
 
         $this->assertTrue($user->isActive());
         $this->assertGreaterThan($user->getCreatedAt(), $user->getUpdatedAt());
@@ -181,7 +206,8 @@ final class UserTest extends TestCase
         $user = $this->createUser();
         $this->assertTrue($user->isActive());
 
-        $user->deactivate(new \DateTimeImmutable('+1 microsecond'));
+        $this->clock->modify('+1 microsecond');
+        $user->deactivate();
 
         $this->assertFalse($user->isActive());
         $this->assertGreaterThan($user->getCreatedAt(), $user->getUpdatedAt());
