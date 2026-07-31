@@ -358,3 +358,25 @@ Wall-clock neutral — perf was a side benefit, the user's ask was code cleanlin
 **Status:** Task 3.1 PR #20 review comments resolved in amendments; awaiting Copilot automated review pass before merge.
 
 **Decisions recorded earlier (2026-07-30 entry) remain valid — no new architectural decisions.**
+
+## 2026-07-31 — Clock refactor review follow-up (commits 38cecf2, 8f7ee1c)
+
+**Scope:** external-AI review on PR #21 surfaced two latent bugs + one behaviour delta + one informational note. Today's fix commits:
+
+**Fix 1 (Medium, latent) — Dual-clock drift in kernel tests.** The postLoad listener was bound to the container's `MockClock` singleton (`when@test` binding `arguments: ['2026-01-01 00:00:00']`); tests advanced a *separate* `MockClock` via `Clock::set()`. Any future reload-and-assert test would have materialised entities whose `$clock` was the frozen container clock — opposite of the test's facade clock.
+
+Resolution: rebind `Symfony\Component\Clock\ClockInterface` to `Symfony\Component\Clock\Clock` (the facade class itself). The facade's `now()/sleep()/withTimeZone()` delegate to `Clock::get()`, so a single `Clock::set(MockClock)` in test setUp synchronises both code paths — the trait's lazy `??= new Clock()` fallback (freshly-constructed entities) and the listener-injected `Clock` instance (postLoaded entities). Single source of truth. The `when@test` binding for `MockClock('2026-01-01 00:00:00')` is no longer required and was removed.
+
+**Fix 2 (Low, latent) — Readonly double-set guard.** `ClockAwareTrait::$clock` is `private readonly`; a second `setClock()` throws. Doctrine dispatches `postLoad` at most once per entity per hydration today (identity map short-circuits repeated finds), so the bug is latent. Resolution: `\ReflectionProperty::isInitialized($entity) && isReadOnly()` short-circuit before `setClock()`. Reflection cost is sub-µs/entity, dwarfed by hydration work.
+
+**Behaviour delta (Low, recorded) — `updatedAt` semantics.** Under the prior `$at`-injection model the timestamp could be either mutation or flush time depending on caller (defaults to `new DateTimeImmutable()` if omitted). Under the Symfony Clock model, `updatedAt` is whatever `$this->clockNow()` returned at the moment a mutator ran — i.e. **mutation instant only**. Doctrine `#[ORM\PreUpdate] onPreUpdate` only re-touches when the mutator did not already touch (the "admin SQL bypass" case). For all Tier-1 use cases (audit log, "last activity" UI, repository ordering) mutation time is more correct than flush time. Recorded for any cross-team consumer that re-exports the timestamp; no code change.
+
+**Serialization surface (Info, recorded) — `Symfony\Component\Clock\Clock` on each entity.** Entities now carry a `$clock` field of `ClockInterface` type. PHP `serialize()` will round-trip the field as-is. For domain entities today this is fine (no consumer serializes them) — they live in Doctrine session state. Surface becomes a concern for any future consumer that pushes entities through cache/messenger/queue. Mitigations catalogued in `Roadmap.md` Review Backlog (`review-3`): `#[Serializer\Ignore]` exclusion or custom `__serialize`/`__unserialize` if a frozen `MockClock` would ever survive into production. Defer until a real consumer surfaces this need.
+
+**Branching:** 2 new commits atop `chore/test-suite-perf`:
+1. `fix(doctrine,services): route ClockInjectListener through Clock facade, eliminate dual-clock drift` (38cecf2)
+2. `fix(doctrine): guard ClockInjectListener against readonly double-set` (8f7ee1c)
+
+**Verification:** local gates: 144/144 tests, PHPStan L6 clean, phpcs clean, rector dry-run clean. No remote CI on PR #21 yet; same PAT `checks:read` gap as the original Clock refactor; local is source of truth.
+
+**Follow-up:** push commits, wait for remote CI. Stage 3 (Task 3.2+) is the next roadmap task on `task/3.1-collection-entity`.
