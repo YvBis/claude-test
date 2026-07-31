@@ -14,6 +14,7 @@
         "lexik/jwt-authentication-bundle": "^2.20",
         "ramsey/uuid": "^4.7",
         "symfony/asset": "7.*",
+        "symfony/clock": "7.*",
         "symfony/console": "^7.0",
         "symfony/dotenv": "^7.0",
         "symfony/flex": "^2.4",
