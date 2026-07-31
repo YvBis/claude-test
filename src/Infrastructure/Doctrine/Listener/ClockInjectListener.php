@@ -26,6 +26,11 @@ use Symfony\Component\Clock\ClockInterface;
  *   against `Clock::get()`) and postLoaded entities (via this listener).
  *
  * The listener is idempotent: only injects on entities exposing `setClock()`.
+ *
+ * The trait's `$clock` field is `private readonly`. Doctrine dispatches
+ * `postLoad` at most once per hydration today, but a reflection guard
+ * defends against double-fire without throwing a
+ * "Cannot modify readonly property" error.
  */
 #[AsEntityListener(event: 'postLoad', method: 'postLoad')]
 final readonly class ClockInjectListener
@@ -38,8 +43,23 @@ final readonly class ClockInjectListener
     {
         $entity = $args->getObject();
 
-        if (\method_exists($entity, 'setClock')) {
-            $entity->setClock($this->clock);
+        if (!\method_exists($entity, 'setClock')) {
+            return;
         }
+
+        // ClockAwareTrait::$clock is private readonly. A second setClock()
+        // throws "Cannot modify readonly property". Doctrine dispatches
+        // postLoad at most once per hydration today (identity map short-circuits
+        // repeated finds), but guard cheaply in case a future doctrine version
+        // ever re-fires the event on the same instance.
+        $rc = new \ReflectionClass($entity);
+        if ($rc->hasProperty('clock')) {
+            $prop = $rc->getProperty('clock');
+            if ($prop->isInitialized($entity) && $prop->isReadOnly()) {
+                return;
+            }
+        }
+
+        $entity->setClock($this->clock);
     }
 }
