@@ -47,6 +47,11 @@ services:
     # singleton). Tests advance time via `Clock::set(new MockClock(...))`; both
     # freshly-constructed entities (lazy `??=` fallback) and postLoaded entities
     # (injected by ClockInjectListener) see the **same** test instance.
-    # See AssumptionLog.md 2026-07-31 (Clock refactor review follow-up).
+    #
+    # **Do NOT rebind to NativeClock/MockClock directly.** The dual-clock fix
+    # depends on the facade falling through to Clock::get(). Concrete clocks
+    # would silently bypass Clock::set() in test fixtures. ClockInjectListener
+    # throws LogicException on container boot if this contract is broken.
+    # See AssumptionLog.md 2026-07-31 (Clock refactor review follow-up, F3).
     Symfony\Component\Clock\ClockInterface:
         class: Symfony\Component\Clock\Clock

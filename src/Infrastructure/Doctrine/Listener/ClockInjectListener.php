@@ -6,6 +6,7 @@ namespace App\Infrastructure\Doctrine\Listener;
 
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsEntityListener;
 use Doctrine\ORM\Event\PostLoadEventArgs;
+use Symfony\Component\Clock\Clock;
 use Symfony\Component\Clock\ClockInterface;
 
 /**
@@ -25,6 +26,13 @@ use Symfony\Component\Clock\ClockInterface;
  *   freshly-constructed entities (via the trait's lazy `??=` fallback
  *   against `Clock::get()`) and postLoaded entities (via this listener).
  *
+ * **Binding contract**: the service container MUST resolve `ClockInterface`
+ * to `Symfony\Component\Clock\Clock` (the facade class). Binding it to a
+ * concrete `NativeClock`/`MockClock` instead would make the listener inject
+ * that concrete clock directly into entities, bypassing `Clock::set()` and
+ * silently regressing to the pre-fix dual-clock drift. The constructor
+ * asserts this contract at container boot.
+ *
  * The listener is idempotent: only injects on entities exposing `setClock()`.
  *
  * The trait's `$clock` field is `private readonly`. Doctrine dispatches
@@ -37,6 +45,19 @@ final readonly class ClockInjectListener
 {
     public function __construct(private ClockInterface $clock)
     {
+        // Binding contract: must be the facade class so that test fixtures
+        // via Clock::set() reach postLoaded entities. A concrete
+        // NativeClock/MockClock bypasses the static global entirely — see
+        // review finding F3 (2026-07-31).
+        if (!$clock instanceof Clock) {
+            throw new \LogicException(\sprintf(
+                'ClockInjectListener must be bound to Symfony\\Component\\Clock\\Clock '
+                .'(the facade class), so test fixtures via Clock::set() reach '
+                .'postLoaded entities. Currently bound to: %s. Update '
+                .'config/services.yaml.',
+                $clock::class,
+            ));
+        }
     }
 
     public function postLoad(PostLoadEventArgs $args): void
