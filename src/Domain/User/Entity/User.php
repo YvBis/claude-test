@@ -63,7 +63,9 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
         Email $email,
         PasswordHash $passwordHash,
         Role $role,
-        bool $isActive = true
+        bool $isActive = true,
+        ?\DateTimeImmutable $createdAt = null,
+        ?\DateTimeImmutable $updatedAt = null
     ) {
         $this->id = $id;
         $this->name = $name;
@@ -71,15 +73,17 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->passwordHash = $passwordHash;
         $this->role = $role;
         $this->isActive = $isActive;
-        $this->createdAt = new \DateTimeImmutable();
-        $this->updatedAt = new \DateTimeImmutable();
+        $now = new \DateTimeImmutable();
+        $this->createdAt = $createdAt ?? $now;
+        $this->updatedAt = $updatedAt ?? $now;
     }
 
     public static function register(
         string $name,
         Email $email,
         PasswordHash $passwordHash,
-        ?Role $role = null
+        ?Role $role = null,
+        ?\DateTimeImmutable $at = null
     ): self {
         return new self(
             id: UserId::generate()->toBytes(),
@@ -87,14 +91,17 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
             email: $email,
             passwordHash: $passwordHash,
             role: $role ?? Role::user(),
-            isActive: true
+            isActive: true,
+            createdAt: $at,
+            updatedAt: $at,
         );
     }
 
     public static function createAdmin(
         string $name,
         Email $email,
-        PasswordHash $passwordHash
+        PasswordHash $passwordHash,
+        ?\DateTimeImmutable $at = null
     ): self {
         return new self(
             id: UserId::generate()->toBytes(),
@@ -102,7 +109,9 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
             email: $email,
             passwordHash: $passwordHash,
             role: Role::admin(),
-            isActive: true
+            isActive: true,
+            createdAt: $at,
+            updatedAt: $at,
         );
     }
 
@@ -146,7 +155,7 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->updatedAt;
     }
 
-    public function changeName(string $name): void
+    public function changeName(string $name, ?\DateTimeImmutable $at = null): void
     {
         if ('' === \trim($name)) {
             throw new \InvalidArgumentException('Name cannot be empty');
@@ -157,51 +166,51 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
         }
 
         $this->name = $name;
-        $this->touch();
+        $this->touch($at);
     }
 
-    public function changeEmail(Email $email): void
+    public function changeEmail(Email $email, ?\DateTimeImmutable $at = null): void
     {
         $this->email = $email;
-        $this->touch();
+        $this->touch($at);
     }
 
-    public function changePassword(PasswordHash $passwordHash): void
+    public function changePassword(PasswordHash $passwordHash, ?\DateTimeImmutable $at = null): void
     {
         $this->passwordHash = $passwordHash;
-        $this->touch();
+        $this->touch($at);
     }
 
-    public function promoteToAdmin(): void
+    public function promoteToAdmin(?\DateTimeImmutable $at = null): void
     {
         if ($this->role->isAdmin()) {
             throw new \LogicException('User is already admin');
         }
 
         $this->role = Role::admin();
-        $this->touch();
+        $this->touch($at);
     }
 
-    public function demoteToUser(): void
+    public function demoteToUser(?\DateTimeImmutable $at = null): void
     {
         if ($this->role->isUser()) {
             throw new \LogicException('User is already regular user');
         }
 
         $this->role = Role::user();
-        $this->touch();
+        $this->touch($at);
     }
 
-    public function activate(): void
+    public function activate(?\DateTimeImmutable $at = null): void
     {
         $this->isActive = true;
-        $this->touch();
+        $this->touch($at);
     }
 
-    public function deactivate(): void
+    public function deactivate(?\DateTimeImmutable $at = null): void
     {
         $this->isActive = false;
-        $this->touch();
+        $this->touch($at);
     }
 
     public function verifyPassword(string $plainPassword): bool
@@ -234,8 +243,15 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
     }
 
     #[ORM\PreUpdate]
-    public function touch(): void
+    public function onPreUpdate(\Doctrine\ORM\Event\PreUpdateEventArgs $args): void
     {
-        $this->updatedAt = new \DateTimeImmutable();
+        if (!$args->hasChangedField('updatedAt')) {
+            $this->touch();
+        }
+    }
+
+    public function touch(?\DateTimeImmutable $at = null): void
+    {
+        $this->updatedAt = $at ?? new \DateTimeImmutable();
     }
 }

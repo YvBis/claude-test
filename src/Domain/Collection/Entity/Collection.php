@@ -61,6 +61,8 @@ final class Collection
         Theme $theme,
         ?string $description = null,
         ?string $image = null,
+        ?\DateTimeImmutable $createdAt = null,
+        ?\DateTimeImmutable $updatedAt = null,
     ) {
         $this->id = $id;
         $this->owner = $owner;
@@ -68,8 +70,9 @@ final class Collection
         $this->theme = $theme;
         $this->description = $this->normalizeDescription($description);
         $this->image = $this->normalizeImage($image);
-        $this->createdAt = new \DateTimeImmutable();
-        $this->updatedAt = new \DateTimeImmutable();
+        $now = new \DateTimeImmutable();
+        $this->createdAt = $createdAt ?? $now;
+        $this->updatedAt = $updatedAt ?? $now;
     }
 
     public static function create(
@@ -78,6 +81,7 @@ final class Collection
         Theme $theme,
         ?string $description = null,
         ?string $image = null,
+        ?\DateTimeImmutable $at = null,
     ): self {
         return new self(
             id: CollectionId::generate()->toBytes(),
@@ -86,6 +90,8 @@ final class Collection
             theme: $theme,
             description: $description,
             image: $image,
+            createdAt: $at,
+            updatedAt: $at,
         );
     }
 
@@ -129,28 +135,28 @@ final class Collection
         return $this->updatedAt;
     }
 
-    public function changeName(CollectionName $name): void
+    public function changeName(CollectionName $name, ?\DateTimeImmutable $at = null): void
     {
         $this->name = $name;
-        $this->touch();
+        $this->touch($at);
     }
 
-    public function changeTheme(Theme $theme): void
+    public function changeTheme(Theme $theme, ?\DateTimeImmutable $at = null): void
     {
         $this->theme = $theme;
-        $this->touch();
+        $this->touch($at);
     }
 
-    public function changeDescription(?string $description): void
+    public function changeDescription(?string $description, ?\DateTimeImmutable $at = null): void
     {
         $this->description = $this->normalizeDescription($description);
-        $this->touch();
+        $this->touch($at);
     }
 
-    public function changeImage(?string $image): void
+    public function changeImage(?string $image, ?\DateTimeImmutable $at = null): void
     {
         $this->image = $this->normalizeImage($image);
-        $this->touch();
+        $this->touch($at);
     }
 
     private function normalizeDescription(?string $description): ?string
@@ -175,15 +181,22 @@ final class Collection
         return '' === $image ? null : $image;
     }
 
-    public function reassignOwner(User $owner): void
+    public function reassignOwner(User $owner, ?\DateTimeImmutable $at = null): void
     {
         $this->owner = $owner;
-        $this->touch();
+        $this->touch($at);
     }
 
     #[ORM\PreUpdate]
-    public function touch(): void
+    public function onPreUpdate(\Doctrine\ORM\Event\PreUpdateEventArgs $args): void
     {
-        $this->updatedAt = new \DateTimeImmutable();
+        if (!$args->hasChangedField('updatedAt')) {
+            $this->touch();
+        }
+    }
+
+    public function touch(?\DateTimeImmutable $at = null): void
+    {
+        $this->updatedAt = $at ?? new \DateTimeImmutable();
     }
 }
