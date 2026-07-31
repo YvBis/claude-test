@@ -57,8 +57,7 @@ final class CollectionTest extends TestCase
         $collection = $this->createCollection();
         $originalUpdatedAt = $collection->getUpdatedAt();
 
-        \usleep(1000);
-        $collection->changeName(CollectionName::fromString('Renamed'));
+        $collection->changeName(CollectionName::fromString('Renamed'), new \DateTimeImmutable('+1 microsecond'));
 
         $this->assertSame('Renamed', $collection->getName()->value());
         $this->assertGreaterThan($originalUpdatedAt, $collection->getUpdatedAt());
@@ -69,8 +68,7 @@ final class CollectionTest extends TestCase
         $collection = $this->createCollection();
         $originalUpdatedAt = $collection->getUpdatedAt();
 
-        \usleep(1000);
-        $collection->changeTheme(Theme::games());
+        $collection->changeTheme(Theme::games(), new \DateTimeImmutable('+1 microsecond'));
 
         $this->assertTrue($collection->getTheme()->isGames());
         $this->assertGreaterThan($originalUpdatedAt, $collection->getUpdatedAt());

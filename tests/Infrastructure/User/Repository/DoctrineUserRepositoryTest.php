@@ -74,11 +74,10 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
 
     public function testFindAll(): void
     {
-        $this->repository->save($this->createUser('user1@example.com'));
-        \sleep(1); // Ensure different microsecond timestamps
-        $this->repository->save($this->createUser('user2@example.com'));
-        \sleep(1);
-        $this->repository->save($this->createUser('user3@example.com'));
+        $base = new \DateTimeImmutable('2026-01-01 10:00:00');
+        $this->repository->save($this->createUser('user1@example.com', $base));
+        $this->repository->save($this->createUser('user2@example.com', $base->modify('+1 second')));
+        $this->repository->save($this->createUser('user3@example.com', $base->modify('+2 seconds')));
 
         $all = $this->repository->findAll();
 
@@ -100,13 +99,14 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
         $this->assertNull($this->repository->findById($user->getId()));
     }
 
-    private function createUser(string $email = 'test@example.com'): User
+    private function createUser(string $email = 'test@example.com', ?\DateTimeImmutable $at = null): User
     {
         return User::register(
-            'Test User',
-            Email::fromString($email),
-            PasswordHash::createFromPlain('password123'),
-            Role::user()
+            name: 'Test User',
+            email: Email::fromString($email),
+            passwordHash: PasswordHash::createFromPlain('password123'),
+            role: Role::user(),
+            at: $at,
         );
     }
 }

@@ -64,8 +64,7 @@ final class UserTest extends TestCase
         $user = $this->createUser();
         $originalUpdatedAt = $user->getUpdatedAt();
 
-        \usleep(1000); // Ensure time difference
-        $user->changeName('Jane Doe');
+        $user->changeName('Jane Doe', new \DateTimeImmutable('+1 microsecond'));
 
         $this->assertEquals('Jane Doe', $user->getName());
         $this->assertGreaterThan($originalUpdatedAt, $user->getUpdatedAt());
@@ -97,8 +96,7 @@ final class UserTest extends TestCase
         $originalUpdatedAt = $user->getUpdatedAt();
         $newEmail = Email::fromString('new@example.com');
 
-        \usleep(1000);
-        $user->changeEmail($newEmail);
+        $user->changeEmail($newEmail, new \DateTimeImmutable('+1 microsecond'));
 
         $this->assertEquals($newEmail, $user->getEmail());
         $this->assertGreaterThan($originalUpdatedAt, $user->getUpdatedAt());
@@ -110,8 +108,7 @@ final class UserTest extends TestCase
         $originalUpdatedAt = $user->getUpdatedAt();
         $newHash = PasswordHash::createFromPlain('newpassword123');
 
-        \usleep(1000);
-        $user->changePassword($newHash);
+        $user->changePassword($newHash, new \DateTimeImmutable('+1 microsecond'));
 
         $this->assertEquals($newHash, $user->getPasswordHash());
         $this->assertGreaterThan($originalUpdatedAt, $user->getUpdatedAt());
@@ -122,8 +119,7 @@ final class UserTest extends TestCase
         $user = $this->createUser();
         $this->assertTrue($user->getRole()->isUser());
 
-        \usleep(1000);
-        $user->promoteToAdmin();
+        $user->promoteToAdmin(new \DateTimeImmutable('+1 microsecond'));
 
         $this->assertTrue($user->getRole()->isAdmin());
         $this->assertGreaterThan($user->getCreatedAt(), $user->getUpdatedAt());
@@ -152,8 +148,7 @@ final class UserTest extends TestCase
         );
         $this->assertTrue($user->getRole()->isAdmin());
 
-        \usleep(1000);
-        $user->demoteToUser();
+        $user->demoteToUser(new \DateTimeImmutable('+1 microsecond'));
 
         $this->assertTrue($user->getRole()->isUser());
         $this->assertGreaterThan($user->getCreatedAt(), $user->getUpdatedAt());
@@ -175,8 +170,7 @@ final class UserTest extends TestCase
         $user->deactivate();
         $this->assertFalse($user->isActive());
 
-        \usleep(1000);
-        $user->activate();
+        $user->activate(new \DateTimeImmutable('+1 microsecond'));
 
         $this->assertTrue($user->isActive());
         $this->assertGreaterThan($user->getCreatedAt(), $user->getUpdatedAt());
@@ -187,8 +181,7 @@ final class UserTest extends TestCase
         $user = $this->createUser();
         $this->assertTrue($user->isActive());
 
-        \usleep(1000);
-        $user->deactivate();
+        $user->deactivate(new \DateTimeImmutable('+1 microsecond'));
 
         $this->assertFalse($user->isActive());
         $this->assertGreaterThan($user->getCreatedAt(), $user->getUpdatedAt());
