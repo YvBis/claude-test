@@ -42,13 +42,11 @@ services:
         autoconfigure: true
         tags: ['controller.service_arguments']
 
-    # Symfony Clock binding (production default = NativeClock; test override = MockClock)
+    # Symfony Clock binding: resolves ClockInterface to the facade `Clock` class,
+    # whose `now()`/`sleep()`/etc. all delegate to `Clock::get()` (the static
+    # singleton). Tests advance time via `Clock::set(new MockClock(...))`; both
+    # freshly-constructed entities (lazy `??=` fallback) and postLoaded entities
+    # (injected by ClockInjectListener) see the **same** test instance.
+    # See AssumptionLog.md 2026-07-31 (Clock refactor review follow-up).
     Symfony\Component\Clock\ClockInterface:
-        class: Symfony\Component\Clock\NativeClock
-
-when@test:
-    services:
-        Symfony\Component\Clock\ClockInterface:
-            class: Symfony\Component\Clock\MockClock
-            arguments: ['2026-01-01 00:00:00']
-            public: true
+        class: Symfony\Component\Clock\Clock

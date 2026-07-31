@@ -11,10 +11,19 @@ use Symfony\Component\Clock\ClockInterface;
 /**
  * Hydrates entities with the autowired Clock via ClockAwareTrait::setClock().
  *
- * Without this listener, entities hydrated from the database have an uninitialized
- * `$clock` field, and the trait's lazy `??=` fallback inside `now()` would
- * instantiate a fresh static facade per entity — defeating any test override
- * that relied on `Clock::set()`.
+ * Why this listener is injected with the `Clock::class` facade (delegating
+ * through `ClockInterface`) rather than a frozen MockClock:
+ *
+ * - Kernel tests advance time via `Clock::set(new MockClock(...))`. If the
+ *   listener were bound to a container-provided `ClockInterface` singleton,
+ *   postLoaded entities would inherit a *different* MockClock instance from
+ *   the test's facade clock — a latent dual-clock drift documented in
+ *   `AssumptionLog.md` (2026-07-31).
+ * - The `Clock` facade class implements `ClockInterface`, but its `now()`
+ *   delegates to `Clock::get()` (the static singleton). A single
+ *   `Clock::set(...)` from a kernel test setUp thus synchronises both
+ *   freshly-constructed entities (via the trait's lazy `??=` fallback
+ *   against `Clock::get()`) and postLoaded entities (via this listener).
  *
  * The listener is idempotent: only injects on entities exposing `setClock()`.
  */
