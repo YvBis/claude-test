@@ -41,3 +41,14 @@ services:
         autowire: true
         autoconfigure: true
         tags: ['controller.service_arguments']
+
+    # Symfony Clock binding (production default = NativeClock; test override = MockClock)
+    Symfony\Component\Clock\ClockInterface:
+        class: Symfony\Component\Clock\NativeClock
+
+when@test:
+    services:
+        Symfony\Component\Clock\ClockInterface:
+            class: Symfony\Component\Clock\MockClock
+            arguments: ['2026-01-01 00:00:00']
+            public: true
