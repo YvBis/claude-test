@@ -10,6 +10,7 @@ use App\Domain\User\ValueObject\Role;
 use App\Domain\User\ValueObject\UserId;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Clock\ClockAwareTrait;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -22,6 +23,10 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\HasLifecycleCallbacks]
 final class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
+    use ClockAwareTrait {
+        now as protected clockNow;
+    }
+
     #[ORM\Id]
     #[ORM\Column(name: 'id', type: 'binary', length: 16)]
     private string $id;
@@ -63,7 +68,7 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
         Email $email,
         PasswordHash $passwordHash,
         Role $role,
-        bool $isActive = true
+        bool $isActive = true,
     ) {
         $this->id = $id;
         $this->name = $name;
@@ -71,15 +76,15 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->passwordHash = $passwordHash;
         $this->role = $role;
         $this->isActive = $isActive;
-        $this->createdAt = new \DateTimeImmutable();
-        $this->updatedAt = new \DateTimeImmutable();
+        $this->createdAt = $this->clockNow();
+        $this->updatedAt = $this->createdAt;
     }
 
     public static function register(
         string $name,
         Email $email,
         PasswordHash $passwordHash,
-        ?Role $role = null
+        ?Role $role = null,
     ): self {
         return new self(
             id: UserId::generate()->toBytes(),
@@ -87,14 +92,14 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
             email: $email,
             passwordHash: $passwordHash,
             role: $role ?? Role::user(),
-            isActive: true
+            isActive: true,
         );
     }
 
     public static function createAdmin(
         string $name,
         Email $email,
-        PasswordHash $passwordHash
+        PasswordHash $passwordHash,
     ): self {
         return new self(
             id: UserId::generate()->toBytes(),
@@ -102,7 +107,7 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
             email: $email,
             passwordHash: $passwordHash,
             role: Role::admin(),
-            isActive: true
+            isActive: true,
         );
     }
 
@@ -234,8 +239,15 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
     }
 
     #[ORM\PreUpdate]
+    public function onPreUpdate(\Doctrine\ORM\Event\PreUpdateEventArgs $args): void
+    {
+        if (!$args->hasChangedField('updatedAt')) {
+            $this->touch();
+        }
+    }
+
     public function touch(): void
     {
-        $this->updatedAt = new \DateTimeImmutable();
+        $this->updatedAt = $this->clockNow();
     }
 }

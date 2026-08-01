@@ -73,8 +73,20 @@ TaskFlow — это REST API для управления личными колл
 
 Для запуска unit тестов:
 ```bash
+docker compose exec app composer test
+# или эквивалент:
 docker compose exec app composer phpunit:no-coverage
 ```
+
+Для запуска тестов с покрытием (Xdebug включается через `XDEBUG_MODE=coverage`; `composer coverage:check` делает это автоматически):
+```bash
+docker compose exec app composer coverage:check
+```
+
+> **Примечание**: после изменения `docker/php/custom.ini` или `Dockerfile` пересоберите образ:
+> ```bash
+> docker compose build app
+> ```
 
 Для запуска проверок качества кода (linting, static analysis, и т.д.):
 ```bash

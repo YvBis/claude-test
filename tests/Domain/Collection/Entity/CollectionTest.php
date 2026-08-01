@@ -11,9 +11,24 @@ use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Clock\Clock;
+use Symfony\Component\Clock\MockClock;
 
 final class CollectionTest extends TestCase
 {
+    private MockClock $clock;
+
+    protected function setUp(): void
+    {
+        $this->clock = new MockClock('2026-01-01 10:00:00');
+        Clock::set($this->clock);
+    }
+
+    protected function tearDown(): void
+    {
+        Clock::set(new \Symfony\Component\Clock\NativeClock());
+    }
+
     public function testCreateWithDefaults(): void
     {
         $owner = $this->createUser();
@@ -57,7 +72,7 @@ final class CollectionTest extends TestCase
         $collection = $this->createCollection();
         $originalUpdatedAt = $collection->getUpdatedAt();
 
-        \usleep(1000);
+        $this->clock->modify('+1 microsecond');
         $collection->changeName(CollectionName::fromString('Renamed'));
 
         $this->assertSame('Renamed', $collection->getName()->value());
@@ -69,7 +84,7 @@ final class CollectionTest extends TestCase
         $collection = $this->createCollection();
         $originalUpdatedAt = $collection->getUpdatedAt();
 
-        \usleep(1000);
+        $this->clock->modify('+1 microsecond');
         $collection->changeTheme(Theme::games());
 
         $this->assertTrue($collection->getTheme()->isGames());

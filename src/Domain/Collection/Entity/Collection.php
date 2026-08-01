@@ -10,6 +10,7 @@ use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\User\Entity\User;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Clock\ClockAwareTrait;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity]
@@ -20,6 +21,10 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\HasLifecycleCallbacks]
 final class Collection
 {
+    use ClockAwareTrait {
+        now as protected clockNow;
+    }
+
     #[ORM\Id]
     #[ORM\Column(name: 'id', type: 'binary', length: 16)]
     private string $id;
@@ -68,8 +73,8 @@ final class Collection
         $this->theme = $theme;
         $this->description = $this->normalizeDescription($description);
         $this->image = $this->normalizeImage($image);
-        $this->createdAt = new \DateTimeImmutable();
-        $this->updatedAt = new \DateTimeImmutable();
+        $this->createdAt = $this->clockNow();
+        $this->updatedAt = $this->createdAt;
     }
 
     public static function create(
@@ -182,8 +187,15 @@ final class Collection
     }
 
     #[ORM\PreUpdate]
+    public function onPreUpdate(\Doctrine\ORM\Event\PreUpdateEventArgs $args): void
+    {
+        if (!$args->hasChangedField('updatedAt')) {
+            $this->touch();
+        }
+    }
+
     public function touch(): void
     {
-        $this->updatedAt = new \DateTimeImmutable();
+        $this->updatedAt = $this->clockNow();
     }
 }

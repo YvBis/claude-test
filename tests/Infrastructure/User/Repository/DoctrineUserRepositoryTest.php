@@ -11,16 +11,24 @@ use App\Domain\User\ValueObject\PasswordHash;
 use App\Domain\User\ValueObject\Role;
 use App\Infrastructure\User\Repository\DoctrineUserRepository;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Clock\Clock;
+use Symfony\Component\Clock\MockClock;
 
 final class DoctrineUserRepositoryTest extends KernelTestCase
 {
     private UserRepositoryInterface $repository;
+
+    private MockClock $clock;
 
     protected function setUp(): void
     {
         self::bootKernel();
         $container = static::getContainer();
         $this->repository = $container->get(DoctrineUserRepository::class);
+
+        $clock = new MockClock('2026-01-01 00:00:00');
+        $this->clock = $clock;
+        Clock::set($clock);
     }
 
     protected function tearDown(): void
@@ -28,6 +36,8 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
         // Clear entity manager to avoid stale references between tests
         $entityManager = self::getContainer()->get('doctrine.orm.entity_manager');
         $entityManager->clear();
+
+        Clock::set(new \Symfony\Component\Clock\NativeClock());
 
         parent::tearDown();
     }
@@ -74,10 +84,11 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
 
     public function testFindAll(): void
     {
+        $this->clock->modify('2026-01-01 10:00:00');
         $this->repository->save($this->createUser('user1@example.com'));
-        \sleep(1); // Ensure different microsecond timestamps
+        $this->clock->modify('+1 second');
         $this->repository->save($this->createUser('user2@example.com'));
-        \sleep(1);
+        $this->clock->modify('+1 second');
         $this->repository->save($this->createUser('user3@example.com'));
 
         $all = $this->repository->findAll();
@@ -103,10 +114,10 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
     private function createUser(string $email = 'test@example.com'): User
     {
         return User::register(
-            'Test User',
-            Email::fromString($email),
-            PasswordHash::createFromPlain('password123'),
-            Role::user()
+            name: 'Test User',
+            email: Email::fromString($email),
+            passwordHash: PasswordHash::createFromPlain('password123'),
+            role: Role::user(),
         );
     }
 }

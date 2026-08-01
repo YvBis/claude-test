@@ -278,3 +278,105 @@
 - Branch: `task/3.1-collection-entity`, head `d347a2c` + amendment commit.
 
 **Follow-up:** open Task 3.2 once PR #20 merged.
+
+## 2026-07-31 — Chore: PHPUnit suite perf (Quick wins 1–4)
+
+**Scope:** ad-hoc chore, not PRD. Hypothesis: xdebug active unconditionally; sleep/usleep and placeholders inflate baseline. User approved Quick wins 1–4 only (skip docker-network MySQL migration, skip Paratest).
+
+**Decisions:**
+- `docker/php/custom.ini`: `xdebug.mode = off` + `start_with_request = no`. PHP precedence: env `XDEBUG_MODE` > ini `xdebug.mode`. Dockerfile unchanged (xdebug stays installed, inert by default).
+- `composer.json` scripts: coverage scripts prefixed with `XDEBUG_MODE=coverage`. New aliases: `phpunit:no-coverage` (default fast), `test` (= `phpunit:no-coverage`), `coverage:check` (opt-in coverage + junit). Existing `ci:test` aliases retargeted at `phpunit:no-coverage`.
+- Domain entities (`User`, `Collection`): constructor + factories + mutators accept `?\DateTimeImmutable $at = null`, default to `new DateTimeImmutable()`. Backward compatible — all existing call sites stay valid. Doctrine `#[ORM\PreUpdate]` lifecycle callbacks extracted into `onPreUpdate(PreUpdateEventArgs $args)` to avoid signature collision with business `touch($at)`.
+- Tests: replaced `usleep(1000)` × 11 in `UserTest` and `CollectionTest` with `new DateTimeImmutable('+1 microsecond')`. Replaced `sleep(1)` × 2 in `DoctrineUserRepositoryTest::testFindAll` with stepped `modify('+N seconds')` offsets from a base.
+- Placeholder `tests/{Domain,Application}/ExampleTest.php` deleted. Replaced with `SuitesSelfCheckTest.php` marker in each layer (1 trivial `assertTrue(true)` per suite to assert non-empty membership on testsuite discovery).
+
+**Measured locally (Docker):**
+| Command | Before | After | Δ |
+|---------|--------|-------|---|
+| `composer phpunit:no-coverage` | ~2:20 | 49s | **−65%** |
+| `composer coverage:check` | green | 1:17 green | unchanged |
+| `composer ci:all` | green | 3:45 green | unchanged |
+
+Sleep/usleep elimination ≈ 3s saved (negligible). The dominant gain is xdebug off-by-default. Coverage runs opt-in when needed.
+
+**Branching:** isolated branch `chore/test-suite-perf` (off `main`). 4 conventional commits:
+1. `chore(perf): gate xdebug to opt-in via XDEBUG_MODE env; default to off`
+2. `refactor(User,Collection): accept explicit DateTimeImmutable for deterministic timing`
+3. `test(User,Collection,DoctrineUserRepository): drop sleep/usleep; inject explicit DateTimeImmutable`
+4. `chore(tests): remove placeholder ExampleTest; add suite self-check markers`
+
+**Verification:** PR #21 opened (`YvBis/claude-test#21`). Local gates all green. GitHub `mergeable_state` reached `clean`. Remote CI check-runs not visible (PAT scope `checks:read` missing; `get_status` returns 0 required-status total — repo branch protection apparently does not require status checks for `main`). Treating as: local verification is the source of truth for this chore; remote Actions surface uncertain.
+
+**Assumptions / uncertainties:**
+- Repo has branch protection with no required status checks ⇒ GitHub treats PR `mergeable_state: clean` despite no check runs. Local verification substituted.
+- `phpunit.xml.dist` `processUncoveredFiles="true"` triggers informational `XDEBUG_MODE=coverage` warning on `phpunit:no-coverage`. Harmless; not gated. Could be removed by splitting coverage stanza into a coverage-only suite, deferred.
+- xdebug enabled in Dockerfile stays installed; profile/coverage works when `XDEBUG_MODE=coverage` set explicitly. No image rebuild needed beyond `docker compose build app` for `custom.ini` change.
+
+**Follow-up:** merge PR #21 when convenient. Stage 3 roadmap tasks (3.2+) remain open.
+
+## 2026-07-31 — Chore follow-up: replace `$at`-injection with Symfony Clock (Quick win 5)
+
+**Scope:** ad-hoc follow-up to the previous chore. User flagged the `?\DateTimeImmutable $at = null` parameter threading across `User` and `Collection` (constructor + factories + 12 mutators) as noisy — asked for the Symfony Clock abstraction (`https://symfony.com/doc/7.4/components/clock.html`) instead.
+
+**Decisions:**
+- `composer require symfony/clock 7.*` — matched existing `extra.symfony.require` `7.*` pin.
+- `Symfony\Component\Clock\ClockAwareTrait` on both entities ⇒ dropped every `$at`, `$createdAt`, `$updatedAt` parameter. `now()` aliased to private `clockNow()` to avoid name collision with the trait.
+- `config/services.yaml`: bind `Symfony\Component\Clock\ClockInterface` → `NativeClock` (production) with `when@test` override → `MockClock('2026-01-01 00:00:00')` (public:true for container inspection).
+- Doctrine `postLoad` listener `App\Infrastructure\Doctrine\Listener\ClockInjectListener` (autoconfigured via `#[AsEntityListener(event: 'postLoad')]`) injects the autowired `ClockInterface` post-hydration. Critical: without this, `ClockAwareTrait`'s lazy `??= new Clock()` fallback would instantiate a fresh `Clock` facade per `new` entity — defeating global `Clock::set()` test overrides on freshly-constructed entities that never went through postLoad.
+- `Doctrine\Persistence\Event\LifecycleEventArgs` import dropped (php-cs-fixer unused — already covered by `PostLoadEventArgs`).
+- Test DOMAIN scenarios: `setUp` constructs `MockClock('2026-01-01 10:00:00')` + `Clock::set($this->clock)`; individual tests do `$this->clock->modify('+1 microsecond')` before triggering the mutator. `tearDown` resets `Clock::set(new NativeClock())` to avoid cross-test bleed (the trait's static facade otherwise survives between tests).
+- Test KERNEL (`DoctrineUserRepositoryTest`): constructs its own `MockClock('2026-01-01 00:00:00')` rather than fetching from the container. Rationale: `static::getContainer()->get(ClockInterface::class)` returns the wrapped `ServiceLocator` proxy from the test container — not the underlying `MockClock` instance. Direct construction keeps the test honest about what clock it controls.
+
+**Measured (locally):**
+
+| Command | Before this chore | After | Δ |
+|---------|-------------------|-------|---|
+| `composer phpunit:no-coverage` | 49s (144 tests) | 55s (144 tests, + 1 test added) | flat |
+| `composer coverage:check` | 1:17 green | 1:06 green | flat |
+| `composer ci:all` | 3:45 green | similar green | flat |
+
+Wall-clock neutral — perf was a side benefit, the user's ask was code cleanliness. The Clock base timing gain is hidden behind xdebug-off gating from the prior chore.
+
+**Branching:** 3 new commits atop `chore/test-suite-perf` (`ee8d892` head):
+1. `chore(deps): add symfony/clock` (630f1dc)
+2. `chore(services,doctrine): bind ClockInterface + register ClockInjectListener for postLoad hydration` (961fb99)
+3. `refactor(User,Collection): replace $at-injection with Symfony ClockAwareTrait; tests drive time via MockClock` (ee8d892)
+
+**Architectural trade-off (recorded):** Domain entities now `use` `Symfony\Component\Clock\ClockAwareTrait` — couples the Domain layer to a framework-specific trait. The trade-off accepted: `ClockAwareTrait` is a thin wrapper over PSR-20 `Psr\Clock\ClockInterface` plus autoconfiguration glue; alternative (custom in-house trait of `Psr\Clock\ClockInterface`) costs code with no functional gain. Domain still depends only on the `Psr` abstraction for behaviour; the Symfony trait only ships `setClock()`/`now()` helpers.
+
+**Assumptions / uncertainties:**
+- Per-entity `private readonly ClockInterface $clock` field set by postLoad listener cannot be reassigned on the same entity instance (readonly). Tests therefore MUST use the static `Clock::set` facade + the trait's lazy `new Clock()` fallback rather than mutator-level injection. Documented.
+- `composer audit` warning present post-install for `symfony/cache` (pre-existing CVE — `CVE-2026-45073`, medium SQL injection). Out of scope; defer to `[review]` task. Not introduced by this chore.
+- Production binding to `NativeClock` without property-default timezone constructor argument. Symfony `NativeClock::__construct` defaults to `date_default_timezone` at instantiation time. If the container creates `NativeClock` ahead of PHP's timezone init, persistent servers may want explicit `withTimeZone()` chain — deferred to `[review]` if production surfaces TZ drift.
+
+**Verification:** local gates green: 144/144 tests, PHPStan L6 clean, phpcs clean, rector dry-run clean, phpcpd 0%. Remote CI on PR #21 pending; same PAT `checks:read` gap as the prior chore — local verification is source of truth.
+
+**Follow-up:** wait for CI; merge PR #21; Stage 3 (3.2+) is the next roadmap task.
+
+## 2026-07-31 — Task 3.1 staged for merge (review on hold)
+
+**Status:** Task 3.1 PR #20 review comments resolved in amendments; awaiting Copilot automated review pass before merge.
+
+**Decisions recorded earlier (2026-07-30 entry) remain valid — no new architectural decisions.**
+
+## 2026-07-31 — Clock refactor review follow-up (commits 38cecf2, 8f7ee1c)
+
+**Scope:** external-AI review on PR #21 surfaced two latent bugs + one behaviour delta + one informational note. Today's fix commits:
+
+**Fix 1 (Medium, latent) — Dual-clock drift in kernel tests.** The postLoad listener was bound to the container's `MockClock` singleton (`when@test` binding `arguments: ['2026-01-01 00:00:00']`); tests advanced a *separate* `MockClock` via `Clock::set()`. Any future reload-and-assert test would have materialised entities whose `$clock` was the frozen container clock — opposite of the test's facade clock.
+
+Resolution: rebind `Symfony\Component\Clock\ClockInterface` to `Symfony\Component\Clock\Clock` (the facade class itself). The facade's `now()/sleep()/withTimeZone()` delegate to `Clock::get()`, so a single `Clock::set(MockClock)` in test setUp synchronises both code paths — the trait's lazy `??= new Clock()` fallback (freshly-constructed entities) and the listener-injected `Clock` instance (postLoaded entities). Single source of truth. The `when@test` binding for `MockClock('2026-01-01 00:00:00')` is no longer required and was removed.
+
+**Fix 2 (Low, latent) — Readonly double-set guard.** `ClockAwareTrait::$clock` is `private readonly`; a second `setClock()` throws. Doctrine dispatches `postLoad` at most once per entity per hydration today (identity map short-circuits repeated finds), so the bug is latent. Resolution: `\ReflectionProperty::isInitialized($entity) && isReadOnly()` short-circuit before `setClock()`. Reflection cost is sub-µs/entity, dwarfed by hydration work.
+
+**Behaviour delta (Low, recorded) — `updatedAt` semantics.** Under the prior `$at`-injection model the timestamp could be either mutation or flush time depending on caller (defaults to `new DateTimeImmutable()` if omitted). Under the Symfony Clock model, `updatedAt` is whatever `$this->clockNow()` returned at the moment a mutator ran — i.e. **mutation instant only**. Doctrine `#[ORM\PreUpdate] onPreUpdate` only re-touches when the mutator did not already touch (the "admin SQL bypass" case). For all Tier-1 use cases (audit log, "last activity" UI, repository ordering) mutation time is more correct than flush time. Recorded for any cross-team consumer that re-exports the timestamp; no code change.
+
+**Serialization surface (Info, recorded) — `Symfony\Component\Clock\Clock` on each entity.** Entities now carry a `$clock` field of `ClockInterface` type. PHP `serialize()` will round-trip the field as-is. For domain entities today this is fine (no consumer serializes them) — they live in Doctrine session state. Surface becomes a concern for any future consumer that pushes entities through cache/messenger/queue. Mitigations catalogued in `Roadmap.md` Review Backlog (`review-3`): `#[Serializer\Ignore]` exclusion or custom `__serialize`/`__unserialize` if a frozen `MockClock` would ever survive into production. Defer until a real consumer surfaces this need.
+
+**Branching:** 2 new commits atop `chore/test-suite-perf`:
+1. `fix(doctrine,services): route ClockInjectListener through Clock facade, eliminate dual-clock drift` (38cecf2)
+2. `fix(doctrine): guard ClockInjectListener against readonly double-set` (8f7ee1c)
+
+**Verification:** local gates: 144/144 tests, PHPStan L6 clean, phpcs clean, rector dry-run clean. No remote CI on PR #21 yet; same PAT `checks:read` gap as the original Clock refactor; local is source of truth.
+
+**Follow-up:** push commits, wait for remote CI. Stage 3 (Task 3.2+) is the next roadmap task on `task/3.1-collection-entity`.
