@@ -14,10 +14,9 @@ use Symfony\Component\Clock\ClockAwareTrait;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity]
-#[ORM\Table(name: 'collections', indexes: [
-    new ORM\Index(name: 'idx_collection_owner', columns: ['owner_id']),
-    new ORM\Index(name: 'idx_collection_theme', columns: ['theme']),
-])]
+#[ORM\Table(name: 'collections')]
+#[ORM\Index(name: 'idx_collection_owner', columns: ['owner_id'])]
+#[ORM\Index(name: 'idx_collection_theme', columns: ['theme'])]
 #[ORM\HasLifecycleCallbacks]
 final class Collection
 {
@@ -186,13 +185,10 @@ final class Collection
         $this->touch();
     }
 
-    #[ORM\PreUpdate]
-    public function onPreUpdate(\Doctrine\ORM\Event\PreUpdateEventArgs $args): void
-    {
-        if (!$args->hasChangedField('updatedAt')) {
-            $this->touch();
-        }
-    }
+    // Note: updatedAt is updated via explicit touch() calls from domain mutators
+    // (changeName(), changeTheme(), etc.). Doctrine @ORM\PreUpdate is NOT used
+    // because the changeset is computed before preUpdate fires — touch() there
+    // would never persist.
 
     public function touch(): void
     {

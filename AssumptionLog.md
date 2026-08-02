@@ -380,3 +380,108 @@ Resolution: rebind `Symfony\Component\Clock\ClockInterface` to `Symfony\Componen
 **Verification:** local gates: 144/144 tests, PHPStan L6 clean, phpcs clean, rector dry-run clean. No remote CI on PR #21 yet; same PAT `checks:read` gap as the original Clock refactor; local is source of truth.
 
 **Follow-up:** push commits, wait for remote CI. Stage 3 (Task 3.2+) is the next roadmap task on `task/3.1-collection-entity`.
+
+## 2026-08-01 — Task 3.2 CollectionField Entity with Types and Slot_Index
+
+**Decisions:**
+- FieldName VO: Unicode letters/digits + space `_ - . /`, length 2..50 (user-confirmed)
+- FieldType VO: 4 enum-backed cases — text, number, date, bool; mirrors Theme VO pattern with factories, fromString, isX() helpers
+- DBAL type: `FieldTypeEnumType` extends `StringType` with `requiresSQLCommentHint(true)` for Doctrine enum comment; registered in doctrine.yaml as `field_type_enum`
+- Entity: `CollectionField` with `ClockAwareTrait`, unique constraint on (collection_id, slot_index), slot_index range 1..100 (MAX_FIELDS_PER_COLLECTION = 100 constant)
+- Domain rule #3: only rename allowed post-creation — `rename(FieldName)` touches; type/slot/collection immutable (no setters). Edge case `reassignToCollection(Collection)` for admin reorg only
+- Repository interface: save, remove, findById, findByCollection (ordered by slot_index ASC), findByCollectionAndSlot, nextSlotIndexFor (COALESCE MAX+1), countByCollection
+- Doctrine repo implementation using QueryBuilder
+- Migration: collection_fields table with VARBINARY(16) PK, FK to collections ON DELETE CASCADE, unique index on (collection_id, slot_index), index on collection_id, datetime(6) precision
+
+**Tests:** 6 test files — VO (3), Entity (1), DBAL type (1), Kernel repo (1); 206 total tests pass
+
+**Issues encountered & fixed:**
+- Missing `slotIndex` validation in constructor → added InvalidArgumentException for range 1..100
+- User constructor in tests had wrong argument order (name expects string, not Email) → fixed
+- PHPStan: `@extends` tag without actual extends on interface → removed docblock
+- PHP-CS-Fixer: missing trailing newlines → added
+- Doctrine schema validation initially failed due to auto-generated migration dropping unique index → manual migration re-added it
+
+**Acceptance verified:**
+- All quality gates pass: PHPStan L6, PHPcsFixer (--allow-risky=yes), Rector dry-run, PHPCPD (0%)
+- Full test suite: 206 tests, 408 assertions
+- Doctrine schema validate: mapping OK, database sync (unique index present)
+- Roadmap updated: 3.1 and 3.2 done
+
+**Next:** Task 3.3 — Service for collection (creation, editing, user's collections list)
+
+## 2026-08-02 — External Review Fixes for Task 3.2
+
+**Review findings addressed:**
+
+1. **High — Broken migration chain** (CONFIRMED, fixed)
+   - 4 migrations (130527, 130812, 131500, 132500) created execution order violations on fresh DB: 130812 dropped non-existent index; 132500 duplicated it.
+   - Deleted all 4. Single consolidated migration `Version20260801135500` creates `collection_fields` (with unique index) + `collections` (IF NOT EXISTS for dev DBs where 3.1 schema:update already applied), with DATETIME(6) precision.
+
+2. **Medium — Repository untested** (CONFIRMED, fixed)
+   - Created `tests/Infrastructure/Collection/Repository/DoctrineCollectionFieldRepositoryTest.php`: 11 integration tests covering save/remove/findByCollection/findByCollectionAndSlot/nextSlotIndexFor/countByCollection.
+
+3. **Medium — reassignToCollection slot collision** (CONFIRMED, contract-specified)
+   - Method is pure collection-reference move: `reassignToCollection(Collection $collection): void`. slot_index unchanged.
+   - Caller (use-case/service, Task 3.3) is responsible for ensuring slot_index does not collide with an existing field in the target collection. Domain does not query the repository here to avoid coupling entity to persistence.
+   - On collision at flush, raw DBAL unique-constraint exception surfaces. Collision handling owned by service layer.
+
+4. **Low — nextSlotIndexFor uncapped** (CONFIRMED, design)
+   - Returns raw `MAX(f.slotIndex) + 1`. No PHP-level cap (reverted in commit `5f9f8e9`).
+   - Out-of-range slot_index (above 100) is rejected by `CollectionField::__construct` lines 75–79 with `\InvalidArgumentException`, surfacing the overflow to the caller.
+   - Concurrent-insert race (TOCTOU) acknowledged; designed to be mitigated at service layer (Task 3.3).
+
+5. **Low — FieldName byte strlen vs char length** (CONFIRMED, fixed)
+   - Replaced `strlen()` with `mb_strlen($value, 'UTF-8')` in FieldName constructor. MAX_LENGTH=50 now matches DB `VARCHAR(50)` semantics for multibyte names.
+
+6. **High (hidden) — CI || true on migrations** (CONFIRMED, fixed)
+   - `.github/workflows/ci.yml:164`: removed `|| true` from `doctrine:migrations:migrate` so migration failures surface as CI failures.
+
+**Verification:** 217/217 tests pass. PHPStan L6 clean. PHPcsFixer clean (after auto-fix). PHPCPD: 0.43% pre-existing duplication in LoginController/RegistrationController (not introduced by these fixes). Doctrine schema validate: mapping OK.
+
+## 2026-08-03 — External Review Round #3 for Task 3.2 (PR #22)
+
+**Decisions taken as final:**
+
+1. **High — Doctrine ORM 3.x → 4.0 uniqueConstraint/index attribute migration** (CONFIRMED, fixed)
+   - `uniqueConstraints: [...]` and `indexes: [...]` arrays inside `#[ORM\Table(...)]` are no-op in Doctrine ORM 3.x and removed in 4.0. `doctrine:migrations:diff` and `schema:update` would silently drop the unique index on `collection_fields`, breaking slot integrity.
+   - Moved to repeated class-level attributes in `CollectionField::class` and `Collection::class` (PHP 8 attribute repetition):
+     - `CollectionField`: `#[ORM\UniqueConstraint(name: 'uniq_collection_field_slot', columns: ['collection_id', 'slot_index'])]`, `#[ORM\Index(name: 'idx_collection_field_collection', columns: ['collection_id'])]`
+     - `Collection`: `#[ORM\Index(name: 'idx_collection_owner', columns: ['owner_id'])]`, `#[ORM\Index(name: 'idx_collection_theme', columns: ['theme'])]` (bundled from Task 3.1 — same risk class).
+   - Migration `Version20260801135500` updated to use explicit index names matching the new class-level attributes.
+   - New migration `Version20260801140000` conditionally renames the legacy auto-named Doctrine index `IDX_D325D3EE7E3C61F9` → `idx_collection_owner` on environments where 3.1 ran via `schema:update` (idempotent: skips on fresh DBs).
+   - `src/Domain/User/Entity/User.php` still uses `indexes: [...]` inside `#[ORM\Table]` — same ORM 4.0 risk. **Out of scope** for Task 3.2; will be tracked as a separate Roadmap item.
+
+2. **Low — AssumptionLog sync** (CORRECTED; see edits to 2026-08-02 entry above)
+   - Round #2 entry originally claimed `reassignToCollection` auto-reallocates and `nextSlotIndexFor` is `min(MAX + 1, MAX)` — both reverted in commit `5f9f8e9`. Source-of-truth violation corrected above.
+
+3. **Low (informational) — nextSlotIndexFor unbounded / TOCTOU race** (NO ACTION)
+   - Acknowledged design decision. Mitigation owner: Task 3.3 service layer (transactions, locking, or optimistic retry on unique-constraint exception).
+
+4. **Low (acceptable) — reassignToCollection collision surfaces raw DBAL exception** (NO ACTION)
+   - Contract explicit in docblock at `CollectionField.php:148–153`. Caller (Task 3.3 service) owns collision avoidance.
+
+**Verification (round #3):**
+- `doctrine:schema:validate --env=test` on fresh DB: `[OK] mapping files correct`, `[OK] database schema in sync with mapping files`
+- `SHOW INDEX FROM collections`: `idx_collection_owner`, `idx_collection_theme` present (renamed from `IDX_D325D3EE7E3C61F9` where legacy state existed)
+- `SHOW INDEX FROM collection_fields`: `uniq_collection_field_slot` (composite), `idx_collection_field_collection` present
+- 217/217 PHPUnit tests pass
+- PHP-CS-Fixer clean (0 of 69 files)
+- Rector clean
+- PHPStan L6 clean
+- Doctrine deprecation warning "Providing $indexes on Table does not have any effect" reduced to User.php only (Task 2.x territory)
+
+## 2026-08-16 — Task 3.2 Retrospective PRD Creation
+
+**Context:** PRD `PRD/3.2-collection-field-entity.md` создан поздно — после merge PR #22. Причина: ускоренный review-цикл после внешнего аудита, формальный шаг декомпозиции пропущен. На будущее — PRD обязателен до старта (CLAUDE.md §4).
+
+**Decisions:**
+- Реализация полностью соответствует критериям приёмки задокументированным ретроспективно
+- Подзадачи 3.2.1..3.2.6 малы (≤2ч, ≤150 LoC каждая), выполнены в рамках бюджета 2x (<14ч общий объём)
+- Никакого расширения scope ретроспективным PRD не санкционировано — только фиксация уже сделанного
+
+**Outstanding (не блокер для 3.2 done):**
+- `DoctrineCollectionFieldRepository` имплементация из infra-отдельной задачи пока отсутствует (в memory зафиксировано создание `tests/Infrastructure/Collection/Repository/DoctrineCollectionFieldRepositoryTest.php`) — нужно проверить на main и создать отдельную задачу в Roadmap, если отсутствует
+- `User.php` всё ещё использует `indexes` внутри `#[ORM\Table(...)]` — deprecation warning перенесён из 3.x в 2.x; технический долг, но не блокирует 3.2
+
+**Next:** Task 3.3 (Collection service) — должна использовать `CollectionFieldRepositoryInterface`, проверить наличие имплементации до старта 3.3
