@@ -238,13 +238,10 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
         // No sensitive data to erase
     }
 
-    #[ORM\PreUpdate]
-    public function onPreUpdate(\Doctrine\ORM\Event\PreUpdateEventArgs $args): void
-    {
-        if (!$args->hasChangedField('updatedAt')) {
-            $this->touch();
-        }
-    }
+    // Note: updatedAt is updated via explicit touch() calls from domain mutators
+    // (changeName(), changeEmail(), etc.). Doctrine @ORM\PreUpdate is NOT used
+    // because the changeset is computed before preUpdate fires — touch() there
+    // would never persist.
 
     public function touch(): void
     {

@@ -161,7 +161,7 @@ jobs:
 
       - name: Run migrations
         run: |
-          php bin/console doctrine:migrations:migrate --no-interaction --env=test || true
+          php bin/console doctrine:migrations:migrate --no-interaction --env=test
         env:
           DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
 

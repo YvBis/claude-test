@@ -54,6 +54,7 @@ coverage/
 *.swp
 *.swo
 *~
+/.plan/
 ###> symfony/framework-bundle ###
 /.env.local
 /.env.local.php
