@@ -1,0 +1,52 @@
+name: 'Setup CI Environment'
+description: 'Shared setup for PHP CI jobs: PHP, Composer cache, .env, JWT keys, dependencies'
+
+inputs:
+  php-version:
+    description: 'PHP version to install'
+    default: '8.3'
+  extensions:
+    description: 'PHP extensions to install'
+    default: 'pdo_mysql, mbstring, exif, pcntl, bcmath, gd, zip, redis'
+  tools:
+    description: 'Composer tools'
+    default: 'composer:v2'
+  install-dependencies:
+    description: 'Whether to run composer install'
+    default: 'true'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup PHP ${{ inputs.php-version }}
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php-version }}
+        extensions: ${{ inputs.extensions }}
+        tools: ${{ inputs.tools }}
+
+    - name: Cache Composer
+      uses: actions/cache@v4
+      with:
+        path: ~/.composer/cache
+        key: composer-${{ hashFiles('composer.lock') }}
+        restore-keys: |
+          composer-
+
+    - name: Setup .env for CI
+      run: cp .env.test .env
+      shell: bash
+
+    - name: Generate JWT keys
+      run: |
+        mkdir -p config/jwt
+        openssl genrsa -out config/jwt/private.pem -aes256 -passout pass:"${JWT_PASSPHRASE}" 4096
+        openssl rsa -pubout -in config/jwt/private.pem -passin pass:"${JWT_PASSPHRASE}" -out config/jwt/public.pem
+      shell: bash
+      env:
+        JWT_PASSPHRASE: test_passphrase
+
+    - name: Install dependencies
+      if: inputs.install-dependencies == 'true'
+      run: composer install --no-progress --no-interaction
+      shell: bash
