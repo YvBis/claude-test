@@ -45,22 +45,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup PHP 8.3
-        uses: shivammathur/setup-php@v2
+      - name: Setup CI environment
+        uses: ./.github/actions/setup-ci
         with:
-          php-version: '8.3'
           extensions: pdo_mysql, mbstring, exif, pcntl, bcmath, gd, zip, redis, xdebug
-          ini-values: xdebug.mode=coverage
-          coverage: xdebug
-          tools: composer:v2
-
-      - name: Cache Composer
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.COMPOSER_CACHE_DIR }}
-          key: composer-${{ hashFiles('composer.lock') }}
-          restore-keys: |
-            composer-
 
       - name: Cache PHPStan
         uses: actions/cache@v4
@@ -78,25 +66,11 @@ jobs:
           restore-keys: |
             phpcsfixer-
 
-      - name: Setup .env for CI
-        run: cp .env.test .env
-
-      - name: Generate JWT keys
-        run: |
-          mkdir -p config/jwt
-          openssl genrsa -out config/jwt/private.pem -aes256 -passout pass:"${JWT_PASSPHRASE}" 4096
-          openssl rsa -pubout -in config/jwt/private.pem -passin pass:"${JWT_PASSPHRASE}" -out config/jwt/public.pem
-        env:
-          JWT_PASSPHRASE: test_passphrase
-
-      - name: Install dependencies
-        run: composer install --no-progress --no-interaction
-
       - name: Run static analysis (PHPStan, PHPcsFixer check, Rector dry-run, PHPCPD)
         run: composer ci:static:quality
 
   unit-tests:
-    name: Unit Tests with Coverage
+    name: Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -123,36 +97,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup PHP 8.3
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          extensions: pdo_mysql, mbstring, exif, pcntl, bcmath, gd, zip, redis, xdebug
-          ini-values: xdebug.mode=coverage
-          coverage: xdebug
-          tools: composer:v2
+      - name: Setup CI environment
+        uses: ./.github/actions/setup-ci
 
-      - name: Cache Composer
+      - name: Cache PHPStan
         uses: actions/cache@v4
         with:
-          path: ${{ env.COMPOSER_CACHE_DIR }}
-          key: composer-${{ hashFiles('composer.lock') }}
+          path: var/cache/phpstan
+          key: phpstan-${{ hashFiles('phpstan.neon', 'composer.lock') }}
           restore-keys: |
-            composer-
+            phpstan-
 
-      - name: Setup .env for CI
-        run: cp .env.test .env
-
-      - name: Generate JWT keys
-        run: |
-          mkdir -p config/jwt
-          openssl genrsa -out config/jwt/private.pem -aes256 -passout pass:"${JWT_PASSPHRASE}" 4096
-          openssl rsa -pubout -in config/jwt/private.pem -passin pass:"${JWT_PASSPHRASE}" -out config/jwt/public.pem
-        env:
-          JWT_PASSPHRASE: test_passphrase
-
-      - name: Install dependencies
-        run: composer install --no-progress --no-interaction
+      - name: Cache PHP-CS-Fixer
+        uses: actions/cache@v4
+        with:
+          path: var/cache/.php-cs-fixer.cache
+          key: phpcsfixer-${{ hashFiles('.php-cs-fixer.dist.php', 'composer.lock') }}
+          restore-keys: |
+            phpcsfixer-
 
       - name: Create test database
         run: php bin/console doctrine:database:create --if-not-exists --env=test
@@ -165,18 +127,17 @@ jobs:
         env:
           DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
 
-      - name: Run PHPUnit with coverage
-        run: composer phpunit
+      - name: Run PHPUnit
+        if: github.event_name == 'push'
+        run: composer ci:test
         env:
           DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
 
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: var/coverage/
-          retention-days: 7
+      - name: Run PHPUnit with coverage
+        if: github.event_name == 'pull_request'
+        run: composer ci:test:coverage
+        env:
+          DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
 
   dependency-audit:
     name: Dependency Audit
@@ -190,7 +151,6 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: pdo_mysql, mbstring, exif, pcntl, bcmath, gd, zip, redis
           tools: composer:v2
 
       - name: Cache Composer
@@ -201,22 +161,11 @@ jobs:
           restore-keys: |
             composer-
 
-      - name: Setup .env for CI
-        run: cp .env.test .env
-
-      - name: Generate JWT keys
-        run: |
-          mkdir -p config/jwt
-          openssl genrsa -out config/jwt/private.pem -aes256 -passout pass:"${JWT_PASSPHRASE}" 4096
-          openssl rsa -pubout -in config/jwt/private.pem -passin pass:"${JWT_PASSPHRASE}" -out config/jwt/public.pem
-        env:
-          JWT_PASSPHRASE: test_passphrase
-
       - name: Install dependencies
-        run: composer install --no-progress --no-interaction
+        run: composer install --no-progress --no-interaction --no-scripts
 
       - name: Run composer audit
-        run: composer audit --locked --no-check-all || true
+        run: composer audit --locked || true
 
   ci-summary:
     name: CI Summary
