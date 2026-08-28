@@ -24,6 +24,7 @@ final class RegistrationController extends AbstractApiController
     #[Route('/api/register', name: 'api_register', methods: ['POST'])]
     #[OA\Post(
         path: '/api/register',
+        security: [],
         summary: 'Register a new user',
         description: 'Creates a new user account with name, email, and password. Returns the created user data.',
         requestBody: new OA\RequestBody(

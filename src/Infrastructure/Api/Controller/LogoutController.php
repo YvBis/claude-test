@@ -19,7 +19,7 @@ final class LogoutController extends AbstractController
         path: '/api/logout',
         summary: 'User logout',
         description: 'Logout user (client-side token removal for stateless JWT)',
-        security: [['bearerAuth' => []]],
+        security: [['Bearer' => []]],
         tags: ['Authentication'],
         responses: [
             new OA\Response(
