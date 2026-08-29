@@ -12,6 +12,7 @@ class HealthController extends AbstractController
     #[Route('/health', name: 'health', methods: ['GET'])]
     #[OA\Get(
         path: '/health',
+        security: [],
         summary: 'Health check endpoint',
         description: 'Returns service health status. Used for liveness/readiness probes.',
         tags: ['System'],

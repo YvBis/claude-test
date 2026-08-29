@@ -25,6 +25,7 @@ final class LoginController extends AbstractApiController
     #[Route('/api/login', name: 'api_login', methods: ['POST'])]
     #[OA\Post(
         path: '/api/login',
+        security: [],
         summary: 'User login',
         description: 'Authenticate user and return JWT access token',
         requestBody: new OA\RequestBody(
