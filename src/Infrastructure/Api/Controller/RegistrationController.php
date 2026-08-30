@@ -16,9 +16,6 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
-/**
- * @extends AbstractApiController<RegisterUserDTO>
- */
 final class RegistrationController extends AbstractApiController
 {
     #[Route('/api/register', name: 'api_register', methods: ['POST'])]

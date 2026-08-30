@@ -17,9 +17,6 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
-/**
- * @extends AbstractApiController<LoginUserDTO>
- */
 final class LoginController extends AbstractApiController
 {
     #[Route('/api/login', name: 'api_login', methods: ['POST'])]
