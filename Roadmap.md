@@ -33,7 +33,7 @@
 |--------|----------|--------|
 | 3.1 | [x] Сущность Collection с owner, theme, image, description | done |
 | 3.2 | [x] Сущность CollectionField с типами (text/number/date/bool) и slot_index | done |
-| 3.3 | [ ] Сервис коллекции — создание, редактирование, список коллекций пользователя | todo |
+| 3.3 | [x] Сервис коллекции — создание, редактирование, список коллекций пользователя | done |
 | 3.4 | [ ] API-эндпоинты коллекции (CRUD, список всех, список своих) | todo |
 | 3.5 | [ ] Валидация тем (Books/Games/Movies/Drinks) | todo |
 | 3.6 | [ ] Unit-тесты для домена Collection | todo |
