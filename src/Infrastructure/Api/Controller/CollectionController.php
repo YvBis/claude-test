@@ -104,7 +104,7 @@ final class CollectionController extends AbstractApiController
 
         try {
             $collection = $collectionService->create($dto, $user);
-        } catch (\Throwable $e) {
+        } catch (\Throwable $throwable) {
             return new JsonResponse(['error' => 'Internal Server Error'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
@@ -194,10 +194,10 @@ final class CollectionController extends AbstractApiController
 
         try {
             $collection = $collectionService->getById($id);
-        } catch (CollectionNotFoundException $e) {
+        } catch (CollectionNotFoundException $collectionNotFoundException) {
             return new JsonResponse([
                 'error' => 'Not Found',
-                'message' => $e->getMessage(),
+                'message' => $collectionNotFoundException->getMessage(),
             ], Response::HTTP_NOT_FOUND);
         }
 
@@ -396,10 +396,10 @@ final class CollectionController extends AbstractApiController
 
         try {
             $collection = $collectionService->getById($id);
-        } catch (CollectionNotFoundException $e) {
+        } catch (CollectionNotFoundException $collectionNotFoundException) {
             return new JsonResponse([
                 'error' => 'Not Found',
-                'message' => $e->getMessage(),
+                'message' => $collectionNotFoundException->getMessage(),
             ], Response::HTTP_NOT_FOUND);
         }
 
@@ -420,7 +420,7 @@ final class CollectionController extends AbstractApiController
 
         try {
             $updatedCollection = $collectionService->update($dto, $collection);
-        } catch (\Throwable $e) {
+        } catch (\Throwable $throwable) {
             return new JsonResponse(['error' => 'Internal Server Error'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
@@ -496,10 +496,10 @@ final class CollectionController extends AbstractApiController
 
         try {
             $collection = $collectionService->getById($id);
-        } catch (CollectionNotFoundException $e) {
+        } catch (CollectionNotFoundException $collectionNotFoundException) {
             return new JsonResponse([
                 'error' => 'Not Found',
-                'message' => $e->getMessage(),
+                'message' => $collectionNotFoundException->getMessage(),
             ], Response::HTTP_NOT_FOUND);
         }
 
@@ -513,7 +513,7 @@ final class CollectionController extends AbstractApiController
 
         try {
             $collectionService->delete($collection);
-        } catch (\Throwable $e) {
+        } catch (\Throwable $throwable) {
             return new JsonResponse(['error' => 'Internal Server Error'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 

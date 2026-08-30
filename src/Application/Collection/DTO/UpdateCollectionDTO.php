@@ -30,14 +30,17 @@ final readonly class UpdateCollectionDTO
         if (null !== $name) {
             $name = \trim($name);
         }
+
         $this->name = ('' === $name) ? null : $name;
         if (null !== $description) {
             $description = \trim($description);
         }
+
         $this->description = ('' === $description) ? null : $description;
         if (null !== $image) {
             $image = \trim($image);
         }
+
         $this->image = ('' === $image) ? null : $image;
     }
 
