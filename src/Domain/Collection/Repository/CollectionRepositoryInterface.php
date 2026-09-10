@@ -12,15 +12,15 @@ interface CollectionRepositoryInterface
 {
     /**
      * Schedule the collection for persistence (added to the Unit of Work).
-     * The write is deferred: the Application layer decides when changes
-     * are committed to the database.
+     * The write is deferred and happens later, when a decision is made
+     * to commit pending changes.
      */
     public function save(Collection $collection): void;
 
     /**
      * Schedule the collection for removal (added to the Unit of Work).
-     * The removal is deferred: the Application layer decides when changes
-     * are committed to the database.
+     * The removal is deferred and happens later, when a decision is made
+     * to commit pending changes.
      */
     public function remove(Collection $collection): void;
 
