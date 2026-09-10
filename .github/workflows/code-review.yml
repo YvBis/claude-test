@@ -14,18 +14,18 @@ concurrency:
 
 jobs:
   review:
-    name: Gemini AI Review
+    name: OpenRabbit Review
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v4
+
       - name: Run AI Code Review
-        uses: petarzarkov/gemini-code-review-action@v1.1.3
+        uses: aryanbrite/openrabbit@v0.8.7
         with:
-          exclude: '*.md,*.json,package-lock.json,*.yaml,*.test.ts,migrations/*,*.spec.ts,*.e2e.ts,test/*,tests/*,workflows/*'
-          model: gemini-2.5-flash
-          enable_conversation_context: true
-          skip_draft_prs: true
-          language: Russian
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GITHUB_TOKEN: ${{ github.token }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          llm_api_key: ${{ secrets.LLM_API_KEY }}
+          llm_provider: openrouter
+          llm_model: openrouter/free
+          review_mode: both
+          tone_mode: balanced
