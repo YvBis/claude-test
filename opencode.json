@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "Проект: TaskFlow — REST API для управления личными коллекциями (Symfony 7, PHP 8.3, Clean Architecture).",
+    "Всегда обращайся к CLAUDE.md для workflow правил.",
+    "Ссылки на ключевые файлы: README.md (обзор), Roadmap.md (задачи), artifacts/ (PRD, техтребования, доменная модель).",
+    "Архитектура: Domain → Application → Infrastructure. Слои изолированы через интерфейсы.",
+    "Текущий статус: Этап 1-2 завершены, Этап 3 в работе (2/6 задач). Смотреть Roadmap.md.",
+    "CI/CD: GitHub Actions. Локально: docker compose exec app composer ci:all",
+    "Тесты: docker compose exec app composer test",
+    "Коммиты: Conventional Commits (feat/fix/refactor/test/docs/chore/review)"
+  ],
+  "autoRead": [
+    "CLAUDE.md",
+    "README.md",
+    "Roadmap.md",
+    "ARCHITECTURE.md"
+  ]
+}

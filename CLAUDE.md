@@ -216,3 +216,85 @@
 
 - Набор команд проверок должен быть явно описан в `README.md` или рядом с задачей.
 - Задача не считается завершённой без прохождения проверок и записи в `AssumptionLog.md`.
+
+---
+
+## Quick Reference
+
+### Ключевые файлы
+
+| Файл | Назначение |
+|------|------------|
+| `CLAUDE.md` | Workflow правила для ИИ-агентов |
+| `README.md` | Обзор проекта, установка, команды |
+| `Roadmap.md` | Workplan — очередь задач |
+| `ARCHITECTURE.md` | Архитектурная сводка |
+| `AssumptionLog.md` | Журнал допущений |
+| `composer.json` | Зависимости, команды, autoload |
+| `phpunit.xml.dist` | Конфигурация тестов |
+| `phpstan.neon` | Конфигурация статического анализа |
+| `.php-cs-fixer.dist.php` | Конфигурация стиля кода |
+| `rector.php` | Конфигурация рефакторинга |
+| `docker-compose.yml` | Инфраструктура |
+
+### Структура src/
+
+```
+src/
+├── Domain/           # Бизнес-логика (сущности, VO, интерфейсы репозиториев)
+│   ├── User/         # Домен пользователя
+│   ├── Collection/   # Домен коллекций
+│   └── Common/       # Общие компоненты (UuidBinaryValue, DomainMarker)
+├── Application/      # Сервисы приложения (use cases, DTO)
+│   ├── User/         # Сервисы пользователя (Registration, Authentication)
+│   └── Common/       # Общие компоненты (ApplicationMarker, ValidationException)
+├── Infrastructure/   # Реализации (контроллеры, репозитории, провайдеры)
+│   ├── Api/Controller/  # REST API контроллеры
+│   ├── User/Repository/ # Doctrine репозиторий пользователя
+│   ├── Collection/Repository/ # Doctrine репозиторий коллекций
+│   ├── Doctrine/     # Типы, слушатели Doctrine
+│   ├── Security/     # UserProvider
+│   └── Common/       # InfrastructureMarker
+└── Controller/       # Системные контроллеры (health check)
+```
+
+### Типичные команды
+
+```bash
+# Запуск приложения
+docker compose up -d
+
+# Миграции
+docker compose exec app php bin/console doctrine:migrations:migrate
+
+# Тесты
+docker compose exec app composer test
+docker compose exec app composer coverage:check
+
+# Статический анализ
+docker compose exec app composer phpstan
+docker compose exec app composer phpcs:check
+docker compose exec app composer rector:dry-run
+
+# Всё вместе (CI)
+docker compose exec app composer ci:all
+
+# OpenAPI
+docker compose exec app composer openapi:generate
+```
+
+### Паттерны проекта
+
+- **Value Objects**: immutable, с бизнес-логикой в конструкторе
+- **Сущности**: наследуют `AbstractEntity`, используют `ClockAwareTrait`
+- **Репозитории**: интерфейс в Domain, реализация в Infrastructure
+- **Маркеры слоёв**: `DomainMarker`, `ApplicationMarker`, `InfrastructureMarker`
+- **UUID**: бинарный формат через `UuidBinaryValue`
+- **Тесты**: PHPUnit 9, DoctrineTestBundle для изоляции БД
+
+### Текущий статус (обновлять при изменениях)
+
+- **Этап 1 (Инфраструктура)**: ✅ завершён
+- **Этап 2 (Пользователь)**: ✅ завершён
+- **Этап 3 (Коллекция)**: 🔄 в работе (2/6 задач)
+- **Этап 4-8**: ⏳ в очереди
