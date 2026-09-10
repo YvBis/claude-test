@@ -16,6 +16,7 @@ jobs:
   review:
     name: OpenRabbit Review
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
