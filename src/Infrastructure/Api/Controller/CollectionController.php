@@ -10,6 +10,7 @@ use App\Application\Collection\Service\CollectionService;
 use App\Application\Exception\ValidationException;
 use App\Domain\Collection\Exception\CollectionNotFoundException;
 use App\Domain\User\Entity\User;
+use App\Domain\User\ValueObject\UserId;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -219,8 +220,8 @@ final class CollectionController extends AbstractApiController
     #[OA\Get(
         path: '/api/collections',
         security: [['Bearer' => []]],
-        summary: 'List all collections for the authenticated user',
-        description: 'Returns a paginated list of collections owned by the authenticated user.',
+        summary: 'List collections',
+        description: 'Returns a paginated list of collections. Without an "owner" parameter — the authenticated user\'s own collections; with "owner" — another user\'s collections.',
         parameters: [
             new OA\Parameter(
                 name: 'limit',
@@ -233,6 +234,13 @@ final class CollectionController extends AbstractApiController
                 in: 'query',
                 required: false,
                 schema: new OA\Schema(type: 'integer', default: 0)
+            ),
+            new OA\Parameter(
+                name: 'owner',
+                in: 'query',
+                required: false,
+                description: "User ID whose collections to list. Omit to list the authenticated user's own collections.",
+                schema: new OA\Schema(type: 'string', format: 'uuid')
             ),
         ],
         tags: ['Collections'],
@@ -281,8 +289,20 @@ final class CollectionController extends AbstractApiController
 
         $limit = (int) ($request->query->get('limit') ?? 50);
         $offset = (int) ($request->query->get('offset') ?? 0);
+        $owner = $request->query->get('owner');
 
-        $collections = $collectionService->listByOwner($user, $limit, $offset);
+        if (null !== $owner && \is_string($owner)) {
+            try {
+                $ownerId = UserId::fromString($owner);
+            } catch (\InvalidArgumentException) {
+                return new JsonResponse(['error' => 'Invalid owner id'], Response::HTTP_BAD_REQUEST);
+            }
+
+            $collections = $collectionService->listByOwnerId($ownerId, $limit, $offset);
+        } else {
+            $collections = $collectionService->listByOwner($user, $limit, $offset);
+        }
+
         $dtos = $collectionService->toDTOList($collections);
 
         return new JsonResponse($dtos, Response::HTTP_OK);

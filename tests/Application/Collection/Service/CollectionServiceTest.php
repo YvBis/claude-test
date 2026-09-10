@@ -143,6 +143,28 @@ final class CollectionServiceTest extends TestCase
         $this->assertSame('Collection 2', $result[1]->getName()->value());
     }
 
+    public function testListByOwnerIdReturnsCollections(): void
+    {
+        $otherOwner = User::register('Other User', \App\Domain\User\ValueObject\Email::fromString('other@example.com'), \App\Domain\User\ValueObject\PasswordHash::createFromPlain('password123'));
+        $ownerId = $otherOwner->getId();
+        $collection = Collection::create(
+            owner: $otherOwner,
+            name: CollectionName::fromString('Other Collection'),
+            theme: Theme::fromString('movies'),
+        );
+
+        $this->collectionRepository
+            ->expects($this->once())
+            ->method('findByOwnerId')
+            ->with($this->identicalTo($ownerId), 50, 0)
+            ->willReturn([$collection]);
+
+        $result = $this->service->listByOwnerId($ownerId);
+
+        $this->assertCount(1, $result);
+        $this->assertSame('Other Collection', $result[0]->getName()->value());
+    }
+
     public function testListAllReturnsCollections(): void
     {
         $collection1 = Collection::create(
