@@ -42,8 +42,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
+          zip=/tmp/review_logs.zip
+          code=1
           for i in 1 2 3 4 5; do
-            logs=$(gh run view "$GITHUB_RUN_ID" --log 2>/dev/null)
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/logs" --output "$zip" 2>/dev/null
             code=$?
             if [ "$code" -eq 0 ]; then break; fi
             sleep 10
@@ -52,8 +54,7 @@ jobs:
             echo "⚠ Cannot fetch run logs after retries (code $code). Skipping guard."
             exit 0
           fi
-          echo "$logs" | grep -iE "Deranked|status: 429|status: 404|Non-retryable error" > /dev/null
-          if [ $? -eq 0 ]; then
+          if grep -iE "Deranked|status: 429|status: 404|Non-retryable error" <(unzip -p "$zip" 2>/dev/null | sed -e 's/\x1b\[[0-9;]*m//g') > /dev/null; then
             echo "::error::Gemini review hit a quota/model error (429/404/derank to retired model). Review did not run. Re-run the job when the API quota frees up."
             exit 1
           fi
