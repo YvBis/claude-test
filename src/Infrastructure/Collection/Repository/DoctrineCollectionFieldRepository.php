@@ -36,7 +36,15 @@ final class DoctrineCollectionFieldRepository extends ServiceEntityRepository im
     #[\Override]
     public function findById(CollectionFieldId $id): ?CollectionField
     {
-        return $this->find($id->toBytes());
+        return $this->createQueryBuilder('f')
+            ->innerJoin('f.collection', 'collection')
+            ->addSelect('collection')
+            ->innerJoin('collection.owner', 'owner')
+            ->addSelect('owner')
+            ->where('f.id = :id')
+            ->setParameter('id', $id->toBytes(), 'binary')
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 
     /** @return array<CollectionField> */
