@@ -22,7 +22,7 @@ jobs:
         uses: petarzarkov/gemini-code-review-action@v1.1.3
         with:
           exclude: '*.md,*.json,package-lock.json,*.yaml,*.test.ts,migrations/*,*.spec.ts,*.e2e.ts,test/*,tests/*,workflows/*'
-          model: gemini-2.5-flash
+          model: gemini-2.5-flash-lite
           enable_conversation_context: true
           skip_draft_prs: true
           language: Russian
