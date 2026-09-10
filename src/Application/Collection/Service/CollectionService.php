@@ -7,6 +7,7 @@ namespace App\Application\Collection\Service;
 use App\Application\Collection\DTO\CollectionDTO;
 use App\Application\Collection\DTO\CreateCollectionDTO;
 use App\Application\Collection\DTO\UpdateCollectionDTO;
+use App\Application\Common\Transaction\UnitOfWorkInterface;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\Exception\CollectionNotFoundException;
 use App\Domain\Collection\Repository\CollectionRepositoryInterface;
@@ -19,6 +20,7 @@ final readonly class CollectionService
 {
     public function __construct(
         private CollectionRepositoryInterface $collectionRepository,
+        private UnitOfWorkInterface $unitOfWork,
     ) {
     }
 
@@ -33,6 +35,7 @@ final readonly class CollectionService
         );
 
         $this->collectionRepository->save($collection);
+        $this->unitOfWork->flush();
 
         return $collection;
     }
@@ -52,6 +55,7 @@ final readonly class CollectionService
         }
 
         $this->collectionRepository->save($collection);
+        $this->unitOfWork->flush();
 
         return $collection;
     }
@@ -87,6 +91,7 @@ final readonly class CollectionService
     public function delete(Collection $collection): void
     {
         $this->collectionRepository->remove($collection);
+        $this->unitOfWork->flush();
     }
 
     public function toDTO(Collection $collection): CollectionDTO

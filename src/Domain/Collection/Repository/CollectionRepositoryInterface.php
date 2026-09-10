@@ -10,8 +10,18 @@ use App\Domain\User\Entity\User;
 
 interface CollectionRepositoryInterface
 {
+    /**
+     * Schedule the collection for persistence (added to the Unit of Work).
+     * The write is deferred and happens later, when a decision is made
+     * to commit pending changes.
+     */
     public function save(Collection $collection): void;
 
+    /**
+     * Schedule the collection for removal (added to the Unit of Work).
+     * The removal is deferred and happens later, when a decision is made
+     * to commit pending changes.
+     */
     public function remove(Collection $collection): void;
 
     public function findById(CollectionId $id): ?Collection;

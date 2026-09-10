@@ -537,3 +537,20 @@ Resolution: rebind `Symfony\Component\Clock\ClockInterface` to `Symfony\Componen
 **CI:** PR #25 re-reviewed by Gemini after rebase on current main — 2 substantive inline comments (duplicate exception, flush-in-repository); first fixed, second backlogged.
 
 **Next:** review-4 flush refactor task in Review Backlog.
+
+## 2026-09-10 — review-4: UoW/flush refactor (implemented, PR #28)
+
+**Decisions:**
+- New abstraction: `UnitOfWorkInterface` (Application) with single `flush(): void`; implementation `DoctrineUnitOfWork` (Infrastructure) wraps `EntityManagerInterface::flush()`. Autowired via DI (single implementation)
+- All 3 Doctrine repos now only schedule entities (`persist`/`remove`); flush removed. Services (CollectionService, RegistrationService) flush after save/remove. Repo interfaces in Domain are now documentation-only about deferred writes — Domain docblocks intentionally do NOT reference the Application UoW class (layering)
+- Integration repo tests flush explicitly before query assertions: persister-based find methods (`find(SECOND/PATCH/repo)`, `findBy*`, `findAll`) do NOT trigger Doctrine auto-flush — only DQL does. Initial assumption (DQL-only repos) was wrong; failures caught it
+- Test env: `cache:clear --env=test` does NOT invalidate the compiled test container — required `rm -rf var/cache/test` before rerunning after DI changes
+
+**Deferred (not in review-4 scope):**
+- `transactional(callable)` boundary on UnitOfWorkInterface — DEFERRED to Этап 4 (item + dynamic fields atomic creation). Rationale: no current consumer (all use-cases single-entity; exception before flush at use-case end already gives atomicity), YAGNI, tight scope. Architect review (nemotron-3-ultra-free) flagged it; logged as Roadmap enhancement for Stage 4 design
+
+**Reviews:** senior-dev (ling Gemini Flash) APPROVE with 1 style nit (inline flush helper — fixed); architect (nemotron) REVISE on transactional + Domain docblock leak (docblocks fixed, transactional deferred).
+
+**CI:** local `composer ci:all` exit 0 (phpstan, phpcs, rector, phpcpd, 235 tests).
+
+**Next:** Task 3.4 — API-эндпоинты коллекции (CRUD, список всех, список своих).

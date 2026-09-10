@@ -25,14 +25,12 @@ final class DoctrineCollectionFieldRepository extends ServiceEntityRepository im
     public function save(CollectionField $field): void
     {
         $this->getEntityManager()->persist($field);
-        $this->getEntityManager()->flush();
     }
 
     #[\Override]
     public function remove(CollectionField $field): void
     {
         $this->getEntityManager()->remove($field);
-        $this->getEntityManager()->flush();
     }
 
     #[\Override]

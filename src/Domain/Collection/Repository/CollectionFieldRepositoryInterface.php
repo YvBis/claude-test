@@ -10,8 +10,18 @@ use App\Domain\Collection\ValueObject\CollectionFieldId;
 
 interface CollectionFieldRepositoryInterface
 {
+    /**
+     * Schedule the field for persistence (added to the Unit of Work).
+     * The write is deferred and happens later, when a decision is made
+     * to commit pending changes.
+     */
     public function save(CollectionField $field): void;
 
+    /**
+     * Schedule the field for removal (added to the Unit of Work).
+     * The removal is deferred and happens later, when a decision is made
+     * to commit pending changes.
+     */
     public function remove(CollectionField $field): void;
 
     public function findById(CollectionFieldId $id): ?CollectionField;

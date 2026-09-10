@@ -25,14 +25,12 @@ final class DoctrineCollectionRepository extends ServiceEntityRepository impleme
     public function save(Collection $collection): void
     {
         $this->getEntityManager()->persist($collection);
-        $this->getEntityManager()->flush();
     }
 
     #[\Override]
     public function remove(Collection $collection): void
     {
         $this->getEntityManager()->remove($collection);
-        $this->getEntityManager()->flush();
     }
 
     #[\Override]

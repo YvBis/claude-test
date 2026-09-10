@@ -10,8 +10,18 @@ use App\Domain\User\ValueObject\UserId;
 
 interface UserRepositoryInterface
 {
+    /**
+     * Schedule the user for persistence (added to the Unit of Work).
+     * The write is deferred and happens later, when a decision is made
+     * to commit pending changes.
+     */
     public function save(User $user): void;
 
+    /**
+     * Schedule the user for removal (added to the Unit of Work).
+     * The removal is deferred and happens later, when a decision is made
+     * to commit pending changes.
+     */
     public function remove(User $user): void;
 
     public function findById(UserId $id): ?User;

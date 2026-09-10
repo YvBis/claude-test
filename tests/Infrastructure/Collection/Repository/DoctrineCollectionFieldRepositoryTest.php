@@ -65,6 +65,7 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
         );
 
         $this->repo->save($field);
+        $this->flush();
 
         $found = $this->repo->findById($field->getId());
         $this->assertNotNull($found);
@@ -93,6 +94,7 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
         $this->repo->save($field3);
         $this->repo->save($field1);
         $this->repo->save($field2);
+        $this->flush();
 
         $result = $this->repo->findByCollection($this->collection);
 
@@ -106,6 +108,7 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
     {
         $field = CollectionField::create($this->collection, FieldName::fromString('Author'), FieldType::text(), 5);
         $this->repo->save($field);
+        $this->flush();
 
         $found = $this->repo->findByCollectionAndSlot($this->collection, 5);
         $this->assertNotNull($found);
@@ -127,6 +130,7 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
         $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Aa'), FieldType::text(), 2));
         $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Bb'), FieldType::text(), 5));
         $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Cc'), FieldType::text(), 7));
+        $this->flush();
 
         $this->assertSame(8, $this->repo->nextSlotIndexFor($this->collection));
     }
@@ -141,6 +145,7 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
         $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Aa'), FieldType::text(), 1));
         $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Bb'), FieldType::text(), 2));
         $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Cc'), FieldType::text(), 3));
+        $this->flush();
 
         $this->assertSame(3, $this->repo->countByCollection($this->collection));
     }
@@ -149,11 +154,18 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
     {
         $field = CollectionField::create($this->collection, FieldName::fromString('Temp'), FieldType::text(), 1);
         $this->repo->save($field);
+        $this->flush();
         $id = $field->getId();
 
         $this->repo->remove($field);
+        $this->flush();
 
         $this->assertNull($this->repo->findById($id));
         $this->assertSame(0, $this->repo->countByCollection($this->collection));
+    }
+
+    private function flush(): void
+    {
+        self::getContainer()->get('doctrine')->getManager()->flush();
     }
 }

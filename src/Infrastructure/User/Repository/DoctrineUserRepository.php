@@ -25,14 +25,12 @@ final class DoctrineUserRepository extends ServiceEntityRepository implements Us
     public function save(User $user): void
     {
         $this->getEntityManager()->persist($user);
-        $this->getEntityManager()->flush();
     }
 
     #[\Override]
     public function remove(User $user): void
     {
         $this->getEntityManager()->remove($user);
-        $this->getEntityManager()->flush();
     }
 
     #[\Override]
