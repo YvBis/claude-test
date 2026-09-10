@@ -10,8 +10,16 @@ use App\Domain\User\ValueObject\UserId;
 
 interface UserRepositoryInterface
 {
+    /**
+     * Schedule the user for persistence (added to the Unit of Work).
+     * Call UnitOfWorkInterface::flush() to commit changes to the database.
+     */
     public function save(User $user): void;
 
+    /**
+     * Schedule the user for removal (added to the Unit of Work).
+     * Call UnitOfWorkInterface::flush() to commit changes to the database.
+     */
     public function remove(User $user): void;
 
     public function findById(UserId $id): ?User;

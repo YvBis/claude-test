@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application\User\Service;
 
+use App\Application\Common\Transaction\UnitOfWorkInterface;
 use App\Application\DTO\RegisterUserDTO;
 use App\Application\User\Service\RegistrationService;
 use App\Domain\User\Entity\User;
@@ -16,12 +17,14 @@ use PHPUnit\Framework\TestCase;
 final class RegistrationServiceTest extends TestCase
 {
     private UserRepositoryInterface $userRepository;
+    private UnitOfWorkInterface $unitOfWork;
     private RegistrationService $service;
 
     protected function setUp(): void
     {
         $this->userRepository = $this->createMock(UserRepositoryInterface::class);
-        $this->service = new RegistrationService($this->userRepository);
+        $this->unitOfWork = $this->createMock(UnitOfWorkInterface::class);
+        $this->service = new RegistrationService($this->userRepository, $this->unitOfWork);
     }
 
     public function testRegisterCreatesUserAndSaves(): void
@@ -46,6 +49,8 @@ final class RegistrationServiceTest extends TestCase
                     && true === $user->isActive();
             }));
 
+        $this->unitOfWork->expects($this->once())->method('flush');
+
         $user = $this->service->register($dto);
 
         $this->assertInstanceOf(User::class, $user);
@@ -69,6 +74,8 @@ final class RegistrationServiceTest extends TestCase
         $this->expectException(UserAlreadyExistsException::class);
         $this->expectExceptionMessage('User with email "john@example.com" already exists');
 
+        $this->unitOfWork->expects($this->never())->method('flush');
+
         $this->service->register($dto);
     }
 
@@ -87,6 +94,8 @@ final class RegistrationServiceTest extends TestCase
                 return 'John Doe' === $user->getName()
                     && 'john@example.com' === $user->getEmail()->value();
             }));
+
+        $this->unitOfWork->expects($this->once())->method('flush');
 
         $this->service->register($dto);
     }

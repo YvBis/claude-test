@@ -7,6 +7,7 @@ namespace App\Tests\Application\Collection\Service;
 use App\Application\Collection\DTO\CreateCollectionDTO;
 use App\Application\Collection\DTO\UpdateCollectionDTO;
 use App\Application\Collection\Service\CollectionService;
+use App\Application\Common\Transaction\UnitOfWorkInterface;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\Exception\CollectionNotFoundException;
 use App\Domain\Collection\Repository\CollectionRepositoryInterface;
@@ -19,13 +20,15 @@ use PHPUnit\Framework\TestCase;
 final class CollectionServiceTest extends TestCase
 {
     private CollectionRepositoryInterface $collectionRepository;
+    private UnitOfWorkInterface $unitOfWork;
     private CollectionService $service;
     private User $owner;
 
     protected function setUp(): void
     {
         $this->collectionRepository = $this->createMock(CollectionRepositoryInterface::class);
-        $this->service = new CollectionService($this->collectionRepository);
+        $this->unitOfWork = $this->createMock(UnitOfWorkInterface::class);
+        $this->service = new CollectionService($this->collectionRepository, $this->unitOfWork);
         $this->owner = User::register('Test User', \App\Domain\User\ValueObject\Email::fromString('test@example.com'), \App\Domain\User\ValueObject\PasswordHash::createFromPlain('password123'));
     }
 
@@ -43,6 +46,8 @@ final class CollectionServiceTest extends TestCase
                     && 'image.jpg' === $collection->getImage()
                     && $collection->getOwner()->getId()->toString() === $this->owner->getId()->toString();
             }));
+
+        $this->unitOfWork->expects($this->once())->method('flush');
 
         $collection = $this->service->create($dto, $this->owner);
 
@@ -82,6 +87,8 @@ final class CollectionServiceTest extends TestCase
                     && 'new.jpg' === $updated->getImage()
                     && 'books' === $updated->getTheme()->value(); // unchanged
             }));
+
+        $this->unitOfWork->expects($this->once())->method('flush');
 
         $updated = $this->service->update($dto, $collection);
 
@@ -173,6 +180,8 @@ final class CollectionServiceTest extends TestCase
             ->expects($this->once())
             ->method('remove')
             ->with($this->identicalTo($collection));
+
+        $this->unitOfWork->expects($this->once())->method('flush');
 
         $this->service->delete($collection);
         // No return value to assert, just verifying no exception thrown

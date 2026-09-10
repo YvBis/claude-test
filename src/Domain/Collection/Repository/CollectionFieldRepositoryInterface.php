@@ -10,8 +10,16 @@ use App\Domain\Collection\ValueObject\CollectionFieldId;
 
 interface CollectionFieldRepositoryInterface
 {
+    /**
+     * Schedule the field for persistence (added to the Unit of Work).
+     * Call UnitOfWorkInterface::flush() to commit changes to the database.
+     */
     public function save(CollectionField $field): void;
 
+    /**
+     * Schedule the field for removal (added to the Unit of Work).
+     * Call UnitOfWorkInterface::flush() to commit changes to the database.
+     */
     public function remove(CollectionField $field): void;
 
     public function findById(CollectionFieldId $id): ?CollectionField;

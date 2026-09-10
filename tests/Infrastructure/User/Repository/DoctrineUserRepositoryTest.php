@@ -46,6 +46,7 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
     {
         $user = $this->createUser();
         $this->repository->save($user);
+        $this->entityManager()->flush();
 
         $found = $this->repository->findById($user->getId());
 
@@ -60,6 +61,7 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
     {
         $user = $this->createUser('findme@example.com');
         $this->repository->save($user);
+        $this->entityManager()->flush();
 
         $found = $this->repository->findByEmail(Email::fromString('findme@example.com'));
 
@@ -77,6 +79,7 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
     {
         $user = $this->createUser('exists@example.com');
         $this->repository->save($user);
+        $this->entityManager()->flush();
 
         $this->assertTrue($this->repository->existsByEmail(Email::fromString('exists@example.com')));
         $this->assertFalse($this->repository->existsByEmail(Email::fromString('notexists@example.com')));
@@ -90,6 +93,7 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
         $this->repository->save($this->createUser('user2@example.com'));
         $this->clock->modify('+1 second');
         $this->repository->save($this->createUser('user3@example.com'));
+        $this->entityManager()->flush();
 
         $all = $this->repository->findAll();
 
@@ -103,12 +107,19 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
     {
         $user = $this->createUser('toremove@example.com');
         $this->repository->save($user);
+        $this->entityManager()->flush();
 
         $this->assertNotNull($this->repository->findById($user->getId()));
 
         $this->repository->remove($user);
+        $this->entityManager()->flush();
 
         $this->assertNull($this->repository->findById($user->getId()));
+    }
+
+    private function entityManager(): \Doctrine\ORM\EntityManagerInterface
+    {
+        return self::getContainer()->get('doctrine.orm.entity_manager');
     }
 
     private function createUser(string $email = 'test@example.com'): User
