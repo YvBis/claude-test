@@ -65,7 +65,7 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
         );
 
         $this->repo->save($field);
-        self::getContainer()->get('doctrine')->getManager()->flush();
+        $this->flush();
 
         $found = $this->repo->findById($field->getId());
         $this->assertNotNull($found);
@@ -154,11 +154,11 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
     {
         $field = CollectionField::create($this->collection, FieldName::fromString('Temp'), FieldType::text(), 1);
         $this->repo->save($field);
-        self::getContainer()->get('doctrine')->getManager()->flush();
+        $this->flush();
         $id = $field->getId();
 
         $this->repo->remove($field);
-        self::getContainer()->get('doctrine')->getManager()->flush();
+        $this->flush();
 
         $this->assertNull($this->repo->findById($id));
         $this->assertSame(0, $this->repo->countByCollection($this->collection));

@@ -12,13 +12,15 @@ interface CollectionRepositoryInterface
 {
     /**
      * Schedule the collection for persistence (added to the Unit of Work).
-     * Call UnitOfWorkInterface::flush() to commit changes to the database.
+     * The write is deferred: the Application layer decides when changes
+     * are committed to the database.
      */
     public function save(Collection $collection): void;
 
     /**
      * Schedule the collection for removal (added to the Unit of Work).
-     * Call UnitOfWorkInterface::flush() to commit changes to the database.
+     * The removal is deferred: the Application layer decides when changes
+     * are committed to the database.
      */
     public function remove(Collection $collection): void;
 

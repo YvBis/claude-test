@@ -12,13 +12,15 @@ interface UserRepositoryInterface
 {
     /**
      * Schedule the user for persistence (added to the Unit of Work).
-     * Call UnitOfWorkInterface::flush() to commit changes to the database.
+     * The write is deferred: the Application layer decides when changes
+     * are committed to the database.
      */
     public function save(User $user): void;
 
     /**
      * Schedule the user for removal (added to the Unit of Work).
-     * Call UnitOfWorkInterface::flush() to commit changes to the database.
+     * The removal is deferred: the Application layer decides when changes
+     * are committed to the database.
      */
     public function remove(User $user): void;
 
