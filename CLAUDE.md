@@ -182,7 +182,9 @@
 
 ИИ-агенты не используют внешнюю память. Единственный источник контекста — файлы проекта.
 
-### 12. Формат коммитов
+### 12. Git-конвенции
+
+#### 12.1 Формат коммитов
 
 Используется Conventional Commits:
 
@@ -195,6 +197,45 @@
 - `review:` — исправления по результатам периодического review
 
 Формат: `тип: краткое описание на английском`
+
+Для задач из Roadmap желательно указать тип и номер задачи: `feat(Collection): Task 3.3 — ...`
+
+#### 12.2 Именование веток
+
+`<тип>/<краткое-описание-kebab-case>`
+
+Типы совпадают с конвенцией коммитов:
+
+- `task/3.3-collection-service` — задача из Roadmap (тип + номер + краткое имя)
+- `feat/...`, `fix/...`, `refactor/...`, `docs/...`, `test/...`, `chore/...`, `ci/...`, `review/...` — остальные случаи
+- `api-doc-fixes-20260828` — legacy, не использовать (без типа)
+
+Правила:
+
+- kebab-case, только строчные латинские буквы и цифры
+- кратко, 2–5 слов после типа
+- для task-веток обязателен номер задачи из Roadmap
+
+#### 12.3 Соавторство ИИ
+
+Если код или изменения написаны ИИ-агентом, в теле коммита обязателен trailer:
+
+```
+Co-authored-by: <имя-инструмента> <email>
+```
+
+Пример:
+
+```
+Co-authored-by: opencode <opencode@users.noreply.github.com>
+```
+
+Правила:
+
+- Trailer добавляется всегда, когда в коммите есть изменения, написанные или отредактированные ИИ
+- Идёт в теле коммита, после описания, через пустую строку
+- Имя инструмента и email должны соответствовать фактическому ИИ-инструменту, который вносил изменения (не только opencode)
+- Коммит без `Co-authored-by` при ИИ-изменениях считается нарушением конвенции
 
 ## Справочные артефакты
 
@@ -216,3 +257,85 @@
 
 - Набор команд проверок должен быть явно описан в `README.md` или рядом с задачей.
 - Задача не считается завершённой без прохождения проверок и записи в `AssumptionLog.md`.
+
+---
+
+## Quick Reference
+
+### Ключевые файлы
+
+| Файл | Назначение |
+|------|------------|
+| `CLAUDE.md` | Workflow правила для ИИ-агентов |
+| `README.md` | Обзор проекта, установка, команды |
+| `Roadmap.md` | Workplan — очередь задач |
+| `ARCHITECTURE.md` | Архитектурная сводка |
+| `AssumptionLog.md` | Журнал допущений |
+| `composer.json` | Зависимости, команды, autoload |
+| `phpunit.xml.dist` | Конфигурация тестов |
+| `phpstan.neon` | Конфигурация статического анализа |
+| `.php-cs-fixer.dist.php` | Конфигурация стиля кода |
+| `rector.php` | Конфигурация рефакторинга |
+| `docker-compose.yml` | Инфраструктура |
+
+### Структура src/
+
+```
+src/
+├── Domain/           # Бизнес-логика (сущности, VO, интерфейсы репозиториев)
+│   ├── User/         # Домен пользователя
+│   ├── Collection/   # Домен коллекций
+│   └── Common/       # Общие компоненты (UuidBinaryValue, DomainMarker)
+├── Application/      # Сервисы приложения (use cases, DTO)
+│   ├── User/         # Сервисы пользователя (Registration, Authentication)
+│   └── Common/       # Общие компоненты (ApplicationMarker, ValidationException)
+├── Infrastructure/   # Реализации (контроллеры, репозитории, провайдеры)
+│   ├── Api/Controller/  # REST API контроллеры
+│   ├── User/Repository/ # Doctrine репозиторий пользователя
+│   ├── Collection/Repository/ # Doctrine репозиторий коллекций
+│   ├── Doctrine/     # Типы, слушатели Doctrine
+│   ├── Security/     # UserProvider
+│   └── Common/       # InfrastructureMarker
+└── Controller/       # Системные контроллеры (health check)
+```
+
+### Типичные команды
+
+```bash
+# Запуск приложения
+docker compose up -d
+
+# Миграции
+docker compose exec app php bin/console doctrine:migrations:migrate
+
+# Тесты
+docker compose exec app composer test
+docker compose exec app composer coverage:check
+
+# Статический анализ
+docker compose exec app composer phpstan
+docker compose exec app composer phpcs:check
+docker compose exec app composer rector:dry-run
+
+# Всё вместе (CI)
+docker compose exec app composer ci:all
+
+# OpenAPI
+docker compose exec app composer openapi:generate
+```
+
+### Паттерны проекта
+
+- **Value Objects**: immutable, с бизнес-логикой в конструкторе
+- **Сущности**: наследуют `AbstractEntity`, используют `ClockAwareTrait`
+- **Репозитории**: интерфейс в Domain, реализация в Infrastructure
+- **Маркеры слоёв**: `DomainMarker`, `ApplicationMarker`, `InfrastructureMarker`
+- **UUID**: бинарный формат через `UuidBinaryValue`
+- **Тесты**: PHPUnit 9, DoctrineTestBundle для изоляции БД
+
+### Текущий статус (обновлять при изменениях)
+
+- **Этап 1 (Инфраструктура)**: ✅ завершён
+- **Этап 2 (Пользователь)**: ✅ завершён
+- **Этап 3 (Коллекция)**: 🔄 в работе (2/6 задач)
+- **Этап 4-8**: ⏳ в очереди

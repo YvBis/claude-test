@@ -45,10 +45,13 @@ coverage/
 # Hidden directories (explicitly keep .gitignore content under them)
 !/.codegraph/
 !/.codegraph/.gitignore
-!/.memsearch/
-!/.memsearch/.gitignore
 !/.claude/
 !/.claude/.gitignore
+
+# AI tooling
+/.playwright-mcp/
+/.memsearch/
+/.cortexkit/
 
 # Misc
 *.swp
