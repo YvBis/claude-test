@@ -42,10 +42,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
-          logs=$(gh run view "$GITHUB_RUN_ID" --log 2>/dev/null)
-          code=$?
+          for i in 1 2 3 4 5; do
+            logs=$(gh run view "$GITHUB_RUN_ID" --log 2>/dev/null)
+            code=$?
+            if [ "$code" -eq 0 ]; then break; fi
+            sleep 10
+          done
           if [ "$code" -ne 0 ]; then
-            echo "⚠ Cannot fetch run logs (may not be ready): $code"
+            echo "⚠ Cannot fetch run logs after retries (code $code). Skipping guard."
             exit 0
           fi
           echo "$logs" | grep -iE "Deranked|status: 429|status: 404|Non-retryable error" > /dev/null
