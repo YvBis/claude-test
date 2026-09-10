@@ -554,3 +554,27 @@ Resolution: rebind `Symfony\Component\Clock\ClockInterface` to `Symfony\Componen
 **CI:** local `composer ci:all` exit 0 (phpstan, phpcs, rector, phpcpd, 235 tests).
 
 **Next:** Task 3.4 — API-эндпоинты коллекции (CRUD, список всех, список своих).
+
+## 2026-09-10 — Task 3.4: API-эндпоинты коллекции (PR #29)
+
+**Decisions:**
+- Delta of 3.4 vs already-shipped 3.3 CRUD: only "list other users' collections" missing. Design **Variant A** (locked): extend `GET /api/collections` with optional `?owner={uuid}` — absent = own collections, present = foreign. Variant B (separate `/api/users/{id}/collections`) rejected by owner. PRD: `PRD/3.4-api-collection-endpoints.md`
+- `findByOwnerId(UserId, limit, offset)` compares via `IDENTITY(c.owner) = :ownerId` plus `leftJoin('c.owner','owner')` + `addSelect('owner')` — binary UUID compare without loading User entity
+- **Doctrine ORM 3 hard constraint (empirically verified):** cannot lazy/ghost-proxy `final` entities (final `User` as ManyToOne owner). `fetch: 'EAGER'` on the mapping does NOT fix it (ORM 3 still routes ToOne through proxy path outside identity map). Required fix: **JOIN FETCH** (innerJoin/leftJoin + addSelect) in every DQL read method. Applied to all 4 read methods of `DoctrineCollectionRepository`. Mapping stays `fetch: 'LAZY'` (JOIN FETCH overrides at query time)
+- Invalid `?owner` UUID → 400 `{"error": "Invalid owner id"}` via `\InvalidArgumentException` catch in controller; `$owner` guarded with `\is_string()` (query-param is `mixed`)
+- 3-agent parallel review (mandatory for 3.4): senior `php-senior-reviewer` (ling-3.0-flash-fin-free) APPROVE; architect `architect-reviewer` (nemotron-3-ultra-free) REVISE → OwnerId-VO + separate endpoint + EAGER (EAGER empirically disproven, endpoint = locked Variant B, OwnerId extracted → review-6); tech-lead `tech-lead-reviewer` (nemotron-3.5-lightning-free) SHIP-WITH-NITS
+
+**CI:** local ci:all exit 0 (238 tests). PR #29: all 5 checks green, no Gemini comments.
+
+## 2026-09-10 — CI: AI code review switched Gemini → OpenRabbit (PR #31)
+
+**Context:** Gemini review (petarzarkov action) kept failing silently — free-tier quota (429) + auto-derank chain includes retired `gemini-2.0-flash` (404). Action exits 0 with 0 comments = green check, no review.
+
+**Decisions:**
+- Switch to **OpenRabbit** (`aryanbrite/openrabbit@v0.8.7`) on **OpenRouter free pool** (`llm_model: openrouter/free`). Auto-rotation between free models = built-in failover vs single-model quota death. Groq evaluated (1000 RPD free, faster) but single provider without multi-model rotation → rejected. OpenRouter key = `LLM_API_KEY` secret; `GEMINI_API_KEY` deleted
+- **English comments** (owner decision): stock OpenRabbit has no language input (`specialInstructions` in src/reviewer.ts not exposed via action.yml); RU via wrapper/fork rejected
+- **No file-exclude**: OpenRabbit v0.8.7 has no exclude input — reviews all changed files (docs/migrations/workflows included). Accepted tradeoff
+- **Draft PRs skipped** at job level (`if: github.event.pull_request.draft == false`) — saves free-pool tokens
+- Summary posted as PR review (`COMMENTED`) + inline comments; verdicts use needs-changes formally even when action items are non-configurable decisions — respond in thread and merge on all-green
+
+**CI check names now:** CI Summary, Static Analysis & Lint, Unit Tests, OpenRabbit Review, Dependency Audit.

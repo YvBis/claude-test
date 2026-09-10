@@ -85,6 +85,7 @@ Collection 1 ──── * CollectionField
 | `LoginController` | `src/Infrastructure/Api/Controller/LoginController.php` | POST /api/login |
 | `LogoutController` | `src/Infrastructure/Api/Controller/LogoutController.php` | POST /api/logout |
 | `RegistrationController` | `src/Infrastructure/Api/Controller/RegistrationController.php` | POST /api/register |
+| `CollectionController` | `src/Infrastructure/Api/Controller/CollectionController.php` | CRUD коллекций; `GET /api/collections` с `?owner={uuid}` (чужие коллекции, двоичный UUID через `IDENTITY`) |
 | `DoctrineUserRepository` | `src/Infrastructure/User/Repository/DoctrineUserRepository.php` | Реализация репозитория User |
 | `DoctrineCollectionFieldRepository` | `src/Infrastructure/Collection/Repository/DoctrineCollectionFieldRepository.php` | Реализация репозитория CollectionField |
 | `UserProvider` | `src/Infrastructure/Security/UserProvider.php` | Symfony Security user provider |
@@ -104,7 +105,8 @@ GitHub Actions
 ├── Rector (dry-run)
 ├── PHPCPD (copy-paste detection)
 ├── PHPUnit (tests + coverage)
-└── Composer Audit (security)
+├── Composer Audit (security)
+└── AI Code Review — OpenRabbit (OpenRouter free pool, `openrouter/free`), summary + inline comments
 ```
 
 **Локально:** `docker compose exec app composer ci:all`
@@ -124,7 +126,7 @@ GitHub Actions
 |------|----------|--------|
 | 1 | Инфраструктура | ✅ завершён |
 | 2 | Пользователь | ✅ завершён |
-| 3 | Коллекция | 🔄 2/6 задач |
+| 3 | Коллекция | 🔄 4/6 задач |
 | 4 | Айтем | ⏳ |
 | 5 | Социальное | ⏳ |
 | 6 | Поиск | ⏳ |
