@@ -45,6 +45,7 @@
 | review-1 | [review] Audit Symfony Clock production binding for explicit `timezone=` arg on `NativeClock`; verify container init order against PHP `date_default_timezone_set` | todo | From session 2026-07-31: deferred from Clock refactor (could surface TZ drift in rare container-bootstrap reordering) |
 | review-2 | [review] `composer audit` warning: pre-existing symfony/cache `CVE-2026-45073` (medium SQL injection). Bump `symfony/cache` to mitigated version | todo | From session 2026-07-31: surfaced during `composer require symfony/clock` |
 | review-3 | [review] Decide serializer policy for ClockAwareTrait's `$clock` field on User/Collection entities. Options: `#[Serializer\Ignore]` exclusion, custom `__serialize`/`__unserialize` that null the field, or `ClockAwareTrait`-free alternate ("pure PSR-20"). Trigger when any consumer (cache adapter, queued command, session storage) needs to round-trip an entity through `serialize()` — current default would carry a frozen `MockClock` into production | todo | From session 2026-07-31: surfaced via external-AI code review on PR #21 (informational severity) |
+| review-4 | [review] Move UoW/flush out of repositories into Application layer. All 3 Doctrine repos call `flush()` inside `save()`/`remove()`; services rely on it. Pattern blocks atomic multi-entity transactions (e.g. collection + fields). Remove `flush()` from repos, inject `EntityManagerInterface` into services (or `#[AsTransactional]`), flush after operation. Estimate 2-3h. | todo | From 2026-09-10: Gemini AI code review on PR #25 (pervasive cross-cutting pattern confirmed by investigation) |
 
 ## Этап 4: Доменная модель — Айтем
 
@@ -116,14 +117,14 @@
 
 - **Этап 1 (Инфраструктура)**: 6/6 задач выполнено
 - **Этап 2 (Пользователь)**: 5/5 задач выполнено
-- **Этап 3 (Коллекция)**: 2/6 задач выполнено
+- **Этап 3 (Коллекция)**: 3/6 задач выполнено
 - **Этап 4 (Айтем)**: 0/6 задач выполнено
 - **Этап 5 (Социальное)**: 0/6 задач выполнено
 - **Этап 6 (Поиск)**: 0/4 задач выполнено
 - **Этап 7 (Админ)**: 0/7 задач выполнено
 - **Этап 8 (Тестирование)**: 0/6 задач выполнено
 
-**Итого**: 13/46 задач выполнено
+**Итого**: 14/46 задач выполнено
 
 ---
 
