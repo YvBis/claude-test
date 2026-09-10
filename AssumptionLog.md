@@ -591,3 +591,9 @@ Resolution: rebind `Symfony\Component\Clock\ClockInterface` to `Symfony\Componen
 **Fix:** DQL chain-join `f -> collection -> owner` (innerJoin + addSelect, binary id param) — mirrors verified `Collection.owner` pattern. First attempt (join only f->collection) failed: hydrating `Collection` alone proxies its `owner` User — chained join required.
 **Test:** regression `testFindByIdHydratesCollectionAssociation` — `em->clear()` + `findById` + `getCollection()`; red before fix (confirmed), green after.
 **CI:** ci:all exit 0, 239 tests. Scope kept tight: other repo methods take hydrated `Collection` param — no change. `transactional()` stays in fwd-1 (Этап 4).
+
+## 2026-09-10 — review-1: Clock TZ binding audit closed
+
+**Verdict:** non-issue, closed. Production binding is the `Clock` facade (not direct `NativeClock` with `timezone=`), guarded by `ClockInjectListener` LogicException off the dual-clock contract (AssumptionLog F3).
+**Verified:** zero `date_default_timezone_set`/`withTimeZone` calls in src/config/tests → no runtime TZ mutation → bootstrap-order drift scenario impossible; container `date.timezone=UTC`, `date_default_timezone_get()=UTC` stable.
+**Latent note:** facade's internal NativeClock reads `date_default_timezone_get()` on first `now()`. If future code calls `date_default_timezone_set`, Clock silently shifts TZ — keep in mind, not actionable now.
