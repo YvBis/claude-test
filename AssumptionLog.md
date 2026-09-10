@@ -485,3 +485,55 @@ Resolution: rebind `Symfony\Component\Clock\ClockInterface` to `Symfony\Componen
 - `User.php` всё ещё использует `indexes` внутри `#[ORM\Table(...)]` — deprecation warning перенесён из 3.x в 2.x; технический долг, но не блокирует 3.2
 
 **Next:** Task 3.3 (Collection service) — должна использовать `CollectionFieldRepositoryInterface`, проверить наличие имплементации до старта 3.3
+
+## 2026-08-30 — Task 3.3 Collection Application Service
+
+**Decisions:**
+- CollectionService: final readonly class, injected CollectionRepositoryInterface; methods: create, update, getById, listByOwner, listAll, delete, toDTO, toDTOList
+- DTOs: CreateCollectionDTO (name, theme, description?, image?), UpdateCollectionDTO (name?, description?, image?) with hasChanges() check
+- CollectionDTO: output DTO (id, name, theme, description, image, ownerId, createdAt, updatedAt, toArray)
+- CollectionNotFoundException: domain exception with factory ::withId(string $id)
+- CollectionController: 5 endpoints — POST/GET/PATCH/DELETE /api/collections + GET /api/collections/{id}; JWT auth via getUser(); authorization check owner equality
+- AbstractApiController: removed @template T generic (caused PHPStan variance errors); uses object class-string; provides deserializeAndValidate + createValidationErrorResponse helpers
+- Controller tests: rewritten as full WebTestCase integration tests (not mocks — CollectionService is final); register+login flow in setUp; raw SQL tearDown for user cleanup
+- list endpoint: limit=50, offset=0 query params defaulting via null-coalesce
+
+**Issues encountered & fixed:**
+- Readonly property with default value (PHP 8.3): `?string $description = null` invalid on readonly props → removed defaults, inline null-coalesce in constructor
+- PHPStan generic type: `@extends AbstractApiController<DTO>` caused "does not specify its types: T" → removed template from base, removed extends docblocks from all controllers
+- Mocking final class: ClassIsFinalException on CollectionService → rewrote as integration test
+- Static closures accessing $this: static function() with `$this->owner` → changed to function() use ($id) for closures needing captured variables
+- PHPStan syntax: OA attribute `description='...'` (equals) invalid → changed to `description: '...'` (colon)
+- Rector CatchExceptionNameMatchingTypeRector: caught $e → $collectionNotFoundException, $throwable for \Throwable
+
+**Tests:** 8 unit (CollectionServiceTest) + 9 integration (CollectionControllerTest) pass. Pre-existing failure: DoctrineUserRepositoryTest::testFindAll (4 users vs expected 3) — unrelated to this task, confirmed present before changes.
+
+**CI:** PR #25 green. Rector applied CatchExceptionNameMatchingTypeRector on 2 files.
+
+**Acceptance verified:**
+- All quality gates: PHPUnit 234/235 (pre-existing failure excluded), PHPStan L6, PHPcsFixer, Rector dry-run, PHPCPD
+- OpenAPI: 5 Collection endpoints documented with full schemas
+- 235 tests, 511 assertions
+
+**Assumptions:**
+- list endpoint returns only user's own collections (listByOwner); separate listAll for admin/public not implemented (scope)
+- UpdateCollectionDTO hasChanges() returns true if any field non-null — body can send {name: "x"} or {description: "y"} or all three
+- PATCH with empty {} returns 400 (hasChanges() returns false) — no-op update rejected
+
+**Next:** Task 3.4 — API-эндпоинты коллекции (CRUD, список всех, список своих)
+
+## 2026-09-10 — Gemini AI Code Review integration (PR #25)
+
+**Decisions:**
+- CI AI code review: `petarzarkov/gemini-code-review-action@v1.1.3` (workflow `.github/workflows/code-review.yml`), pinned to a real release tag (`v1` short tag does not exist upstream)
+- Model `gemini-2.5-flash`, `language: Russian`, conversation context + skip_draft_prs enabled; API key stored as GitHub repo secret `GEMINI_API_KEY`
+- Action does its own repo checkout with full history — no explicit checkout step needed
+- `prompt:` / `gemini_api_key:` inputs from community examples **do not exist** in v1.1.3; key goes via env, Russian via `language` input
+- Domain exceptions live only in Domain layer — Application-layer exceptions duplicate the domain set (`CollectionNotFoundException` removed from `src/Application/Collection/Exception/`; Domain copy kept, service/controller already used it). Root rule: unique source of truth for domain errors
+
+**Findings → review-4 task (Roadmap):**
+- `flush()` inside `save()`/`remove()` is pervasive: identical pattern in all 3 Doctrine repos (Collection, CollectionField, User); both services (CollectionService, RegistrationService) rely on it implicitly. Confirmated by investigation agent — cross-cutting, not isolated. Logged as `review-4` (pervasive UoW/flush refactor, ~2-3h, post-merge backlog)
+
+**CI:** PR #25 re-reviewed by Gemini after rebase on current main — 2 substantive inline comments (duplicate exception, flush-in-repository); first fixed, second backlogged.
+
+**Next:** review-4 flush refactor task in Review Backlog.

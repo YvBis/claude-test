@@ -13,24 +13,19 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 /**
  * Abstract base controller for API endpoints providing common validation utilities.
- *
- * @template T of object
  */
 abstract class AbstractApiController extends BaseAbstractController
 {
     /**
      * Deserialize and validate a DTO from request content.
      *
-     * @param class-string<T> $dtoClass
+     * @param class-string<object> $dtoClass
      *
      * @throws \Symfony\Component\Serializer\Exception\ExceptionInterface
      * @throws ValidationException
-     *
-     * @return T
      */
     protected function deserializeAndValidate(string $content, string $dtoClass, SerializerInterface $serializer, ValidatorInterface $validator): object
     {
-        /** @var T */
         $dto = $serializer->deserialize($content, $dtoClass, 'json');
 
         $errors = $validator->validate($dto);
