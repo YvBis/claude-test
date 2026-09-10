@@ -584,3 +584,10 @@ Resolution: rebind `Symfony\Component\Clock\ClockInterface` to `Symfony\Componen
 **review-2 (CVE-2026-45073 symfony/cache):** CLOSED — `composer audit` clean (2026-09-10, lock v7.3.11: `No security vulnerability advisories found`). Advisory no longer matches current lock; no bump needed.
 
 **New finding:** `sebastian/phpcpd` abandoned (used in CI PHPCPD step). Still functional; either pin or drop in later infra task — logged, no action yet.
+
+## 2026-09-10 — review-5: CollectionFieldRepository ghost-proxy fix
+
+**Bug:** `findById()` via persister `find()` + LAZY `final` Collection / User → `Cannot generate lazy ghost` on fresh UoW. Latent — tests kept entity in identity map.
+**Fix:** DQL chain-join `f -> collection -> owner` (innerJoin + addSelect, binary id param) — mirrors verified `Collection.owner` pattern. First attempt (join only f->collection) failed: hydrating `Collection` alone proxies its `owner` User — chained join required.
+**Test:** regression `testFindByIdHydratesCollectionAssociation` — `em->clear()` + `findById` + `getCollection()`; red before fix (confirmed), green after.
+**CI:** ci:all exit 0, 239 tests. Scope kept tight: other repo methods take hydrated `Collection` param — no change. `transactional()` stays in fwd-1 (Этап 4).

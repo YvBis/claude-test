@@ -79,6 +79,19 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
         $this->assertNull($this->repo->findById($missingId));
     }
 
+    public function testFindByIdHydratesCollectionAssociation(): void
+    {
+        $field = CollectionField::create($this->collection, FieldName::fromString('Detail'), FieldType::text(), 1);
+        $this->repo->save($field);
+        $this->flush();
+
+        self::getContainer()->get('doctrine')->getManager()->clear();
+
+        $found = $this->repo->findById($field->getId());
+        $this->assertNotNull($found);
+        $this->assertTrue($found->getCollection()->getId()->equals($this->collection->getId()));
+    }
+
     public function testFindByCollectionReturnsEmptyArrayWhenNoFields(): void
     {
         $result = $this->repo->findByCollection($this->collection);
