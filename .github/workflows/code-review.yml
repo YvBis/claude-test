@@ -29,3 +29,27 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
+
+  guard:
+    name: Gemini Review Guard
+    runs-on: ubuntu-latest
+    needs: review
+    if: always()
+    steps:
+      - name: Detect quota/model review failures
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          logs=$(gh run view "$GITHUB_RUN_ID" --log 2>/dev/null)
+          code=$?
+          if [ "$code" -ne 0 ]; then
+            echo "⚠ Cannot fetch run logs (may not be ready): $code"
+            exit 0
+          fi
+          echo "$logs" | grep -iE "Deranked|status: 429|status: 404|Non-retryable error" > /dev/null
+          if [ $? -eq 0 ]; then
+            echo "::error::Gemini review hit a quota/model error (429/404/derank to retired model). Review did not run. Re-run the job when the API quota frees up."
+            exit 1
+          fi
+          echo "OK: no quota/model errors in Gemini review run"
