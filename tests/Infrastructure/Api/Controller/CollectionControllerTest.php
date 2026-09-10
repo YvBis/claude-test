@@ -12,6 +12,8 @@ final class CollectionControllerTest extends WebTestCase
     private KernelBrowser $client;
     private string $token;
     private string $userId;
+    /** @var list<string> */
+    private array $extraUserIds = [];
 
     protected function setUp(): void
     {
@@ -29,6 +31,14 @@ final class CollectionControllerTest extends WebTestCase
             $conn->executeStatement(
                 'DELETE FROM users WHERE id = UNHEX(REPLACE(?, "-", ""))',
                 [\preg_replace('/-/', '', $this->userId)]
+            );
+        }
+
+        foreach ($this->extraUserIds as $extraId) {
+            $conn = $em->getConnection();
+            $conn->executeStatement(
+                'DELETE FROM users WHERE id = UNHEX(REPLACE(?, "-", ""))',
+                [\preg_replace('/-/', '', $extraId)]
             );
         }
 
@@ -67,6 +77,33 @@ final class CollectionControllerTest extends WebTestCase
             'HTTP_AUTHORIZATION' => 'Bearer '.$this->token,
             'CONTENT_TYPE' => 'application/json',
         ];
+    }
+
+    /** @return array{token: string, id: string} */
+    private function registerUser(): array
+    {
+        $unique = \uniqid('', true);
+        $email = 'coll_'.\str_replace('.', '', $unique).'_x@example.com';
+
+        $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], \json_encode([
+            'name' => 'Collection Tester 2',
+            'email' => $email,
+            'password' => 'password123',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(201);
+
+        $id = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)['id'];
+        $this->extraUserIds[] = $id;
+
+        $this->client->request('POST', '/api/login', [], [], ['CONTENT_TYPE' => 'application/json'], \json_encode([
+            'email' => $email,
+            'password' => 'password123',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(200);
+
+        $token = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)['access_token'];
+
+        return ['token' => $token, 'id' => $id];
     }
 
     public function testCreateReturns201(): void
@@ -132,6 +169,50 @@ final class CollectionControllerTest extends WebTestCase
         $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
         $this->assertIsArray($response);
         $this->assertGreaterThanOrEqual(2, \count($response));
+    }
+
+    public function testListOthersReturns200AndIsolated(): void
+    {
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+            'name' => 'Own 1',
+            'theme' => 'books',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(201);
+
+        $other = $this->registerUser();
+        $this->client->request('POST', '/api/collections', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer '.$other['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], \json_encode([
+            'name' => 'Others 1',
+            'theme' => 'games',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(201);
+
+        $this->client->request('GET', '/api/collections', [], [], $this->authHeaders());
+        $this->assertResponseStatusCodeSame(200);
+        $ownList = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $ownNames = \array_column($ownList, 'name');
+        $this->assertContains('Own 1', $ownNames);
+        $this->assertNotContains('Others 1', $ownNames);
+
+        $this->client->request('GET', '/api/collections?owner='.$other['id'], [], [], $this->authHeaders());
+        $this->assertResponseStatusCodeSame(200);
+        $otherList = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $otherNames = \array_column($otherList, 'name');
+        $this->assertContains('Others 1', $otherNames);
+        $this->assertNotContains('Own 1', $otherNames);
+    }
+
+    public function testListInvalidOwnerReturns400(): void
+    {
+        $this->client->request('GET', '/api/collections?owner=not-a-uuid', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $this->assertJsonStringEqualsJsonString(
+            '{"error":"Invalid owner id"}',
+            $this->client->getResponse()->getContent()
+        );
     }
 
     public function testGetReturns200AndData(): void

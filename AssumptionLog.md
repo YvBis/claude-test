@@ -554,3 +554,24 @@ Resolution: rebind `Symfony\Component\Clock\ClockInterface` to `Symfony\Componen
 **CI:** local `composer ci:all` exit 0 (phpstan, phpcs, rector, phpcpd, 235 tests).
 
 **Next:** Task 3.4 — API-эндпоинты коллекции (CRUD, список всех, список своих).
+
+## 2026-09-10 — Task 3.4: API-эндпоинты коллекции — список чужих коллекций (PR #29)
+
+**Decisions:**
+- Дизайн «список чужих коллекций»: опциональный query-param `?owner={uuid}` на существующем `GET /api/collections` (Variant A, утверждён пользователем). Отсутствие `owner` → свои коллекции (прежнее поведение backward-compatible); наличие → коллекции другого пользователя. Отклонён Variant B (отдельный `GET /api/users/{id}/collections`) — user-реквизит, не эндпоинтов.
+- Репо-метод `findByOwnerId(UserId, limit, offset)` с фильтром `IDENTITY(c.owner) = :ownerId` + `setParameter(..., 'binary')` — сравнение по binary(16) FK без загрузки сущности User. Некорректный/неизвестный `owner` → 400 `{"error":"Invalid owner id"}` / пустой список 200 (не 404).
+- **Критичный фикс (по ходу)**: `fetch=EAGER` на `Collection.owner` НЕ устраняет ghost-прокси — эмпирически проверено (чистка кэша метаданных, ошибка «Cannot generate lazy ghost: class User is final» осталась). Doctrine ORM 3 не может lazy/ghost-проксировать final-сущности; работающее решение = `JOIN FETCH` (innerJoin+addSelect owner) во ВСЕХ read-методах репо (findById, findByOwner, findByOwnerId, findAll). Прежние тесты проходили только потому что владелец оставался в identity-map того же EM.
+- ассоциация `Collection.owner` снова `fetch=LAZY` + явные join — join-подход покрывает все read-пути; двойной eager-select не нужен.
+
+**Outstanding (pre-existing, вынесены в Roadmap):**
+- review-5: тот же латентный ghost-баг в `DoctrineCollectionFieldRepository` (`CollectionField.collection` → final Collection, LAZY, без JOIN FETCH) — всплывёт при Этап 4 (чтения айтемов/полей).
+- review-6: cross-domain coupling — `Collection.owner`и `UserId` в Collection-домене. DDD-идеал: `OwnerId` VO в Collection-домене. Дефер: пре-существующий с 3.1, вынос >150 LOC, MVP accepted.
+
+**Reviews (3 параллельных, разные модели):**
+- senior (ling): APPROVE — JOIN FETCH покрывает все read-пути; `IDENTITY`+`binary` корректен. MINOR leftJoin→innerJoin в findById — исправлено.
+- architect (nemotron): REVISE — OwnerId VO (→review-6), отдельный эндпоинт (отклонено, Variant A утверждён), EAGER (опровергнуто эмпирически).
+- tech-lead (nemotron-3.5-lightning): SHIP-WITH-NITS — скоуп полный, non-breaking, покрытие адекватно.
+
+**CI:** локально `composer ci:all` exit 0 — 238 тестов, 539 assertions (+3 теста: unit listByOwnerId, функц. чужие-изоляция, невалидный owner 400).
+
+**Next:** Task 3.5 — валидация тем (Books/Games/Movies/Drinks).

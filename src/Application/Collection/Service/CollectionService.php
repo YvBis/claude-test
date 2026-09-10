@@ -15,6 +15,7 @@ use App\Domain\Collection\ValueObject\CollectionId;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\User\Entity\User;
+use App\Domain\User\ValueObject\UserId;
 
 final readonly class CollectionService
 {
@@ -86,6 +87,14 @@ final readonly class CollectionService
     public function listAll(int $limit = 50, int $offset = 0): array
     {
         return $this->collectionRepository->findAll($limit, $offset);
+    }
+
+    /**
+     * @return array<Collection>
+     */
+    public function listByOwnerId(UserId $ownerId, int $limit = 50, int $offset = 0): array
+    {
+        return $this->collectionRepository->findByOwnerId($ownerId, $limit, $offset);
     }
 
     public function delete(Collection $collection): void

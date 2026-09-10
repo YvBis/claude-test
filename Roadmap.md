@@ -34,7 +34,7 @@
 | 3.1 | [x] Сущность Collection с owner, theme, image, description | done |
 | 3.2 | [x] Сущность CollectionField с типами (text/number/date/bool) и slot_index | done |
 | 3.3 | [x] Сервис коллекции — создание, редактирование, список коллекций пользователя | done |
-| 3.4 | [ ] API-эндпоинты коллекции (CRUD, список всех, список своих) | todo |
+| 3.4 | [x] API-эндпоинты коллекции (CRUD, список всех, список своих) | done |
 | 3.5 | [ ] Валидация тем (Books/Games/Movies/Drinks) | todo |
 | 3.6 | [ ] Unit-тесты для домена Collection | todo |
 
@@ -43,9 +43,11 @@
 | Задача | Описание | Статус |  Why |
 |--------|----------|--------|------|
 | review-1 | [review] Audit Symfony Clock production binding for explicit `timezone=` arg on `NativeClock`; verify container init order against PHP `date_default_timezone_set` | todo | From session 2026-07-31: deferred from Clock refactor (could surface TZ drift in rare container-bootstrap reordering) |
-| review-2 | [review] `composer audit` warning: pre-existing symfony/cache `CVE-2026-45073` (medium SQL injection). Bump `symfony/cache` to mitigated version | todo | From session 2026-07-31: surfaced during `composer require symfony/clock` |
+| review-2 | [review] `composer audit` warning: pre-existing symfony/cache `CVE-2026-45073` (medium SQL injection). Bump `symfony/cache` to mitigated version | done | From session 2026-07-31: resolved — dependency already at mitigated version (v7.3.11), audit clean |
 | review-3 | [review] Decide serializer policy for ClockAwareTrait's `$clock` field on User/Collection entities. Options: `#[Serializer\Ignore]` exclusion, custom `__serialize`/`__unserialize` that null the field, or `ClockAwareTrait`-free alternate ("pure PSR-20"). Trigger when any consumer (cache adapter, queued command, session storage) needs to round-trip an entity through `serialize()` — current default would carry a frozen `MockClock` into production | todo | From session 2026-07-31: surfaced via external-AI code review on PR #21 (informational severity) |
 | review-4 | [review] Move UoW/flush out of repositories into Application layer. All 3 Doctrine repos call `flush()` inside `save()`/`remove()`; services rely on it. Pattern blocks atomic multi-entity transactions (e.g. collection + fields). Remove `flush()` from repos, inject `EntityManagerInterface` into services (or `#[AsTransactional]`), flush after operation. Estimate 2-3h. | done | From 2026-09-10: Gemini AI code review on PR #25 (pervasive cross-cutting pattern confirmed by investigation) |
+| review-5 | [review] DoctrineCollectionFieldRepository lazy-proxy ghost bug (latent): `CollectionField.collection` is LAZY ManyToOne to final `Collection`; `findById` uses `find()` and read methods lack JOIN FETCH — `getCollection()` will throw "Cannot generate lazy ghost" on fresh hydration (same class of bug fixed in DoctrineCollectionRepository on PR #28). Fix before Этап 4 (item + dynamic fields reads). | todo | From 2026-09-10: senior-reviewer finding during PR 3.4 review |
+| review-6 | [review] Cross-domain coupling in Collection domain: `Collection.owner` typed as `User` entity and repo interface now imports `UserId` (bounded-context leak). Ideal: `OwnerId` VO owned by Collection domain. Deferred: pre-existing from 3.1, extraction >150 LOC; MVP accepted. Revisit during design review. | todo | From 2026-09-10: architect reviewer finding during PR 3.4 review |
 
 | fwd-1 | [future] Extend UnitOfWorkInterface with transactional boundary (`transactional(callable)` / wrapInTransaction) for atomic multi-entity operations (item + dynamic fields). Deferred from review-4: no consumer yet. Take during Этап 4 design. | todo | From 2026-09-10: architect review finding on review-4 |
 
@@ -119,14 +121,14 @@
 
 - **Этап 1 (Инфраструктура)**: 6/6 задач выполнено
 - **Этап 2 (Пользователь)**: 5/5 задач выполнено
-- **Этап 3 (Коллекция)**: 3/6 задач выполнено
+- **Этап 3 (Коллекция)**: 4/6 задач выполнено
 - **Этап 4 (Айтем)**: 0/6 задач выполнено
 - **Этап 5 (Социальное)**: 0/6 задач выполнено
 - **Этап 6 (Поиск)**: 0/4 задач выполнено
 - **Этап 7 (Админ)**: 0/7 задач выполнено
 - **Этап 8 (Тестирование)**: 0/6 задач выполнено
 
-**Итого**: 14/46 задач выполнено
+**Итого**: 15/46 задач выполнено
 
 ---
 
