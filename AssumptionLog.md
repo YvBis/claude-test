@@ -597,3 +597,17 @@ Resolution: rebind `Symfony\Component\Clock\ClockInterface` to `Symfony\Componen
 **Verdict:** non-issue, closed. Production binding is the `Clock` facade (not direct `NativeClock` with `timezone=`), guarded by `ClockInjectListener` LogicException off the dual-clock contract (AssumptionLog F3).
 **Verified:** zero `date_default_timezone_set`/`withTimeZone` calls in src/config/tests → no runtime TZ mutation → bootstrap-order drift scenario impossible; container `date.timezone=UTC`, `date_default_timezone_get()=UTC` stable.
 **Latent note:** facade's internal NativeClock reads `date_default_timezone_get()` on first `now()`. If future code calls `date_default_timezone_set`, Clock silently shifts TZ — keep in mind, not actionable now.
+
+## 2026-09-10 — review-3: serializer policy for ClockAwareTrait closed
+
+**Verdict:** non-issue, closed with policy. Facts: (1) no entity goes through
+`serialize()` anywhere — Symfony serializer is used for request DTOs only;
+(2) the trait is Symfony's own `ClockAwareTrait` with private nullable `$clock`
+— null in production (facade `Clock::get()` static), never `setClock()` in app code;
+(3) `Clock` facade is stateless (no instance props) — even if an entity carrying
+a facade were serialized, no frozen time state is carried.
+
+**Policy:** entities must never hold an explicit clock instance; always rely on the
+facade (already enforced by ClockInjectListener dual-clock contract). If a future
+consumer needs entity round-trip through `serialize()` (cache/queue/session), add
+`#[Serializer\Ignore]` + null-restore in `__unserialize` for `$clock` BEFORE enabling it.
