@@ -578,3 +578,9 @@ Resolution: rebind `Symfony\Component\Clock\ClockInterface` to `Symfony\Componen
 - Summary posted as PR review (`COMMENTED`) + inline comments; verdicts use needs-changes formally even when action items are non-configurable decisions — respond in thread and merge on all-green
 
 **CI check names now:** CI Summary, Static Analysis & Lint, Unit Tests, OpenRabbit Review, Dependency Audit.
+
+## 2026-09-10 — Review Backlog sweep: review-2 closed
+
+**review-2 (CVE-2026-45073 symfony/cache):** CLOSED — `composer audit` clean (2026-09-10, lock v7.3.11: `No security vulnerability advisories found`). Advisory no longer matches current lock; no bump needed.
+
+**New finding:** `sebastian/phpcpd` abandoned (used in CI PHPCPD step). Still functional; either pin or drop in later infra task — logged, no action yet.
