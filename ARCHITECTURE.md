@@ -103,10 +103,9 @@ GitHub Actions
 ├── PHP CS Fixer (lint)
 ├── PHPStan (static analysis)
 ├── Rector (dry-run)
-├── PHPCPD (copy-paste detection)
-├── PHPUnit (tests + coverage)
-├── Composer Audit (security)
-└── AI Code Review — OpenRabbit (OpenRouter free pool, `openrouter/free`), summary + inline comments
+├── PHPUnit (tests + coverage; no coverage on main push)
+├── Composer Audit (security, hard gate)
+└── AI Code Review — OpenRabbit (OpenRouter free pool, `openrouter/free`), summary + inline comments (PR only, non-draft)
 ```
 
 **Локально:** `docker compose exec app composer ci:all`

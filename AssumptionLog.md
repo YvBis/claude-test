@@ -642,3 +642,18 @@ marked done with evidence. No reimplementation.
 **Noted constraint:** PRD:99 limits UPDATE scope to name+description only.
 `UpdateCollectionDTO` deliberately has no `theme` field — theme change via API is
 out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-only.
+
+---
+
+## 2026-09-10 — Chore #35: phpcpd removal, audit hard-gate, symfony/cache CVE fix
+
+**Task:** PR #35 (`0d36dec`), chore/ci-refine-remove-phpcpd.
+
+**Decisions:**
+- **phpcpd removed** from project + CI (composer.json dep+script, `ci:static:quality`, CI step name). Abandoned (no suggested replacement), no maintained CPD alternative exists for PHP (PHPStan/Psalm/Rector offer none). Duplicate detection covered by PHPStan + OpenRabbit review on a young small codebase. If duplication becomes a problem, revisit.
+- **`composer audit --locked || true` → `composer audit --locked`**. Audit could never fail CI before (false green the entire time, including the earlier review-2 'CVE-2026-45073 clean' pass — that pass was stale-advisory-cache based). Now a real gate on PR and main push.
+- **symfony/cache 7.3.11 → 7.4.18** (CVE-2026-45073, SQLi via `PdoAdapter::doClear`, affected >=7.3,<7.4). Included because the hardened audit gate would otherwise fail CI on main immediately. No full 7.4 migration — 3 packages (cache, contracts, var-exporter).
+
+**Verification:** ci:all local 239/239 green; `composer audit --locked` no advisories; CI 5/5 green incl. Dependency Audit; OpenRabbit no findings.
+
+**Assumption:** CVE-2026-45073 previously declared clean (review-2 close) was WRONG — advisory-cache staleness masked it. The hard gate prevents recurrence.
