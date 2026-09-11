@@ -671,3 +671,14 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 **Verdicts:** OpenRabbit `ready to merge` on 695d3be; 8 inline comments addressed (4 code/dir fixes, 4 confirmed). Final re-review (3d0a378): no findings.
 
 **Verified:** main push 2cb78b5: 4/4 checks green, unit log shows summary + "coverage-gate: passed" (99.16%).
+
+## 2026-09-11 — Squash migrations (#37)
+
+**Change:** 4 Doctrine migrations (Version20260717..Version20260801140000) collapsed into one baseline Version20260911120000 (users, collections, collection_fields). Written by hand from the live SHOW CREATE TABLE golden reference; column order, index/FK names, utf8mb4_0900_ai_ci collation preserved byte-identically (verified: schema:update = Nothing to update on probe DB, SHOW CREATE diff empty vs golden).
+
+**Decision:** one-time reset of dev/test DBs (project in dev, no data). Future DBs apply a single migration.
+
+**Hidden lint gap found and fixed:** .php-cs-fixer.dist.php excluded migrations/ from PHP-CS-Fixer; PHPStan/Rector scan only src/. No linter ever inspected migrations -- a missing trailing newline in the squashed file went unnoticed on local AND CI runs. Fix: removed the finder exclusion, migrations now linted (project scan 83 to 84 files). Both fixes in same squashed PR commit.
+
+**Verification:** probe DB taskflow_probe migrate + schema:update empty; composer ci:all 239/239; coverage:gate 99.16%; CI 5/5 on final squashed commit f25a4c2.
+
