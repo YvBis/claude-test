@@ -15,6 +15,7 @@ concurrency:
 
 env:
   COMPOSER_CACHE_DIR: ~/.composer/cache
+  COVERAGE_MIN: 80
 
 jobs:
   static-analysis:
@@ -128,28 +129,11 @@ jobs:
           DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
 
       - name: Run PHPUnit with coverage gate
-        run: |
-          set +e
-          composer ci:test:coverage > /tmp/phpunit.log 2>&1
-          STATUS=$?
-          set -e
-          sed -r 's/\x1B\[[0-9;]*[mK]//g' /tmp/phpunit.log
-          LINES="$(sed -r 's/\x1B\[[0-9;]*[mK]//g' /tmp/phpunit.log | grep -oE 'Lines: *[0-9.]+%' | tail -n 1 | grep -oE '[0-9.]+')"
-          echo "Total line coverage: ${LINES}% (gate >= ${COVERAGE_MIN}%)"
-          if [ -z "$LINES" ]; then
-            echo "::error::Could not read coverage summary from phpunit output"
-            exit 1
-          fi
-          if awk "BEGIN { exit !(${LINES} < ${COVERAGE_MIN}) }"; then
-            echo "::error::Coverage gate failed: ${LINES}% < ${COVERAGE_MIN}%"
-            exit 1
-          fi
-          echo "Coverage gate passed"
-          exit $STATUS
+        run: composer coverage:gate
         env:
           DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
           XDEBUG_MODE: coverage
-          COVERAGE_MIN: 80
+          COVERAGE_MIN: ${{ env.COVERAGE_MIN }}
 
   dependency-audit:
     name: Dependency Audit

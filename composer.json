@@ -105,6 +105,10 @@
         ],
         "ci:test": "@phpunit:no-coverage",
         "ci:test:coverage": "@phpunit",
+        "coverage:gate": [
+            "@phpunit",
+            "php scripts/coverage-gate.php"
+        ],
         "ci:all": [
             "@ci:static:quality",
             "@ci:test"

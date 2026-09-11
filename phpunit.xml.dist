@@ -40,6 +40,7 @@
         </exclude>
         <report>
             <text outputFile="php://stdout" showUncoveredFiles="false" showOnlySummary="true"/>
+            <clover outputFile="var/coverage/clover.xml"/>
         </report>
     </coverage>
 
