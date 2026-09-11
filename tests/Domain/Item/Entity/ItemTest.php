@@ -11,6 +11,8 @@ use App\Domain\Collection\ValueObject\FieldType;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\ValueObject\ItemId;
+use App\Domain\Tag\Entity\Tag;
+use App\Domain\Tag\ValueObject\TagName;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
@@ -432,5 +434,93 @@ final class ItemTest extends TestCase
         $this->expectExceptionMessage('expects string');
 
         $item->setSlotValue(FieldType::text(), 1, 42);
+    }
+
+    public function testNewItemHasNoTags(): void
+    {
+        $item = Item::create($this->collection, '1984');
+
+        $this->assertSame([], $item->getTags());
+    }
+
+    public function testAddTagAddsTagToItem(): void
+    {
+        $item = Item::create($this->collection, '1984');
+        $tag = Tag::create(TagName::fromString('Books'));
+
+        $item->addTag($tag);
+
+        $this->assertTrue($item->hasTag($tag));
+        $this->assertSame([$tag], $item->getTags());
+    }
+
+    public function testAddTagIsIdempotent(): void
+    {
+        $item = Item::create($this->collection, '1984');
+        $tag = Tag::create(TagName::fromString('Books'));
+
+        $item->addTag($tag);
+        $item->addTag($tag);
+
+        $this->assertCount(1, $item->getTags());
+    }
+
+    public function testAddTagTouchesUpdatedAt(): void
+    {
+        $item = Item::create($this->collection, '1984');
+        $before = $item->getUpdatedAt();
+        $this->clock->modify('+1 hour');
+
+        $item->addTag(Tag::create(TagName::fromString('Books')));
+
+        $this->assertGreaterThan($before, $item->getUpdatedAt());
+    }
+
+    public function testRemoveTagRemovesTagFromItem(): void
+    {
+        $item = Item::create($this->collection, '1984');
+        $tag = Tag::create(TagName::fromString('Books'));
+        $item->addTag($tag);
+
+        $item->removeTag($tag);
+
+        $this->assertFalse($item->hasTag($tag));
+        $this->assertSame([], $item->getTags());
+    }
+
+    public function testRemoveTagWhenAbsentIsNoOp(): void
+    {
+        $item = Item::create($this->collection, '1984');
+        $before = $item->getUpdatedAt();
+
+        $item->removeTag(Tag::create(TagName::fromString('Books')));
+
+        $this->assertSame([], $item->getTags());
+        $this->assertSame($before, $item->getUpdatedAt());
+    }
+
+    public function testRemoveTagTouchesUpdatedAt(): void
+    {
+        $item = Item::create($this->collection, '1984');
+        $tag = Tag::create(TagName::fromString('Books'));
+        $item->addTag($tag);
+        $before = $item->getUpdatedAt();
+        $this->clock->modify('+1 hour');
+
+        $item->removeTag($tag);
+
+        $this->assertGreaterThan($before, $item->getUpdatedAt());
+    }
+
+    public function testGetTagsReturnsAllAddedTags(): void
+    {
+        $item = Item::create($this->collection, '1984');
+        $books = Tag::create(TagName::fromString('Books'));
+        $classics = Tag::create(TagName::fromString('Classics'));
+
+        $item->addTag($books);
+        $item->addTag($classics);
+
+        $this->assertSame([$books, $classics], $item->getTags());
     }
 }

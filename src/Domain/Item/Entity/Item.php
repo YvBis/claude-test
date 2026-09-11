@@ -8,6 +8,9 @@ use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\FieldType;
 use App\Domain\Common\Constant\SlotLimits;
 use App\Domain\Item\ValueObject\ItemId;
+use App\Domain\Tag\Entity\Tag;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection as DoctrineCollection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Clock\ClockAwareTrait;
@@ -90,6 +93,15 @@ final class Item
     private ?bool $bool3 = null;
 
     /**
+     * @var DoctrineCollection<int, Tag>
+     */
+    #[ORM\ManyToMany(targetEntity: Tag::class, fetch: 'LAZY')]
+    #[ORM\JoinTable(name: 'item_tags')]
+    #[ORM\JoinColumn(name: 'item_id', referencedColumnName: 'id', onDelete: 'CASCADE')]
+    #[ORM\InverseJoinColumn(name: 'tag_id', referencedColumnName: 'id', onDelete: 'CASCADE')]
+    private DoctrineCollection $tags;
+
+    /**
      * @internal This constructor is public to allow test object creation.
      * Use Item::create() for production code.
      */
@@ -101,6 +113,7 @@ final class Item
         $this->id = $id;
         $this->collection = $collection;
         $this->name = $this->normalizeName($name);
+        $this->tags = new ArrayCollection();
         $this->createdAt = $this->clockNow();
         $this->updatedAt = $this->createdAt;
     }
@@ -159,6 +172,39 @@ final class Item
     public function touch(): void
     {
         $this->updatedAt = $this->clockNow();
+    }
+
+    /**
+     * @return array<Tag>
+     */
+    public function getTags(): array
+    {
+        return \array_values($this->tags->toArray());
+    }
+
+    public function addTag(Tag $tag): void
+    {
+        if ($this->tags->contains($tag)) {
+            return;
+        }
+
+        $this->tags->add($tag);
+        $this->touch();
+    }
+
+    public function removeTag(Tag $tag): void
+    {
+        if (!$this->tags->contains($tag)) {
+            return;
+        }
+
+        $this->tags->removeElement($tag);
+        $this->touch();
+    }
+
+    public function hasTag(Tag $tag): bool
+    {
+        return $this->tags->contains($tag);
     }
 
     public function getSlotValue(FieldType $type, int $slot): string|float|\DateTimeImmutable|bool|null
