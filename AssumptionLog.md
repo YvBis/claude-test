@@ -699,3 +699,11 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - Slash в ALLOWED_PATTERN намеренный (иерархические имена), рационал подтверждён дизайн-подтверждением.
 - `nextSlotIndexFor` (MAX по всем типам) — нет prod-вызовов; периодически per-type semantics
   пересматривается в Task 4.4 (mapping/service).
+
+
+## 2026-09-11 — Task 4.1 closed: PR #38 merged
+
+- Squash-merge #38 (feat(Item): 3f0a24c), 10 коммитов → 1. 286 tests / 628 assertions, coverage gate 99%+.
+- OpenRouter free pool исчерпал daily free-models-per-day (50 RPD) на финальном CI-ранге: OpenRabbit упал честным 429-failure (в отличие от Gemini silent-pass). Merge прошёл после локальной проверки + 4/5 green.
+- Rebаse на main при слиянии: AssumptionLog conflict разрешён — обе секции (fwd-2 из #39 + SlotLimits из #38) сохранены.
+- ARCHITECTURE.md: добавлен домен Item (entity, ItemId, repo interface, правила слотов).

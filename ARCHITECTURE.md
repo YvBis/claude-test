@@ -56,14 +56,30 @@ TaskFlow — REST API для управления личными коллекц�
 **Бизнес-правила:**
 - Каждая коллекция принадлежит одному пользователю (owner)
 - Максимум 100 полей на коллекцию (`MAX_FIELDS_PER_COLLECTION`)
-- Поля имеют порядок через `slotIndex`
+- Поля имеют порядок через `slotIndex`; максимум 3 поля на тип via `SlotLimits::MAX_SLOTS_PER_TYPE`
+- UNIQUE `(collection_id, field_type, slot_index)` — per-type слот-уникальность
 - Темы: Books, Games, Movies, Drinks
+
+### Item (`src/Domain/Item/`)
+
+| Компонент | Путь | Описание |
+|-----------|------|----------|
+| `Item` | `Entity/Item.php` | Айтем (id, collection, name, 12 typed slots: text/num/date/bool × 1-3) |
+| `ItemId` | `ValueObject/ItemId.php` | Бинарный UUID |
+| `ItemRepositoryInterface` | `Repository/ItemRepositoryInterface.php` | Интерфейс репозитория |
+
+**Бизнес-правила:**
+- Слоты типизированы и фиксированы: `Item.{type}_{slot}` для (type, slot 1..3)
+- Поле CollectionField (type, slot) maps 1:1 на слот Item
+- Имя айтема — простая строка, санитизируется (trim, control-символы, whitelist)
+- Лимит слотов общий: `SlotLimits::MAX_SLOTS_PER_TYPE` (Domain/Common)
 
 ## Связи
 
 ```
 User 1 ──── * Collection
 Collection 1 ──── * CollectionField
+Collection 1 ──── * Item
 ```
 
 ## Application Services
@@ -126,7 +142,7 @@ GitHub Actions
 | 1 | Инфраструктура | ✅ завершён |
 | 2 | Пользователь | ✅ завершён |
 | 3 | Коллекция | ✅ завершён |
-| 4 | Айтем | ⏳ |
+| 4 | Айтем | ✅ завершён (4.1) |
 | 5 | Социальное | ⏳ |
 | 6 | Поиск | ⏳ |
 | 7 | Админ | ⏳ |
