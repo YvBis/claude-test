@@ -119,18 +119,23 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
 
     public function testFindByCollectionAndSlotReturnsFieldWhenExists(): void
     {
-        $field = CollectionField::create($this->collection, FieldName::fromString('Author'), FieldType::text(), 5);
+        $field = CollectionField::create($this->collection, FieldName::fromString('Author'), FieldType::text(), 3);
         $this->repo->save($field);
         $this->flush();
 
-        $found = $this->repo->findByCollectionAndSlot($this->collection, 5);
+        $found = $this->repo->findByCollectionAndTypeAndSlot($this->collection->getId(), FieldType::text(), 3);
         $this->assertNotNull($found);
         $this->assertSame('Author', $found->getName()->value());
     }
 
-    public function testFindByCollectionAndSlotReturnsNullWhenMissing(): void
+    public function testFindByCollectionAndSlotReturnsNullForUnassignedSlot(): void
     {
-        $this->assertNull($this->repo->findByCollectionAndSlot($this->collection, 99));
+        // valid-but-unassigned: distinguishes "no field" from out-of-range
+        $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Title'), FieldType::text(), 1));
+        $this->flush();
+
+        $this->assertNull($this->repo->findByCollectionAndTypeAndSlot($this->collection->getId(), FieldType::text(), 2));
+        $this->assertNull($this->repo->findByCollectionAndTypeAndSlot($this->collection->getId(), FieldType::text(), 99));
     }
 
     public function testNextSlotIndexForReturnsOneOnEmptyCollection(): void
@@ -140,12 +145,12 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
 
     public function testNextSlotIndexForReturnsMaxPlusOne(): void
     {
-        $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Aa'), FieldType::text(), 2));
-        $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Bb'), FieldType::text(), 5));
-        $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Cc'), FieldType::text(), 7));
+        $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Aa'), FieldType::text(), 1));
+        $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Bb'), FieldType::text(), 2));
+        $this->repo->save(CollectionField::create($this->collection, FieldName::fromString('Cc'), FieldType::text(), 3));
         $this->flush();
 
-        $this->assertSame(8, $this->repo->nextSlotIndexFor($this->collection));
+        $this->assertSame(4, $this->repo->nextSlotIndexFor($this->collection));
     }
 
     public function testCountByCollectionReturnsZeroForEmptyCollection(): void

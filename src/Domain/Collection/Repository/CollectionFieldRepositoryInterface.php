@@ -7,6 +7,8 @@ namespace App\Domain\Collection\Repository;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\Entity\CollectionField;
 use App\Domain\Collection\ValueObject\CollectionFieldId;
+use App\Domain\Collection\ValueObject\CollectionId;
+use App\Domain\Collection\ValueObject\FieldType;
 
 interface CollectionFieldRepositoryInterface
 {
@@ -29,7 +31,12 @@ interface CollectionFieldRepositoryInterface
     /** @return array<CollectionField> ordered by slot_index ASC */
     public function findByCollection(Collection $collection): array;
 
-    public function findByCollectionAndSlot(Collection $collection, int $slotIndex): ?CollectionField;
+    /**
+     * Find a field by collection id, type and slot. The collection and its
+     * owner are JOIN FETCHed — do not pass a managed proxy that must not
+     * hydrate the final Collection/User entities.
+     */
+    public function findByCollectionAndTypeAndSlot(CollectionId $collectionId, FieldType $type, int $slotIndex): ?CollectionField;
 
     public function nextSlotIndexFor(Collection $collection): int;
 

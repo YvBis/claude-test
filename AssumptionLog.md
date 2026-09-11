@@ -688,3 +688,14 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 
 **Decision:** intentional at 4.1 scope (fixed schema, 150-line cap). Dynamic slot count deferred as `fwd-2` in Roadmap backlog with candidate designs: (a) EAV table item_slot_values(item_id, field_type, slot_index, value), (b) JSON column slots, (c) column generation by constant. Trigger: real need >3 slots per type or architecture review. Estimate 3-5h.
 
+## 2026-09-11 — Task 4.1: shared SlotLimits, slot semantics
+
+- OpenRabbit review-раунд: найдено `MAX_SLOTS_PER_TYPE` дублирован в CollectionField и Item.
+  Опасность: field (type, slot) maps 1:1 на Item.{type}_{slot}; расход констант = поля молча теряются.
+- Решение: единый `App\Domain\Common\Constant\SlotLimits::MAX_SLOTS_PER_TYPE = 3`,
+  обе сущности ссылаются. Архитектура слоёв не нарушена (Domain/Common — общий слой).
+- Отклонено: protected-конструктор Item (@internal + factory — паттерн всех сущностей, Doctrine 3
+  требует конструируемых сущностей для hydration; runtime-защита create() — ответственность Application).
+- Slash в ALLOWED_PATTERN намеренный (иерархические имена), рационал подтверждён дизайн-подтверждением.
+- `nextSlotIndexFor` (MAX по всем типам) — нет prod-вызовов; периодически per-type semantics
+  пересматривается в Task 4.4 (mapping/service).
