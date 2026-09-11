@@ -128,7 +128,7 @@ jobs:
         env:
           DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
 
-      - name: Run PHPUnit with coverage gate
+      - name: Run PHPUnit tests with coverage enforcement
         run: composer coverage:gate
         env:
           DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
