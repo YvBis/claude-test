@@ -7,6 +7,7 @@ namespace App\Domain\Collection\Entity;
 use App\Domain\Collection\ValueObject\CollectionFieldId;
 use App\Domain\Collection\ValueObject\FieldName;
 use App\Domain\Collection\ValueObject\FieldType;
+use App\Domain\Common\Constant\SlotLimits;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Clock\ClockAwareTrait;
@@ -14,7 +15,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'collection_fields')]
-#[ORM\UniqueConstraint(name: 'uniq_collection_field_slot', columns: ['collection_id', 'slot_index'])]
+#[ORM\UniqueConstraint(name: 'uniq_collection_field_slot', columns: ['collection_id', 'field_type', 'slot_index'])]
 #[ORM\Index(name: 'idx_collection_field_collection', columns: ['collection_id'])]
 #[ORM\HasLifecycleCallbacks]
 final class CollectionField
@@ -22,8 +23,6 @@ final class CollectionField
     use ClockAwareTrait {
         now as protected clockNow;
     }
-
-    public const int MAX_FIELDS_PER_COLLECTION = 100;
 
     #[ORM\Id]
     #[ORM\Column(name: 'id', type: 'binary', length: 16)]
@@ -43,7 +42,7 @@ final class CollectionField
     private FieldType $type;
 
     #[ORM\Column(name: 'slot_index', type: Types::SMALLINT)]
-    #[Assert\Range(min: 1, max: self::MAX_FIELDS_PER_COLLECTION)]
+    #[Assert\Range(min: 1, max: SlotLimits::MAX_SLOTS_PER_TYPE)]
     private int $slotIndex;
 
     #[ORM\Column(name: 'created_at', type: Types::DATETIME_IMMUTABLE)]
@@ -63,9 +62,9 @@ final class CollectionField
         FieldType $type,
         int $slotIndex,
     ) {
-        if ($slotIndex < 1 || $slotIndex > self::MAX_FIELDS_PER_COLLECTION) {
+        if ($slotIndex < 1 || $slotIndex > SlotLimits::MAX_SLOTS_PER_TYPE) {
             throw new \InvalidArgumentException(
-                \sprintf('Slot index must be between 1 and %d', self::MAX_FIELDS_PER_COLLECTION)
+                \sprintf('Slot index must be between 1 and %d', SlotLimits::MAX_SLOTS_PER_TYPE)
             );
         }
 

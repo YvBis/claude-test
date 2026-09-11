@@ -12,6 +12,7 @@ use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\FieldName;
 use App\Domain\Collection\ValueObject\FieldType;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\Constant\SlotLimits;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
@@ -166,7 +167,7 @@ final class CollectionFieldTest extends TestCase
             collection: $this->collection,
             name: $this->fieldName,
             type: $this->fieldType,
-            slotIndex: CollectionField::MAX_FIELDS_PER_COLLECTION + 1, // above max
+            slotIndex: SlotLimits::MAX_SLOTS_PER_TYPE + 1, // above max
         );
     }
 

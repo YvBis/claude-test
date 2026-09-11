@@ -8,6 +8,8 @@ use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\Entity\CollectionField;
 use App\Domain\Collection\Repository\CollectionFieldRepositoryInterface;
 use App\Domain\Collection\ValueObject\CollectionFieldId;
+use App\Domain\Collection\ValueObject\CollectionId;
+use App\Domain\Collection\ValueObject\FieldType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -52,6 +54,10 @@ final class DoctrineCollectionFieldRepository extends ServiceEntityRepository im
     public function findByCollection(Collection $collection): array
     {
         return $this->createQueryBuilder('f')
+            ->innerJoin('f.collection', 'collection')
+            ->addSelect('collection')
+            ->innerJoin('collection.owner', 'owner')
+            ->addSelect('owner')
             ->where('f.collection = :collection')
             ->setParameter('collection', $collection)
             ->orderBy('f.slotIndex', 'ASC')
@@ -60,12 +66,18 @@ final class DoctrineCollectionFieldRepository extends ServiceEntityRepository im
     }
 
     #[\Override]
-    public function findByCollectionAndSlot(Collection $collection, int $slotIndex): ?CollectionField
+    public function findByCollectionAndTypeAndSlot(CollectionId $collectionId, FieldType $type, int $slotIndex): ?CollectionField
     {
         return $this->createQueryBuilder('f')
-            ->where('f.collection = :collection')
+            ->innerJoin('f.collection', 'collection')
+            ->addSelect('collection')
+            ->innerJoin('collection.owner', 'owner')
+            ->addSelect('owner')
+            ->where('f.collection = :collectionId')
+            ->andWhere('f.type.type = :type')
             ->andWhere('f.slotIndex = :slotIndex')
-            ->setParameter('collection', $collection)
+            ->setParameter('collectionId', $collectionId->toBytes(), 'binary')
+            ->setParameter('type', $type->value())
             ->setParameter('slotIndex', $slotIndex)
             ->getQuery()
             ->getOneOrNullResult();
