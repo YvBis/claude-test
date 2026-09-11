@@ -39,8 +39,8 @@
             <file>src/Kernel.php</file>
         </exclude>
         <report>
+            <text outputFile="php://stdout" showUncoveredFiles="false" showOnlySummary="true"/>
             <clover outputFile="var/coverage/clover.xml"/>
-            <html outputDirectory="var/coverage/html"/>
         </report>
     </coverage>
 

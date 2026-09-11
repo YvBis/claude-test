@@ -83,6 +83,14 @@ docker compose exec app composer phpunit:no-coverage
 docker compose exec app composer coverage:check
 ```
 
+> **Покрытие в CI и локально**: в GitHub Actions `unit-tests` всегда гоняет тесты с
+> покрытием и проваливает CI при `Lines < COVERAGE_MIN` (по умолчанию 80%,
+> настраивается в `.github/workflows/ci.yml`). Локально `composer test` / `composer ci:all`
+> идут без покрытия; с покрытием и тем же порогом:
+> ```bash
+> docker compose exec app composer coverage:gate
+> ```
+
 > **Примечание**: после изменения `docker/php/custom.ini` или `Dockerfile` пересоберите образ:
 > ```bash
 > docker compose build app
