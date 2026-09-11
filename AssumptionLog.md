@@ -657,3 +657,17 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 **Verification:** ci:all local 239/239 green; `composer audit --locked` no advisories; CI 5/5 green incl. Dependency Audit; OpenRabbit no findings.
 
 **Assumption:** CVE-2026-45073 previously declared clean (review-2 close) was WRONG — advisory-cache staleness masked it. The hard gate prevents recurrence.
+
+## Coverage enforcement in CI (PR #36, squash 2cb78b5)
+
+**Change:** PHPUnit now ALWAYS runs with coverage, on every branch and on main push.
+
+- phpunit.xml.dist `<report>`: `<text showOnlySummary>` (console: only Classes/Methods/Lines totals) + `<clover>` (var/coverage/clover.xml, gitignored, internal).
+- New `scripts/coverage-gate.php`: parses clover project metrics (coveredstatements/statements), fails with exit 1 when line coverage < COVERAGE_MIN (workflow env, default 80). Missing/corrupt clover = fail, no silent pass.
+- composer: `coverage:gate` = phpunit (XDEBUG_MODE=coverage) + gate script; `phpunit` and `ci:test:coverage` = XDEBUG_MODE=coverage phpunit.
+- ci.yml: single unconditioned step `Run PHPUnit tests with coverage enforcement` (${{ env.COVERAGE_MIN }} = 80) replaces the old two conditional steps; no OpenRabbit on main push (unchanged).
+- README documents local no-coverage (composer test / ci:all) vs CI always-coverage + 80% gate.
+
+**Verdicts:** OpenRabbit `ready to merge` on 695d3be; 8 inline comments addressed (4 code/dir fixes, 4 confirmed). Final re-review (3d0a378): no findings.
+
+**Verified:** main push 2cb78b5: 4/4 checks green, unit log shows summary + "coverage-gate: passed" (99.16%).
