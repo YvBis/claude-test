@@ -21,12 +21,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run AI Code Review
+      - name: Run AI Code Review (OpenRouter)
+        id: openrouter
+        continue-on-error: true
         uses: aryanbrite/openrabbit@v0.8.7
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           llm_api_key: ${{ secrets.LLM_API_KEY }}
           llm_provider: openrouter
           llm_model: openrouter/free
+          review_mode: both
+          tone_mode: balanced
+
+      - name: Run AI Code Review (Groq fallback)
+        if: steps.openrouter.outcome == 'failure'
+        uses: aryanbrite/openrabbit@v0.8.7
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          llm_api_key: ${{ secrets.GROQ_API_KEY }}
+          llm_provider: groq
+          llm_api_url: https://api.groq.com/openai/v1
+          llm_model: openai/gpt-oss-120b
           review_mode: both
           tone_mode: balanced
