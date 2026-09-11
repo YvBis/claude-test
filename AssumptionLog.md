@@ -718,3 +718,15 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - Model choice: OpenRabbit always sends `reasoning_effort: 'medium'`; among free Groq models only `gpt-oss-120b`/`gpt-oss-20b` accept it (llama/qwen reject it). Chose 120b.
 - Verified end-to-end on PR #40: OpenRouter step failed with 429, Groq fallback ran and posted the review (check green).
 - Known limit: Groq free TPM is 8K — very large PR prompts may still 429; fallback is best-effort.
+
+
+## 2026-09-12 — Task 4.2 closed: Tag entity + item_tags many-to-many (PR #41)
+
+- Squash-merge #41 (feat(Tag): 8ef7ceb). 330 тестов, coverage 97.77% (gate >= 80). Миграция Version20260911195240 применена на dev и test, schema:update пусто.
+- Tag глобальный (без владельца). UNIQUE(name) + коллация utf8mb4_0900_ai_ci даёт регистронезависимую уникальность; регистр первого ввода сохраняется. Подтверждено integration-тестами на MySQL: Books/books -> UniqueConstraintViolationException; DQL WHERE name.value='books' находит 'Books'.
+- Item <-> Tag unidirectional ManyToMany через item_tags (оба FK ON DELETE CASCADE); методы addTag/removeTag/hasTag/getTags (идемпотентные, touch updatedAt). Ленивая загрузка to-many коллекции final Tag не даёт ghost-proxy (в отличие от to-one final сущностей).
+- TagRepositoryInterface только интерфейс (findByName для переиспользования); DoctrineTagRepository отложен в Task 4.3. TagName VO: trim, strip control, collapse, 2..30, whitelist как FieldName.
+- Декомпозиция: TagRepositoryInterface перенесён из S1 в S2 — интерфейс ссылается на Tag entity, иначе PHPStan падает на висячей ссылке.
+- Ревью (senior + architect): принято — удалён мёртвый Tag::touch() (нет мутатора), docblock про регистронезависимость в TagName. Отклонено с обоснованием — Item->Tag через entity вместо TagId VO (в проекте entity-ссылки: Item->Collection, Collection->User), #[ORM\Embeddable] на ID VO (единый паттерн CollectionId/ItemId), #[ORM\HasLifecycleCallbacks] без колбэков (паттерн проекта).
+- Новая Task 4.7 в Roadmap: эндпоинт списка/поиска тегов, была упущена при планировании Этапа 4 (запрос пользователя).
+- AI-ревью PR #41 не прошло: OpenRouter дневная квота исчерпана; Groq fallback сработал, но free-модель уперлась в лимит токенов (413, ~12.7K > 7000) на крупном diff. Отдельный CI-фикс #42 переключил Groq fallback на qwen/qwen3.8-27b (валидирован на самом #42, 5/5 green).

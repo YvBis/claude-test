@@ -74,12 +74,28 @@ TaskFlow — REST API для управления личными коллекц�
 - Имя айтема — простая строка, санитизируется (trim, control-символы, whitelist)
 - Лимит слотов общий: `SlotLimits::MAX_SLOTS_PER_TYPE` (Domain/Common)
 
+### Tag (`src/Domain/Tag/`)
+
+| Компонент | Путь | Описание |
+|-----------|------|----------|
+| `Tag` | `Entity/Tag.php` | Глобальный тег (id, name, createdAt, updatedAt); имя иммутабельное |
+| `TagId` | `ValueObject/TagId.php` | Бинарный UUID |
+| `TagName` | `ValueObject/TagName.php` | Имя тега (нормализация, длина 2..30) |
+| `TagRepositoryInterface` | `Repository/TagRepositoryInterface.php` | Интерфейс репозитория (имплементация — Task 4.3) |
+
+**Бизнес-правила:**
+- Теги глобальные (без владельца), переиспользуются между пользователями
+- Уникальность `name` регистронезависима (UNIQUE + коллация `utf8mb4_0900_ai_ci`); хранится регистр первого ввода
+- `TagName`: trim, strip control-символов, collapse whitespace, длина 2..30, whitelist как у `FieldName`
+- Связь с Item — many-to-many через `item_tags` (оба FK `ON DELETE CASCADE`)
+
 ## Связи
 
 ```
 User 1 ──── * Collection
 Collection 1 ──── * CollectionField
 Collection 1 ──── * Item
+Item * ──── * Tag   (item_tags)
 ```
 
 ## Application Services
@@ -122,7 +138,7 @@ GitHub Actions
 ├── PHPUnit (tests + coverage gate ≥ 80%, каждая ветка и main)
 ├── Composer Audit (security, hard gate)
 └── AI Code Review — OpenRabbit, summary + inline comments (PR only, non-draft):
-    OpenRouter free pool (`openrouter/free`), при падении — Groq fallback (`openai/gpt-oss-120b`)
+    OpenRouter free pool (`openrouter/free`), при падении — Groq fallback (`qwen/qwen3.8-27b`)
 ```
 
 **Локально:** `docker compose exec app composer ci:all`
@@ -143,7 +159,7 @@ GitHub Actions
 | 1 | Инфраструктура | ✅ завершён |
 | 2 | Пользователь | ✅ завершён |
 | 3 | Коллекция | ✅ завершён |
-| 4 | Айтем | ✅ завершён (4.1) |
+| 4 | Айтем | ✅ завершён (4.1, 4.2) |
 | 5 | Социальное | ⏳ |
 | 6 | Поиск | ⏳ |
 | 7 | Админ | ⏳ |
