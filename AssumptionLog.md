@@ -707,3 +707,14 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - OpenRouter free pool исчерпал daily free-models-per-day (50 RPD) на финальном CI-ранге: OpenRabbit упал честным 429-failure (в отличие от Gemini silent-pass). Merge прошёл после локальной проверки + 4/5 green.
 - Rebаse на main при слиянии: AssumptionLog conflict разрешён — обе секции (fwd-2 из #39 + SlotLimits из #38) сохранены.
 - ARCHITECTURE.md: добавлен домен Item (entity, ItemId, repo interface, правила слотов).
+
+
+## 2026-09-11 — AI code review: Groq fallback when OpenRouter fails
+
+- Problem: OpenRouter free pool (50 requests/day, `free-models-per-day`) exhausted → OpenRabbit threw 429 and the review check went red with no review produced.
+- OpenRabbit v0.8.7 has no native cross-provider fallback: `createLLMClient` selects a single provider, and Groq/OpenRouter share the same OpenAI-compatible client.
+- Safety finding: `runReview` performs all LLM calls first and writes to GitHub exactly once at the end (`pulls.createReview`). A failed step therefore posts nothing, so a retry with a second provider cannot duplicate comments.
+- Solution: `.github/workflows/code-review.yml` — step 1 OpenRouter (`id: openrouter`, `continue-on-error: true`), step 2 Groq (`if: steps.openrouter.outcome == 'failure'`), provider `groq`, `llm_api_url: https://api.groq.com/openai/v1`, model `openai/gpt-oss-120b`, secret `GROQ_API_KEY`.
+- Model choice: OpenRabbit always sends `reasoning_effort: 'medium'`; among free Groq models only `gpt-oss-120b`/`gpt-oss-20b` accept it (llama/qwen reject it). Chose 120b.
+- Verified end-to-end on PR #40: OpenRouter step failed with 429, Groq fallback ran and posted the review (check green).
+- Known limit: Groq free TPM is 8K — very large PR prompts may still 429; fallback is best-effort.

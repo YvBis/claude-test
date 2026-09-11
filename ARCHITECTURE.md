@@ -119,9 +119,10 @@ GitHub Actions
 ├── PHP CS Fixer (lint)
 ├── PHPStan (static analysis)
 ├── Rector (dry-run)
-├── PHPUnit (tests + coverage; no coverage on main push)
+├── PHPUnit (tests + coverage gate ≥ 80%, каждая ветка и main)
 ├── Composer Audit (security, hard gate)
-└── AI Code Review — OpenRabbit (OpenRouter free pool, `openrouter/free`), summary + inline comments (PR only, non-draft)
+└── AI Code Review — OpenRabbit, summary + inline comments (PR only, non-draft):
+    OpenRouter free pool (`openrouter/free`), при падении — Groq fallback (`openai/gpt-oss-120b`)
 ```
 
 **Локально:** `docker compose exec app composer ci:all`
