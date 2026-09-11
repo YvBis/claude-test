@@ -682,3 +682,9 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 
 **Verification:** probe DB taskflow_probe migrate + schema:update empty; composer ci:all 239/239; coverage:gate 99.16%; CI 5/5 on final squashed commit f25a4c2.
 
+## 2026-09-11 — fwd-2: slots sized by constant (deferred to backlog)
+
+**Finding (from Task 4.1 closeout):** `Item` has fixed 12 columns (text_1..3, num_1..3, date_1..3, bool_1..3), and `getSlotValue`/`setSlotValue` hardcode `1,2,3 =>` match arms. `SlotLimits::MAX_SLOTS_PER_TYPE = 3` is used only for range validation — changing it does NOT change schema columns nor match arms (slot > 3 → throw). The constant creates false configurability.
+
+**Decision:** intentional at 4.1 scope (fixed schema, 150-line cap). Dynamic slot count deferred as `fwd-2` in Roadmap backlog with candidate designs: (a) EAV table item_slot_values(item_id, field_type, slot_index, value), (b) JSON column slots, (c) column generation by constant. Trigger: real need >3 slots per type or architecture review. Estimate 3-5h.
+

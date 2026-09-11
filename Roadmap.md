@@ -51,6 +51,8 @@
 
 | fwd-1 | [future] Extend UnitOfWorkInterface with transactional boundary (`transactional(callable)` / wrapInTransaction) for atomic multi-entity operations (item + dynamic fields). Deferred from review-4: no consumer yet. Take during Этап 4 design. | todo | From 2026-09-10: architect review finding on review-4 |
 
+| fwd-2 | [future] Заменить фиксированные 12 колонок Item (match-arms 1,2,3 + SlotLimits::MAX_SLOTS_PER_TYPE) на произвольное количество слотов на тип. Сейчас константа создаёт ложную конфигурируемость: изменение значения не меняет ни колонки схемы, ни match-ветки (slot > 3 → throw). Кандидаты: (a) EAV-таблица item_slot_values(item_id, field_type, slot_index, value), (b) JSON-колонка slots, (c) генерация колонок по константе. Затронет: Item mapping, репозитории, миграцию, CollectionField cap, nextSlotIndexFor (per-type), сервис маппинга 4.4. Триггер: реальная потребность >3 слотов на тип или архитектурное ревью. Estimate: 3-5ч | todo | From 2026-09-11: выявлено при закрытии 4.1 — константа не управляет схемой |
+
 ## Этап 4: Доменная модель — Айтем
 
 ### Управление айтемами с динамическими полями
