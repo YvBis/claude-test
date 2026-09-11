@@ -66,7 +66,7 @@ jobs:
           restore-keys: |
             phpcsfixer-
 
-      - name: Run static analysis (PHPStan, PHPcsFixer check, Rector dry-run, PHPCPD)
+      - name: Run static analysis (PHPStan, PHPCSFixer check, Rector dry-run)
         run: composer ci:static:quality
 
   unit-tests:
@@ -165,7 +165,7 @@ jobs:
         run: composer install --no-progress --no-interaction --no-scripts
 
       - name: Run composer audit
-        run: composer audit --locked || true
+        run: composer audit --locked
 
   ci-summary:
     name: CI Summary
