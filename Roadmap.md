@@ -35,8 +35,8 @@
 | 3.2 | [x] Сущность CollectionField с типами (text/number/date/bool) и slot_index | done |
 | 3.3 | [x] Сервис коллекции — создание, редактирование, список коллекций пользователя | done |
 | 3.4 | [x] API-эндпоинты коллекции (CRUD, список всех, список своих) | done |
-| 3.5 | [ ] Валидация тем (Books/Games/Movies/Drinks) | todo |
-| 3.6 | [ ] Unit-тесты для домена Collection | todo |
+| 3.5 | [x] Валидация тем (Books/Games/Movies/Drinks) | done | Closed 2026-09-10 after audit: implemented via 3.1/3.3/3.4 — Theme VO (factories/fromString/values/equals + InvalidArgumentException), ThemeEnum, CreateCollectionDTO NotBlank+Choice → 400 Validation failed, OpenAPI enum, 11 ThemeTest + controller testCreateReturns400WhenInvalid |
+| 3.6 | [x] Unit-тесты для домена Collection | done | Closed 2026-09-10 after audit: CollectionTest (16), CollectionFieldTest (9), ValueObject suites (66 tests total) — entity invariants, changeTheme/changeName/touch, slotIndex range/max, whitespace normalization |
 
 ## Review Backlog
 
@@ -121,14 +121,14 @@
 
 - **Этап 1 (Инфраструктура)**: 6/6 задач выполнено
 - **Этап 2 (Пользователь)**: 5/5 задач выполнено
-- **Этап 3 (Коллекция)**: 4/6 задач выполнено
+- **Этап 3 (Коллекция)**: 6/6 задач выполнено
 - **Этап 4 (Айтем)**: 0/6 задач выполнено
 - **Этап 5 (Социальное)**: 0/6 задач выполнено
 - **Этап 6 (Поиск)**: 0/4 задач выполнено
 - **Этап 7 (Админ)**: 0/7 задач выполнено
 - **Этап 8 (Тестирование)**: 0/6 задач выполнено
 
-**Итого**: 15/46 задач выполнено
+**Итого**: 17/46 задач выполнено
 
 ---
 

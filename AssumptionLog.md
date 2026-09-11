@@ -611,3 +611,34 @@ a facade were serialized, no frozen time state is carried.
 facade (already enforced by ClockInjectListener dual-clock contract). If a future
 consumer needs entity round-trip through `serialize()` (cache/queue/session), add
 `#[Serializer\Ignore]` + null-restore in `__unserialize` for `$clock` BEFORE enabling it.
+
+## 2026-09-10 — Task 3.5 and 3.6 closed via audit (no code delta)
+
+**Context:** internal review cycle flagged tasks 3.5 (theme validation) and 3.6
+(domain unit tests) as candidates for auditing — the codebase appeared to already
+satisfy both.
+
+**Findings — 3.5 «Валидация тем»:**
+- `Theme` VO full: `books()/games()/movies()/drinks()`, `fromString()` (trim,
+  lowercase, `InvalidArgumentException: Invalid theme`), `values()`, `equals()`.
+- `ThemeEnum` (books/games/movies/drinks) + `ThemeEnumType` Doctrine mapping.
+- `CreateCollectionDTO`: `NotBlank` + `Choice(constraints: ThemeEnum::values())`
+  → invalid theme returns 400 `{"error":"Validation failed","details":[...]}`,
+  covered by `testCreateReturns400WhenInvalid`.
+- Domain guard: `Theme::fromString` unreachable via API (DTO filters first).
+- OpenAPI create schema documents `enum: ['books','games','movies','drinks']`.
+- 11 unit tests in `ThemeTest.php`.
+
+**Findings — 3.6 «Unit-тесты домена Collection»:**
+- `CollectionTest.php`: 16 tests (create variants, changeName/Theme/Description/
+  Image, touch, reassignOwner, whitespace normalization to null).
+- `CollectionFieldTest.php`: 9 tests (slotIndex range/max, rename, reassign, touch).
+- ValueObject suites: 66 tests total (Theme, FieldName, FieldType, CollectionName,
+  CollectionId, CollectionFieldId).
+
+**Decision:** both tasks already implemented (work shipped via 3.1/3.3/3.4);
+marked done with evidence. No reimplementation.
+
+**Noted constraint:** PRD:99 limits UPDATE scope to name+description only.
+`UpdateCollectionDTO` deliberately has no `theme` field — theme change via API is
+out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-only.
