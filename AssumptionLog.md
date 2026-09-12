@@ -730,3 +730,14 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - Ревью (senior + architect): принято — удалён мёртвый Tag::touch() (нет мутатора), docblock про регистронезависимость в TagName. Отклонено с обоснованием — Item->Tag через entity вместо TagId VO (в проекте entity-ссылки: Item->Collection, Collection->User), #[ORM\Embeddable] на ID VO (единый паттерн CollectionId/ItemId), #[ORM\HasLifecycleCallbacks] без колбэков (паттерн проекта).
 - Новая Task 4.7 в Roadmap: эндпоинт списка/поиска тегов, была упущена при планировании Этапа 4 (запрос пользователя).
 - AI-ревью PR #41 не прошло: OpenRouter дневная квота исчерпана; Groq fallback сработал, но free-модель уперлась в лимит токенов (413, ~12.7K > 7000) на крупном diff. Отдельный CI-фикс #42 переключил Groq fallback на qwen/qwen3.8-27b (валидирован на самом #42, 5/5 green).
+
+
+## 2026-09-12 — Task 4.3 closed: tag service find-or-create (PR #44)
+
+- Squash-merge #44 (feat(Tag): 9c90369). 344 теста, coverage 97.83% (gate >=80), phpstan L9/phpcs/rector чисто. Без миграций.
+- Выбран вариант B: `DoctrineTagRepository::getOrCreate` делает атомарный MySQL upsert (`INSERT ... ON DUPLICATE KEY UPDATE id = id`) и перечитывает строку. Гонка конкурентного создания разрешается unique-индексом без исключений; raw SQL только в Infrastructure — Doctrine не протекает в Application.
+- `TagService::resolveByNames(array<string>)` (Application): нормализация через `TagName`, дедуп до записи, разрешение через `getOrCreate`, дедуп по идентичности (регистронезависимо), порядок первого появления. Без UoW/flush/Doctrine; коммит за вызывающим (Task 4.4).
+- Отклонение от конвенции «save отложен до flush»: `getOrCreate` пишет строку сразу (атомарность нужна на момент разрешения; ORM 3 не имеет partial flush и auto-flush перед DQL — проверено: `AutoFlushMode`/`autoFlush` в vendor/doctrine/orm 3.6.7 отсутствуют). «Осиротевший» тег при падении создания айтема безвреден — теги глобальные и переиспользуемые.
+- `UnitOfWorkInterface::clear()` отклонён: сброс общего EntityManager отцепил бы pending-сущности вызывающего.
+- Ревью (senior + architect): принято — явный `ParameterType::BINARY` для binary UUID, ассерт регистра в integration-тесте, фиксация аргументов в дедуп-тесте, документирование семантики персистентности. Отклонено с обоснованием — `wrapInTransaction` (единичный атомарный upsert достаточен; вложенная транзакция DBAL без savepoints преждевременно коммитит внешнюю), перенос `getOrCreate` в Domain Service (потерял бы атомарность; в проекте нет доменных сервисов), `is_string`-гард (контракт `array<string>`; валидация формы запроса — в контроллере 4.5).
+- AI-ревью PR #44: OpenRouter отработал (квота сбросилась), Groq fallback пропущен; вердикт ready to merge. Два inline-комментария отвечены (один невалидный — сниппет с глобальным `\Tag`; второй уже покрыт тремя тестами на регистронезависимость).

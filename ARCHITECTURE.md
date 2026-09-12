@@ -81,7 +81,7 @@ TaskFlow — REST API для управления личными коллекц�
 | `Tag` | `Entity/Tag.php` | Глобальный тег (id, name, createdAt, updatedAt); имя иммутабельное |
 | `TagId` | `ValueObject/TagId.php` | Бинарный UUID |
 | `TagName` | `ValueObject/TagName.php` | Имя тега (нормализация, длина 2..30) |
-| `TagRepositoryInterface` | `Repository/TagRepositoryInterface.php` | Интерфейс репозитория (имплементация — Task 4.3) |
+| `TagRepositoryInterface` | `Repository/TagRepositoryInterface.php` | Интерфейс репозитория (`save`, `remove`, `findById`, `findByName`, `getOrCreate`) |
 
 **Бизнес-правила:**
 - Теги глобальные (без владельца), переиспользуются между пользователями
@@ -104,6 +104,7 @@ Item * ──── * Tag   (item_tags)
 |--------|------|----------|
 | `RegistrationService` | `src/Application/User/Service/RegistrationService.php` | Регистрация пользователя |
 | `AuthenticationService` | `src/Application/User/Service/AuthenticationService.php` | Аутентификация (login), JWT |
+| `TagService` | `src/Application/Tag/Service/TagService.php` | `resolveByNames` — нормализация/дедуп имён, найти-или-создать тег (flush у вызывающего) |
 
 **DTO:**
 - `RegisterUserDTO` — name, email, password
@@ -120,6 +121,7 @@ Item * ──── * Tag   (item_tags)
 | `CollectionController` | `src/Infrastructure/Api/Controller/CollectionController.php` | CRUD коллекций; `GET /api/collections` с `?owner={uuid}` (чужие коллекции, двоичный UUID через `IDENTITY`) |
 | `DoctrineUserRepository` | `src/Infrastructure/User/Repository/DoctrineUserRepository.php` | Реализация репозитория User |
 | `DoctrineCollectionFieldRepository` | `src/Infrastructure/Collection/Repository/DoctrineCollectionFieldRepository.php` | Реализация репозитория CollectionField |
+| `DoctrineTagRepository` | `src/Infrastructure/Tag/Repository/DoctrineTagRepository.php` | Реализация репозитория Tag; `getOrCreate` — атомарный MySQL upsert |
 | `UserProvider` | `src/Infrastructure/Security/UserProvider.php` | Symfony Security user provider |
 | `ClockInjectListener` | `src/Infrastructure/Doctrine/Listener/ClockInjectListener.php` | Автоинъекция Clock в сущности |
 
@@ -159,7 +161,7 @@ GitHub Actions
 | 1 | Инфраструктура | ✅ завершён |
 | 2 | Пользователь | ✅ завершён |
 | 3 | Коллекция | ✅ завершён |
-| 4 | Айтем | ✅ завершён (4.1, 4.2) |
+| 4 | Айтем | ✅ завершён (4.1, 4.2, 4.3) |
 | 5 | Социальное | ⏳ |
 | 6 | Поиск | ⏳ |
 | 7 | Админ | ⏳ |
