@@ -31,4 +31,11 @@ interface TagRepositoryInterface
      * "Books" and "books" resolve to the same tag.
      */
     public function findByName(TagName $name): ?Tag;
+
+    /**
+     * Return the existing tag for the given name (case-insensitive) or create it.
+     * Performs an atomic upsert, so concurrent creation of the same tag is safe:
+     * a losing insert becomes a no-op and the already persisted tag is returned.
+     */
+    public function getOrCreate(TagName $name): Tag;
 }
