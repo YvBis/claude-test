@@ -9,13 +9,13 @@ use App\Application\Item\Service\ItemSlotMapper;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\FieldType;
+use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Repository\ItemRepositoryInterface;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
-use App\Domain\User\ValueObject\UserId;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
@@ -130,27 +130,27 @@ final class DoctrineItemRepositoryTest extends KernelTestCase
 
         $this->em->flush();
 
-        $items = $this->repo->findByOwnerId($ownerA->getId());
+        $items = $this->repo->findByOwnerId(OwnerId::fromBytes($ownerA->getId()->toBytes()));
 
         $this->assertCount(1, $items);
         $this->assertTrue($items[0]->getId()->equals($itemA->getId()));
         $this->assertTrue($items[0]->getCollection()->getId()->equals($collectionA->getId()));
 
-        $itemsB = $this->repo->findByOwnerId($ownerB->getId());
+        $itemsB = $this->repo->findByOwnerId(OwnerId::fromBytes($ownerB->getId()->toBytes()));
 
         $this->assertCount(1, $itemsB);
         $this->assertTrue($itemsB[0]->getId()->equals($itemB->getId()));
         $this->assertTrue($itemsB[0]->getCollection()->getId()->equals($collectionB->getId()));
     }
 
-    public function testFindByOwnerIdAcceptsUserIdValueObject(): void
+    public function testFindByOwnerIdAcceptsOwnerIdValueObject(): void
     {
         $owner = $this->createUser('vo');
         $collection = $this->createCollection($owner, 'VO Coll');
         $this->em->persist(Item::create($collection, 'VO Item'));
         $this->em->flush();
 
-        $this->assertCount(1, $this->repo->findByOwnerId(UserId::fromString($owner->getId()->toString())));
+        $this->assertCount(1, $this->repo->findByOwnerId(OwnerId::fromString($owner->getId()->toString())));
     }
 
     public function testRemoveDeletesItem(): void

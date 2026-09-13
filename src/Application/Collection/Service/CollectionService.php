@@ -13,9 +13,9 @@ use App\Domain\Collection\Exception\CollectionNotFoundException;
 use App\Domain\Collection\Repository\CollectionRepositoryInterface;
 use App\Domain\Collection\ValueObject\CollectionId;
 use App\Domain\Collection\ValueObject\CollectionName;
+use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\User\Entity\User;
-use App\Domain\User\ValueObject\UserId;
 
 final readonly class CollectionService
 {
@@ -76,14 +76,6 @@ final readonly class CollectionService
     /**
      * @return array<Collection>
      */
-    public function listByOwner(User $owner, int $limit = 50, int $offset = 0): array
-    {
-        return $this->collectionRepository->findByOwner($owner, $limit, $offset);
-    }
-
-    /**
-     * @return array<Collection>
-     */
     public function listAll(int $limit = 50, int $offset = 0): array
     {
         return $this->collectionRepository->findAll($limit, $offset);
@@ -92,7 +84,7 @@ final readonly class CollectionService
     /**
      * @return array<Collection>
      */
-    public function listByOwnerId(UserId $ownerId, int $limit = 50, int $offset = 0): array
+    public function listByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array
     {
         return $this->collectionRepository->findByOwnerId($ownerId, $limit, $offset);
     }

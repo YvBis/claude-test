@@ -7,8 +7,7 @@ namespace App\Infrastructure\Collection\Repository;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\Repository\CollectionRepositoryInterface;
 use App\Domain\Collection\ValueObject\CollectionId;
-use App\Domain\User\Entity\User;
-use App\Domain\User\ValueObject\UserId;
+use App\Domain\Collection\ValueObject\OwnerId;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -47,22 +46,7 @@ final class DoctrineCollectionRepository extends ServiceEntityRepository impleme
     }
 
     #[\Override]
-    public function findByOwner(User $owner, int $limit = 50, int $offset = 0): array
-    {
-        return $this->createQueryBuilder('c')
-            ->leftJoin('c.owner', 'owner')
-            ->addSelect('owner')
-            ->where('c.owner = :owner')
-            ->setParameter('owner', $owner)
-            ->orderBy('c.createdAt', 'DESC')
-            ->setMaxResults($limit)
-            ->setFirstResult($offset)
-            ->getQuery()
-            ->getResult();
-    }
-
-    #[\Override]
-    public function findByOwnerId(UserId $ownerId, int $limit = 50, int $offset = 0): array
+    public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array
     {
         return $this->createQueryBuilder('c')
             ->leftJoin('c.owner', 'owner')

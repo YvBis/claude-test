@@ -11,11 +11,11 @@ use App\Application\Item\DTO\UpdateItemDTO;
 use App\Application\Tag\Service\TagService;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionId;
+use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Exception\ItemNotFoundException;
 use App\Domain\Item\Repository\ItemRepositoryInterface;
 use App\Domain\Item\ValueObject\ItemId;
-use App\Domain\User\ValueObject\UserId;
 
 final readonly class ItemService
 {
@@ -91,7 +91,7 @@ final readonly class ItemService
     /**
      * @return array<Item>
      */
-    public function listByOwner(UserId $ownerId, int $limit = 50, int $offset = 0): array
+    public function listByOwner(OwnerId $ownerId, int $limit = 50, int $offset = 0): array
     {
         return $this->itemRepository->findByOwnerId($ownerId, $limit, $offset);
     }

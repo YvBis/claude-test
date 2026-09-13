@@ -9,8 +9,8 @@ use App\Application\Collection\DTO\UpdateCollectionDTO;
 use App\Application\Collection\Service\CollectionService;
 use App\Application\Exception\ValidationException;
 use App\Domain\Collection\Exception\CollectionNotFoundException;
+use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\User\Entity\User;
-use App\Domain\User\ValueObject\UserId;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -293,14 +293,15 @@ final class CollectionController extends AbstractApiController
 
         if (null !== $owner && \is_string($owner)) {
             try {
-                $ownerId = UserId::fromString($owner);
+                $ownerId = OwnerId::fromString($owner);
             } catch (\InvalidArgumentException) {
                 return new JsonResponse(['error' => 'Invalid owner id'], Response::HTTP_BAD_REQUEST);
             }
 
             $collections = $collectionService->listByOwnerId($ownerId, $limit, $offset);
         } else {
-            $collections = $collectionService->listByOwner($user, $limit, $offset);
+            $ownerId = OwnerId::fromBytes($user->getId()->toBytes());
+            $collections = $collectionService->listByOwnerId($ownerId, $limit, $offset);
         }
 
         $dtos = $collectionService->toDTOList($collections);

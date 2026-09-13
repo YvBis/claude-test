@@ -762,3 +762,14 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - Rector добавил `#[\Override]` на 3 `toArray()` (реализация интерфейса, PHP 8.3).
 - Тест — `ArrayableInterfaceTest` на `@dataProvider` (не атрибут: установленный PHPUnit **9.6.35**, хотя composer.json требует `^11.5` — несоответствие зафиксировано, тест написан под 9).
 - 393/393 теста зелёные, ci:all зелёный.
+
+## 2026-09-13 — review-6 closed: OwnerId value object (PR #48)
+
+- Введён `App\Domain\Collection\ValueObject\OwnerId` (UuidBinaryValue, final readonly, зеркало `CollectionFieldId`). Типизирует query/DTO-слой вместо `User\UserId`:
+  - Collection: `CollectionRepositoryInterface::findByOwnerId(OwnerId)`, `CollectionService::listByOwnerId(OwnerId)`, `CollectionDTO::$ownerId: OwnerId`. `findByOwner(User)` и `listByOwner(User)` **удалены**.
+  - Item: `ItemRepositoryInterface::findByOwnerId(OwnerId)`, `ItemService::listByOwner(OwnerId)` — переиспользует `Collection\OwnerId` (зависимость Item→Collection уже была).
+  - Контроллер конвертирует: `OwnerId::fromString($owner)` для `?owner` (400 на невалидный), `OwnerId::fromBytes($user->getId()->toBytes())` для своих.
+- **Ограничение scope (честно):** полный разрыв кросс-доменной зависимости невозможен без смены связи `Collection.owner` — `ManyToOne User` и `CollectionService::create(User)` остаются. Убрана зависимость от `User\UserId` в query-сигнатурах, не от сущности `User`. Формулировка Roadmap была шире фактического скоупа.
+- **OQ-1:** ORM-атрибуты (`#[ORM\Embeddable]`/`#[ORM\Column]`) зеркалированы как у `CollectionFieldId` (консистентность, VO не маппится). **OQ-2:** guard-тест на запрет `User\UserId` не добавлен (entity всё равно импортирует User; хрупко) — отложен до удаления `User` из entity. **OQ-3:** конверсия через `fromBytes(toBytes())`, без UUID-string round-trip.
+- PHPUnit-мисматч (composer.json `^11.5`, установлен 9.6.35) — зафиксирован, отдельная задача `fwd-4`.
+- План создан агентом `task-planner` (deepseek-v4.1-flash) — PRD `PRD/review-6-ownerid-vo.md`. 400/400 тестов, ci:all зелёный.

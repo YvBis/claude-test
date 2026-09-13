@@ -51,6 +51,7 @@ TaskFlow — REST API для управления личными коллекц�
 | `Theme` | `ValueObject/Theme.php` | Тема (Books, Games, Movies, Drinks) |
 | `FieldType` | `ValueObject/FieldType.php` | Тип поля (text, number, date, bool) |
 | `FieldName` | `ValueObject/FieldName.php` | Название поля |
+| `OwnerId` | `ValueObject/OwnerId.php` | ID владельца (бинарный UUID); типизирует query/DTO-слой вместо `User\UserId` (review-6) |
 | `CollectionFieldRepositoryInterface` | `Repository/CollectionFieldRepositoryInterface.php` | Интерфейс репозитория |
 
 **Бизнес-правила:**

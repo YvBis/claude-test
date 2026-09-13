@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Item\Repository;
 
 use App\Domain\Collection\ValueObject\CollectionId;
+use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\ValueObject\ItemId;
-use App\Domain\User\ValueObject\UserId;
 
 interface ItemRepositoryInterface
 {
@@ -37,5 +37,5 @@ interface ItemRepositoryInterface
     public function findByCollectionId(CollectionId $collectionId, int $limit = 50, int $offset = 0): array;
 
     /** @return array<Item> owned via their collection, ordered by createdAt ASC */
-    public function findByOwnerId(UserId $ownerId, int $limit = 50, int $offset = 0): array;
+    public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array;
 }

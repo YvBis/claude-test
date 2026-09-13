@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Infrastructure\Item\Repository;
 
 use App\Domain\Collection\ValueObject\CollectionId;
+use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Repository\ItemRepositoryInterface;
 use App\Domain\Item\ValueObject\ItemId;
-use App\Domain\User\ValueObject\UserId;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
@@ -61,7 +61,7 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
     }
 
     #[\Override]
-    public function findByOwnerId(UserId $ownerId, int $limit = 50, int $offset = 0): array
+    public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array
     {
         return $this->withCollectionAndOwner($this->createQueryBuilder('i'))
             ->where('IDENTITY(collection.owner) = :ownerId')
