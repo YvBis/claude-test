@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Application\Item\DTO;
 
+use App\Application\Common\DTO\ArrayableInterface;
 use App\Domain\Collection\ValueObject\FieldType;
 use App\Domain\Common\Constant\SlotLimits;
 use App\Domain\Item\Entity\Item;
 
-final readonly class ItemDTO
+final readonly class ItemDTO implements ArrayableInterface
 {
     /**
      * @param array<int, array{type: string, slot: int, value: mixed}> $slots
@@ -72,6 +73,7 @@ final readonly class ItemDTO
     }
 
     /** @return array<string, mixed> */
+    #[\Override]
     public function toArray(): array
     {
         return [

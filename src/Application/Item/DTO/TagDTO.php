@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Application\Item\DTO;
 
+use App\Application\Common\DTO\ArrayableInterface;
 use App\Domain\Tag\Entity\Tag;
 
-final readonly class TagDTO
+final readonly class TagDTO implements ArrayableInterface
 {
     public function __construct(
         public string $id,
@@ -23,6 +24,7 @@ final readonly class TagDTO
     }
 
     /** @return array{id: string, name: string} */
+    #[\Override]
     public function toArray(): array
     {
         return [

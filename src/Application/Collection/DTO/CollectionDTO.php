@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace App\Application\Collection\DTO;
 
+use App\Application\Common\DTO\ArrayableInterface;
 use App\Domain\Collection\ValueObject\CollectionId;
 use App\Domain\User\ValueObject\UserId;
 
-final readonly class CollectionDTO
+final readonly class CollectionDTO implements ArrayableInterface
 {
     public function __construct(
         public CollectionId $id,
@@ -36,6 +37,7 @@ final readonly class CollectionDTO
     }
 
     /** @return array<string, mixed> */
+    #[\Override]
     public function toArray(): array
     {
         return [
