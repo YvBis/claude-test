@@ -282,6 +282,45 @@ final class ItemControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(401);
     }
 
+    public function testListOwnFiltersByNameAndTags(): void
+    {
+        $collection = $this->createCollection();
+        $this->createItem($collection, ['name' => 'Brave New World', 'tags' => ['scifi', 'classic']]);
+        $this->createItem($collection, ['name' => 'Don Quixote', 'tags' => ['classic']]);
+
+        $this->client->request('GET', '/api/items?name=brave&tags[]=scifi', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertCount(1, $data);
+        $this->assertSame('Brave New World', $data[0]['name']);
+    }
+
+    public function testListOwnWithInvalidLimitReturns400(): void
+    {
+        $this->client->request('GET', '/api/items?limit=abc', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Bad Request', $data['error']);
+    }
+
+    public function testListByCollectionWithNegativeOffsetReturns400(): void
+    {
+        $collectionId = $this->createCollection();
+
+        $this->client->request('GET', '/api/collections/'.$collectionId.'/items?offset=-1', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    public function testGetInvalidUuidReturns404(): void
+    {
+        $this->client->request('GET', '/api/items/not-a-uuid', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(404);
+    }
+
     public function testGetReturns200(): void
     {
         $collectionId = $this->createCollection();
@@ -361,6 +400,22 @@ final class ItemControllerTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR));
 
         $this->assertResponseStatusCodeSame(403);
+    }
+
+    public function testUpdateNonExistentReturns404(): void
+    {
+        $this->client->request('PATCH', '/api/items/018f0a1b-2c3d-4e5f-6789-0123456789ab', [], [], $this->authHeaders(), \json_encode([
+            'name' => 'Ghost',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(404);
+    }
+
+    public function testDeleteNonExistentReturns404(): void
+    {
+        $this->client->request('DELETE', '/api/items/018f0a1b-2c3d-4e5f-6789-0123456789ab', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(404);
     }
 
     public function testDeleteReturns204(): void

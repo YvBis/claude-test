@@ -766,6 +766,17 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - **OpenAPI-компонент `Item`**: nelmio перезаписывает `components` из конфига (`config/packages/dev/api_doc.yaml`), поэтому `#[OA\Schema(schema: 'Item')]`-класс терялся — схема определена в YAML-конфиге nelmio, не в коде.
 - **Тестовый кэш** (`var/cache/test`) чистился при появлении новых роутов — известный кейс (#30).
 
+## 2026-09-13 — Task 4.5 review fixes (senior + architect)
+
+- **Невалидный UUID в пути** → 404 (не 500): `ItemId::fromString`/`CollectionId::fromString` бросают `\InvalidArgumentException`; ловим его в эндпоинтах рядом с `*NotFoundException` → 404.
+- **`limit`/`offset` валидация** (`parsePagination`): нецифровые/отрицательные → 400 (раньше `?limit=abc` → 0, `?offset=-1` → 500).
+- **LIKE-wildcards** экранируются `addcslashes($name, '%_\\')` — `?name=%` больше не матчит всё.
+- **`parseFilters`** упрощён: контроллер передаёт raw, каноническая нормализация (trim/empty/TagName) — только в `ItemService` (одна точка правды).
+- **Доступ админа** — только для Item-ресурсов (решение D1); `CollectionController` остаётся owner-only. Несогласованность задокументирована, синхронизация — на усмотрение отдельной задачи.
+- **Анонимный GET `/api/collections`** возвращает 401 из контроллера (`getUser()` null) — так было ДО 4.5; PUBLIC_ACCESS на firewall лишь пропускает запрос. Гостевой просмотр коллекций/айтемов — Этап 5, не реализован.
+- **`config/reference.php`** — локальный артефакт (stray), случайно попал в коммит через `git add -A`; восстановлен из origin/main.
+- **OpenAPI `Item`-схема** расширена (tags → `{id,name}`, slots → `{type,slot,value}`); убран мёртвый `securityDefinitions`.
+
 ## 2026-09-13 — fwd-3 closed: ArrayableInterface (PR #46)
 
 - Введён `App\Application\Common\DTO\ArrayableInterface` (`toArray(): array`, docblock `@return array<string, mixed>`) — единый контракт сериализации response-DTO. Реализован на `CollectionDTO`, `ItemDTO`, `TagDTO` **без изменения формы вывода** (JSON-контракт API байт-в-байт).

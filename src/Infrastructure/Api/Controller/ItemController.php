@@ -65,6 +65,11 @@ final class ItemController extends AbstractApiController
                 'error' => 'Not Found',
                 'message' => $collectionNotFoundException->getMessage(),
             ], Response::HTTP_NOT_FOUND);
+        } catch (\InvalidArgumentException $invalidArgumentException) {
+            return new JsonResponse([
+                'error' => 'Not Found',
+                'message' => $invalidArgumentException->getMessage(),
+            ], Response::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccess($user, $collection->getOwner())) {
@@ -75,10 +80,9 @@ final class ItemController extends AbstractApiController
         }
 
         [$name, $tagNames] = $this->parseFilters($request);
-        $limit = (int) ($request->query->get('limit') ?? 50);
-        $offset = (int) ($request->query->get('offset') ?? 0);
 
         try {
+            [$limit, $offset] = $this->parsePagination($request);
             $items = $itemService->listByCollection($collection->getId(), $limit, $offset, $name, $tagNames);
         } catch (\InvalidArgumentException $invalidArgumentException) {
             return new JsonResponse([
@@ -123,10 +127,9 @@ final class ItemController extends AbstractApiController
         }
 
         [$name, $tagNames] = $this->parseFilters($request);
-        $limit = (int) ($request->query->get('limit') ?? 50);
-        $offset = (int) ($request->query->get('offset') ?? 0);
 
         try {
+            [$limit, $offset] = $this->parsePagination($request);
             $items = $itemService->listByOwner(
                 OwnerId::fromBytes($user->getId()->toBytes()),
                 $limit,
@@ -180,6 +183,11 @@ final class ItemController extends AbstractApiController
             return new JsonResponse([
                 'error' => 'Not Found',
                 'message' => $itemNotFoundException->getMessage(),
+            ], Response::HTTP_NOT_FOUND);
+        } catch (\InvalidArgumentException $invalidArgumentException) {
+            return new JsonResponse([
+                'error' => 'Not Found',
+                'message' => $invalidArgumentException->getMessage(),
             ], Response::HTTP_NOT_FOUND);
         }
 
@@ -263,6 +271,11 @@ final class ItemController extends AbstractApiController
                 'error' => 'Not Found',
                 'message' => $collectionNotFoundException->getMessage(),
             ], Response::HTTP_NOT_FOUND);
+        } catch (\InvalidArgumentException $invalidArgumentException) {
+            return new JsonResponse([
+                'error' => 'Not Found',
+                'message' => $invalidArgumentException->getMessage(),
+            ], Response::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccess($user, $collection->getOwner())) {
@@ -340,6 +353,11 @@ final class ItemController extends AbstractApiController
                 'error' => 'Not Found',
                 'message' => $itemNotFoundException->getMessage(),
             ], Response::HTTP_NOT_FOUND);
+        } catch (\InvalidArgumentException $invalidArgumentException) {
+            return new JsonResponse([
+                'error' => 'Not Found',
+                'message' => $invalidArgumentException->getMessage(),
+            ], Response::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccess($user, $item->getCollection()->getOwner())) {
@@ -401,6 +419,11 @@ final class ItemController extends AbstractApiController
                 'error' => 'Not Found',
                 'message' => $itemNotFoundException->getMessage(),
             ], Response::HTTP_NOT_FOUND);
+        } catch (\InvalidArgumentException $invalidArgumentException) {
+            return new JsonResponse([
+                'error' => 'Not Found',
+                'message' => $invalidArgumentException->getMessage(),
+            ], Response::HTTP_NOT_FOUND);
         }
 
         if (!$this->canAccess($user, $item->getCollection()->getOwner())) {
@@ -428,25 +451,34 @@ final class ItemController extends AbstractApiController
         $name = $request->query->get('name');
         if (!\is_string($name)) {
             $name = null;
-        } else {
-            $name = \trim($name);
-            if ('' === $name) {
-                $name = null;
-            }
         }
 
         $tagNames = [];
         foreach ($request->query->all('tags') as $tag) {
-            if (!\is_string($tag)) {
-                continue;
-            }
-
-            $tag = \trim($tag);
-            if ('' !== $tag) {
+            if (\is_string($tag)) {
                 $tagNames[] = $tag;
             }
         }
 
         return [$name, $tagNames];
+    }
+
+    /**
+     * @return array{int, int}
+     */
+    private function parsePagination(Request $request): array
+    {
+        $limit = $request->query->get('limit');
+        $offset = $request->query->get('offset');
+
+        if (null !== $limit && '' !== $limit && (!\is_string($limit) || !\ctype_digit($limit))) {
+            throw new \InvalidArgumentException('Invalid limit: must be a non-negative integer');
+        }
+
+        if (null !== $offset && '' !== $offset && (!\is_string($offset) || !\ctype_digit($offset))) {
+            throw new \InvalidArgumentException('Invalid offset: must be a non-negative integer');
+        }
+
+        return [(int) ($limit ?? 50), (int) ($offset ?? 0)];
     }
 }

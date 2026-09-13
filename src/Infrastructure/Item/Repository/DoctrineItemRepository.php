@@ -95,7 +95,9 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
     {
         if (null !== $name && '' !== $name) {
             $qb->andWhere('i.name LIKE :name')
-                ->setParameter('name', '%'.$name.'%');
+                // % and _ are escaped so user input is matched literally;
+                // MySQL LIKE treats backslash as the default escape character.
+                ->setParameter('name', '%'.\addcslashes($name, '%_\\').'%');
         }
 
         // AND semantics: one correlated EXISTS per tag. Kept as separate

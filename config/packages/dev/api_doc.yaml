@@ -4,11 +4,6 @@ nelmio_api_doc:
             title: 'TaskFlow API'
             version: '1.0.0'
             description: 'REST API for managing personal collections'
-        securityDefinitions:
-            Bearer:
-                type: http
-                scheme: bearer
-                bearerFormat: JWT
         security:
             - Bearer: []
         components:
@@ -28,10 +23,21 @@ nelmio_api_doc:
                         slots:
                             type: array
                             description: 'Filled slots only'
-                            items: { type: object }
+                            items:
+                                type: object
+                                required: [type, slot, value]
+                                properties:
+                                    type: { type: string, enum: [text, number, date, bool] }
+                                    slot: { type: integer, minimum: 1, maximum: 3 }
+                                    value: { type: string }
                         tags:
                             type: array
-                            items: { type: object }
+                            items:
+                                type: object
+                                required: [id, name]
+                                properties:
+                                    id: { type: string, format: uuid }
+                                    name: { type: string }
                         created_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
                         updated_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
         servers:
