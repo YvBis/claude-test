@@ -19,4 +19,10 @@ final readonly class DoctrineUnitOfWork implements UnitOfWorkInterface
     {
         $this->entityManager->flush();
     }
+
+    #[\Override]
+    public function transactional(callable $callback): mixed
+    {
+        return $this->entityManager->wrapInTransaction($callback);
+    }
 }
