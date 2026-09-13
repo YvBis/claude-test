@@ -38,16 +38,17 @@
 **Итого:** ~2.5ч, ~30 строк продового кода + тесты.
 
 ## Критерии приёмки
-- [ ] `UnitOfWorkInterface::transactional(callable): mixed` с `@template T`
-- [ ] `DoctrineUnitOfWork::transactional()` делегирует в `wrapInTransaction`
-- [ ] `flush()` сохранён, существующие consumer'ы не сломаны
-- [ ] `DoctrineUnitOfWorkTest` зелёный
-- [ ] `ItemService::create`/`update` внутри `transactional`, без явного flush внутри callback
-- [ ] `ItemServiceTest` обновлён (mock UoW исполняет callback)
-- [ ] Integration-тест доказывает откат raw-тега при исключении
-- [ ] `delete` остаётся `remove`+`flush`; Collection/Registration без изменений
-- [ ] `composer ci:all` зелёный
-- [ ] AssumptionLog; Roadmap fwd-1 → done; CI (PR) зелёный
+- [x] `UnitOfWorkInterface::transactional(callable): mixed` с `@template T`
+- [x] `DoctrineUnitOfWork::transactional()` делегирует в `wrapInTransaction`
+- [x] `flush()` сохранён, существующие consumer'ы не сломаны
+- [x] `DoctrineUnitOfWorkTest` зелёный (3/3)
+- [x] `ItemService::create`/`update` внутри `transactional`, без явного flush внутри callback
+- [x] `ItemServiceTest` обновлён (mock UoW исполняет callback), 14/14
+- [x] Integration-тест доказывает откат raw-тега при исключении (2/2)
+- [x] `delete` остаётся `remove`+`flush`; Collection/Registration без изменений
+- [ ] `composer ci:all` зелёный — прогон после финализации
+- [x] AssumptionLog записан; Roadmap fwd-1 → done после мержа
+- [ ] CI (PR) зелёный — ожидает push и прогона GitHub Actions
 
 ## Библиотеки
 | Пакет | Версия | Где |
