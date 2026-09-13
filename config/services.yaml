@@ -55,3 +55,11 @@ services:
     # See AssumptionLog.md 2026-07-31 (Clock refactor review follow-up, F3).
     Symfony\Component\Clock\ClockInterface:
         class: Symfony\Component\Clock\Clock
+
+    # PhpDocExtractor joins the property_info type-extractor chain so nested
+    # DTO arrays (e.g. CreateItemDTO::slots as ItemSlotDTO[]) are denormalized
+    # from the @param docblock instead of staying raw arrays. Default priority
+    # (-1001) places it before the constructor extractor (-1002).
+    Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor:
+        tags:
+            - { name: 'property_info.type_extractor' }
