@@ -101,7 +101,6 @@ docker compose exec app composer coverage:check
 docker compose exec app composer phpcs:check
 docker compose exec app composer phpstan
 docker compose exec app composer rector:dry-run
-docker compose exec app composer phpcpd
 docker compose exec app composer audit
 ```
 
@@ -165,7 +164,6 @@ API документировано с использованием OpenAPI 3.0. 
 - Проверка стиля кода (PHP_CS_Fixer)
 - Статический анализ (PHPStan)
 - Запуск unit тестов с проверкой покрытия
-- Проверка на дублирование кода (PHPCPD)
 - Rector (dry-run)
 - Audit зависимостей (composer audit)
 
