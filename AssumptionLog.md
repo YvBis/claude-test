@@ -755,6 +755,17 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - OpenRabbit: Z/мс-гэп в `asDate` (реальный баг, исправлен), два ложных «needs changes» (статус Roadmap по конвенции — после мержа; `artifacts/` в репо существуют). Финальный вердикт на сквоше `3354ddc` — ready to merge.
 - Сквош 13 коммитов в один (`3354ddc`) перед мержем по просьбе пользователя.
 
+## 2026-09-13 — Task 4.5 API item endpoints (PR pending)
+
+- **Доступ на чтение** (решение пользователя): только владелец+админ, НЕ public. Убрано `^/api/items` из `PUBLIC_ACCESS` в security.yaml; добавлено правило `^/api/collections/[^/]+/items` → `IS_AUTHENTICATED_FULLY` ПЕРЕД public-GET коллекций (первое совпадение выигрывает; регулярка обязана быть в YAML-кавычках — иначе `[^/]` парсится как flow-sequence).
+- **Фильтр тегов** — AND через коррелированные `EXISTS`-подзапросы (по одному на тег, `_t MEMBER OF i.tags AND _t.name.value = :tagN`), НЕ `JOIN + GROUP BY/HAVING` — иначе `setMaxResults` пагинация ломается. Имена нормализуются `TagName::fromString` в `ItemService` (ci — через коллацию MySQL).
+- **`GET /api/items`** — только свои айтемы; `?owner={uuid}` — расширение Этап 5.
+- **N+1 по тегам** — отложен, записан `fwd-6` (двухзапросный batch).
+- **Слоты** — свободная валидация (из 4.4), со схемой `CollectionField` не сверяются.
+- **`PhpDocExtractor`** подключён в `property_info.type_extractor` (`config/services.yaml`): без него вложенные `ItemSlotDTO[]` денормализовались как raw-массивы → `TypeError` в `ItemSlotMapper::applySlot`. `property_info.constructor_extractor` оборачивал только `ReflectionExtractor`; приоритет `-1001` ставит PhpDocExtractor перед ним.
+- **OpenAPI-компонент `Item`**: nelmio перезаписывает `components` из конфига (`config/packages/dev/api_doc.yaml`), поэтому `#[OA\Schema(schema: 'Item')]`-класс терялся — схема определена в YAML-конфиге nelmio, не в коде.
+- **Тестовый кэш** (`var/cache/test`) чистился при появлении новых роутов — известный кейс (#30).
+
 ## 2026-09-13 — fwd-3 closed: ArrayableInterface (PR #46)
 
 - Введён `App\Application\Common\DTO\ArrayableInterface` (`toArray(): array`, docblock `@return array<string, mixed>`) — единый контракт сериализации response-DTO. Реализован на `CollectionDTO`, `ItemDTO`, `TagDTO` **без изменения формы вывода** (JSON-контракт API байт-в-байт).

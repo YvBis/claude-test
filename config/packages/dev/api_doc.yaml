@@ -17,6 +17,23 @@ nelmio_api_doc:
                     type: http
                     scheme: bearer
                     bearerFormat: JWT
+            schemas:
+                Item:
+                    type: object
+                    required: [id, name, collection_id, slots, tags, created_at, updated_at]
+                    properties:
+                        id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        name: { type: string, example: '1984' }
+                        collection_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        slots:
+                            type: array
+                            description: 'Filled slots only'
+                            items: { type: object }
+                        tags:
+                            type: array
+                            items: { type: object }
+                        created_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
+                        updated_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
         servers:
             - url: 'http://localhost:8000'
               description: 'Development server'
