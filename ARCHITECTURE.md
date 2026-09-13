@@ -129,6 +129,7 @@ Item * ──── * Tag   (item_tags)
 | `LogoutController` | `src/Infrastructure/Api/Controller/LogoutController.php` | POST /api/logout |
 | `RegistrationController` | `src/Infrastructure/Api/Controller/RegistrationController.php` | POST /api/register |
 | `CollectionController` | `src/Infrastructure/Api/Controller/CollectionController.php` | CRUD коллекций; `GET /api/collections` с `?owner={uuid}` (чужие коллекции, двоичный UUID через `IDENTITY`) |
+| `ItemController` | `src/Infrastructure/Api/Controller/ItemController.php` | CRUD айтемов + списки: `POST /api/collections/{id}/items`, `GET /api/collections/{id}/items` и `GET /api/items` (свои) с фильтрами `?name` (LIKE, ci) и `?tags[]` (AND), `GET/PATCH/DELETE /api/items/{id}`. Доступ владелец+админ (`User::getRole()->isAdmin()`); слоты/теги `\InvalidArgumentException` → 400 |
 | `DoctrineUserRepository` | `src/Infrastructure/User/Repository/DoctrineUserRepository.php` | Реализация репозитория User |
 | `DoctrineCollectionFieldRepository` | `src/Infrastructure/Collection/Repository/DoctrineCollectionFieldRepository.php` | Реализация репозитория CollectionField |
 | `DoctrineTagRepository` | `src/Infrastructure/Tag/Repository/DoctrineTagRepository.php` | Реализация репозитория Tag; `getOrCreate` — атомарный MySQL upsert |
@@ -140,6 +141,10 @@ Item * ──── * Tag   (item_tags)
 - `RoleEnumType` — маппинг RoleEnum
 - `ThemeEnumType` — маппинг ThemeEnum
 - `FieldTypeEnumType` — маппинг FieldTypeEnum
+
+**Сериализатор/OpenAPI:**
+- `PhpDocExtractor` добавлен в цепочку `property_info.type_extractor` (`config/services.yaml`) — вложенные DTO-массивы (`CreateItemDTO::slots` как `ItemSlotDTO[]`) денормализуются из `@param`-докблоков.
+- Схема `Item` для OpenAPI определена в `config/packages/dev/api_doc.yaml` (nelmio перезаписывает `components` из конфига — swagger-php-компоненты теряются; поэтому не в `#[OA\Schema]`).
 
 ## CI/CD Pipeline
 
