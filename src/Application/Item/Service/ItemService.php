@@ -29,17 +29,18 @@ final readonly class ItemService
 
     public function create(CreateItemDTO $dto, Collection $collection): Item
     {
-        $item = Item::create($collection, $dto->name);
-        $this->slotMapper->applySlots($item, $dto->slots);
+        return $this->unitOfWork->transactional(function () use ($dto, $collection): Item {
+            $item = Item::create($collection, $dto->name);
+            $this->slotMapper->applySlots($item, $dto->slots);
 
-        foreach ($this->tagService->resolveByNames($dto->tags) as $tag) {
-            $item->addTag($tag);
-        }
+            foreach ($this->tagService->resolveByNames($dto->tags) as $tag) {
+                $item->addTag($tag);
+            }
 
-        $this->itemRepository->save($item);
-        $this->unitOfWork->flush();
+            $this->itemRepository->save($item);
 
-        return $item;
+            return $item;
+        });
     }
 
     public function getById(string $id): Item
@@ -56,22 +57,23 @@ final readonly class ItemService
 
     public function update(UpdateItemDTO $dto, Item $item): Item
     {
-        if (null !== $dto->name) {
-            $item->changeName($dto->name);
-        }
+        return $this->unitOfWork->transactional(function () use ($dto, $item): Item {
+            if (null !== $dto->name) {
+                $item->changeName($dto->name);
+            }
 
-        if (null !== $dto->slots) {
-            $this->slotMapper->applySlots($item, $dto->slots);
-        }
+            if (null !== $dto->slots) {
+                $this->slotMapper->applySlots($item, $dto->slots);
+            }
 
-        if (null !== $dto->tags) {
-            $this->replaceTags($item, $dto->tags);
-        }
+            if (null !== $dto->tags) {
+                $this->replaceTags($item, $dto->tags);
+            }
 
-        $this->itemRepository->save($item);
-        $this->unitOfWork->flush();
+            $this->itemRepository->save($item);
 
-        return $item;
+            return $item;
+        });
     }
 
     public function delete(Item $item): void
