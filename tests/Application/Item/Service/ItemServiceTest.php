@@ -183,7 +183,7 @@ final class ItemServiceTest extends TestCase
         $item = $this->createItem();
         $this->itemRepo->expects($this->once())
             ->method('findByCollectionId')
-            ->with($collection->getId(), 50, 0)
+            ->with($collection->getId(), 50, 0, null, [])
             ->willReturn([$item]);
 
         $this->assertSame([$item], $this->service->listByCollection($collection->getId()));
@@ -196,10 +196,41 @@ final class ItemServiceTest extends TestCase
         $ownerId = OwnerId::fromBytes($collection->getOwner()->getId()->toBytes());
         $this->itemRepo->expects($this->once())
             ->method('findByOwnerId')
-            ->with($ownerId, 10, 5)
+            ->with($ownerId, 10, 5, null, [])
             ->willReturn([$item]);
 
         $this->assertSame([$item], $this->service->listByOwner($ownerId, 10, 5));
+    }
+
+    public function testListByCollectionNormalizesFilters(): void
+    {
+        $collection = $this->createCollection();
+        $item = $this->createItem();
+        $this->itemRepo->expects($this->once())
+            ->method('findByCollectionId')
+            ->with($collection->getId(), 50, 0, 'Book', ['Sci-fi', 'drama'])
+            ->willReturn([$item]);
+
+        $this->assertSame(
+            [$item],
+            $this->service->listByCollection($collection->getId(), 50, 0, '  Book  ', [' Sci-fi ', 'Sci-fi', ' drama ']),
+        );
+    }
+
+    public function testListByOwnerNormalizesEmptyFiltersToDefaults(): void
+    {
+        $collection = $this->createCollection();
+        $item = $this->createItem();
+        $ownerId = OwnerId::fromBytes($collection->getOwner()->getId()->toBytes());
+        $this->itemRepo->expects($this->once())
+            ->method('findByOwnerId')
+            ->with($ownerId, 10, 5, null, ['Books'])
+            ->willReturn([$item]);
+
+        $this->assertSame(
+            [$item],
+            $this->service->listByOwner($ownerId, 10, 5, '   ', ['', 'Books']),
+        );
     }
 
     public function testToDTOBuildsItemDTO(): void

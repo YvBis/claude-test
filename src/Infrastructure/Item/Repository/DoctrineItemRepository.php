@@ -9,6 +9,7 @@ use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Repository\ItemRepositoryInterface;
 use App\Domain\Item\ValueObject\ItemId;
+use App\Domain\Tag\Entity\Tag;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
@@ -46,13 +47,16 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
     }
 
     #[\Override]
-    public function findByCollectionId(CollectionId $collectionId, int $limit = 50, int $offset = 0): array
+    public function findByCollectionId(CollectionId $collectionId, int $limit = 50, int $offset = 0, ?string $name = null, array $tagNames = []): array
     {
-        return $this->withCollectionAndOwner($this->createQueryBuilder('i'))
+        $queryBuilder = $this->withCollectionAndOwner($this->createQueryBuilder('i'))
             // IDENTITY avoids loading the related entity just to compare its id;
             // the binary UUID compares directly against the FK column.
             ->where('IDENTITY(i.collection) = :collectionId')
-            ->setParameter('collectionId', $collectionId->toBytes(), 'binary')
+            ->setParameter('collectionId', $collectionId->toBytes(), 'binary');
+        $this->applyFilters($queryBuilder, $name, $tagNames);
+
+        return $queryBuilder
             ->orderBy('i.createdAt', 'ASC')
             ->setMaxResults($limit)
             ->setFirstResult($offset)
@@ -61,11 +65,14 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
     }
 
     #[\Override]
-    public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array
+    public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0, ?string $name = null, array $tagNames = []): array
     {
-        return $this->withCollectionAndOwner($this->createQueryBuilder('i'))
+        $queryBuilder = $this->withCollectionAndOwner($this->createQueryBuilder('i'))
             ->where('IDENTITY(collection.owner) = :ownerId')
-            ->setParameter('ownerId', $ownerId->toBytes(), 'binary')
+            ->setParameter('ownerId', $ownerId->toBytes(), 'binary');
+        $this->applyFilters($queryBuilder, $name, $tagNames);
+
+        return $queryBuilder
             ->orderBy('i.createdAt', 'ASC')
             ->setMaxResults($limit)
             ->setFirstResult($offset)
@@ -79,5 +86,31 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
             ->innerJoin('i.collection', 'collection')
             ->innerJoin('collection.owner', 'owner')
             ->addSelect('collection', 'owner');
+    }
+
+    /**
+     * @param array<string> $tagNames
+     */
+    private function applyFilters(QueryBuilder $qb, ?string $name, array $tagNames): void
+    {
+        if (null !== $name && '' !== $name) {
+            $qb->andWhere('i.name LIKE :name')
+                ->setParameter('name', '%'.$name.'%');
+        }
+
+        // AND semantics: one correlated EXISTS per tag. Kept as separate
+        // subqueries (instead of JOIN + GROUP BY/HAVING) so the outer query
+        // can still use setMaxResults/setFirstResult without row inflation.
+        foreach (\array_values(\array_unique($tagNames)) as $index => $tagName) {
+            $alias = 'tag'.$index;
+            $parameter = 'tagName'.$index;
+            $qb->andWhere(\sprintf(
+                'EXISTS (SELECT %1$s.id FROM %2$s %1$s WHERE %1$s MEMBER OF i.tags AND %1$s.name.value = :%3$s)',
+                $alias,
+                Tag::class,
+                $parameter,
+            ))
+                ->setParameter($parameter, $tagName);
+        }
     }
 }

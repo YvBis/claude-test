@@ -16,6 +16,7 @@ use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Exception\ItemNotFoundException;
 use App\Domain\Item\Repository\ItemRepositoryInterface;
 use App\Domain\Item\ValueObject\ItemId;
+use App\Domain\Tag\ValueObject\TagName;
 
 final readonly class ItemService
 {
@@ -83,19 +84,35 @@ final readonly class ItemService
     }
 
     /**
+     * @param array<string> $tagNames
+     *
      * @return array<Item>
      */
-    public function listByCollection(CollectionId $collectionId, int $limit = 50, int $offset = 0): array
+    public function listByCollection(CollectionId $collectionId, int $limit = 50, int $offset = 0, ?string $name = null, array $tagNames = []): array
     {
-        return $this->itemRepository->findByCollectionId($collectionId, $limit, $offset);
+        return $this->itemRepository->findByCollectionId(
+            $collectionId,
+            $limit,
+            $offset,
+            $this->normalizeName($name),
+            $this->normalizeTagNames($tagNames),
+        );
     }
 
     /**
+     * @param array<string> $tagNames
+     *
      * @return array<Item>
      */
-    public function listByOwner(OwnerId $ownerId, int $limit = 50, int $offset = 0): array
+    public function listByOwner(OwnerId $ownerId, int $limit = 50, int $offset = 0, ?string $name = null, array $tagNames = []): array
     {
-        return $this->itemRepository->findByOwnerId($ownerId, $limit, $offset);
+        return $this->itemRepository->findByOwnerId(
+            $ownerId,
+            $limit,
+            $offset,
+            $this->normalizeName($name),
+            $this->normalizeTagNames($tagNames),
+        );
     }
 
     public function toDTO(Item $item): ItemDTO
@@ -142,5 +159,36 @@ final readonly class ItemService
                 $item->addTag($tag);
             }
         }
+    }
+
+    private function normalizeName(?string $name): ?string
+    {
+        if (null === $name) {
+            return null;
+        }
+
+        $name = \trim($name);
+
+        return '' === $name ? null : $name;
+    }
+
+    /**
+     * @param array<string> $tagNames
+     *
+     * @return array<string>
+     */
+    private function normalizeTagNames(array $tagNames): array
+    {
+        $normalized = [];
+        foreach ($tagNames as $tagName) {
+            $tagName = \trim($tagName);
+            if ('' === $tagName) {
+                continue;
+            }
+
+            $normalized[] = TagName::fromString($tagName)->value();
+        }
+
+        return \array_values(\array_unique($normalized));
     }
 }
