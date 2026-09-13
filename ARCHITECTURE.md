@@ -66,7 +66,8 @@ TaskFlow — REST API для управления личными коллекц�
 |-----------|------|----------|
 | `Item` | `Entity/Item.php` | Айтем (id, collection, name, 12 typed slots: text/num/date/bool × 1-3) |
 | `ItemId` | `ValueObject/ItemId.php` | Бинарный UUID |
-| `ItemRepositoryInterface` | `Repository/ItemRepositoryInterface.php` | Интерфейс репозитория |
+| `ItemNotFoundException` | `Exception/ItemNotFoundException.php` | `withId(ItemId)` — паттерн CollectionNotFoundException |
+| `ItemRepositoryInterface` | `Repository/ItemRepositoryInterface.php` | Интерфейс репозитория (`save`, `remove`, `findById`, `findByCollectionId`, `findByOwnerId`)
 
 **Бизнес-правила:**
 - Слоты типизированы и фиксированы: `Item.{type}_{slot}` для (type, slot 1..3)
@@ -105,11 +106,17 @@ Item * ──── * Tag   (item_tags)
 | `RegistrationService` | `src/Application/User/Service/RegistrationService.php` | Регистрация пользователя |
 | `AuthenticationService` | `src/Application/User/Service/AuthenticationService.php` | Аутентификация (login), JWT |
 | `TagService` | `src/Application/Tag/Service/TagService.php` | `resolveByNames` — нормализация/дедуп имён, найти-или-создать тег (flush у вызывающего) |
+| `ItemService` | `src/Application/Item/Service/ItemService.php` | CRUD айтемов + списки; слоты через `ItemSlotMapper`, теги через `TagService`; один `UnitOfWork::flush()` в конце операции |
+| `ItemSlotMapper` | `src/Application/Item/Service/ItemSlotMapper.php` | Коэрсия `{type, slot, value}` → слоты Item: date ISO-8601 (Z/милли/микро, UTC-нормализация), number→float, bool, text; `null` очищает слот |
 
 **DTO:**
 - `RegisterUserDTO` — name, email, password
 - `LoginUserDTO` — email, password
 - `LoginResult` — accessToken, tokenType, expiresIn, user
+- `CreateItemDTO` / `UpdateItemDTO` — name, tags, slots `array<ItemSlotDTO>`; обновление: теги replace по TagId, слоты частично (`null` очищает)
+- `ItemDTO` — id, name, tags `array<TagDTO>`, слоты только заполненные, collection_id, timestamps (ATOM)
+- `ItemSlotDTO` — type, slot (1..`SlotLimits::MAX_SLOTS_PER_TYPE`), value
+- `TagDTO` — id, name
 
 ## Infrastructure
 
@@ -122,6 +129,7 @@ Item * ──── * Tag   (item_tags)
 | `DoctrineUserRepository` | `src/Infrastructure/User/Repository/DoctrineUserRepository.php` | Реализация репозитория User |
 | `DoctrineCollectionFieldRepository` | `src/Infrastructure/Collection/Repository/DoctrineCollectionFieldRepository.php` | Реализация репозитория CollectionField |
 | `DoctrineTagRepository` | `src/Infrastructure/Tag/Repository/DoctrineTagRepository.php` | Реализация репозитория Tag; `getOrCreate` — атомарный MySQL upsert |
+| `DoctrineItemRepository` | `src/Infrastructure/Item/Repository/DoctrineItemRepository.php` | Реализация репозитория Item; все read-методы JOIN FETCH `i.collection -> collection.owner` (final-сущности не проксируются ORM 3); `IDENTITY`-сравнение бинарного UUID |
 | `UserProvider` | `src/Infrastructure/Security/UserProvider.php` | Symfony Security user provider |
 | `ClockInjectListener` | `src/Infrastructure/Doctrine/Listener/ClockInjectListener.php` | Автоинъекция Clock в сущности |
 
@@ -161,7 +169,7 @@ GitHub Actions
 | 1 | Инфраструктура | ✅ завершён |
 | 2 | Пользователь | ✅ завершён |
 | 3 | Коллекция | ✅ завершён |
-| 4 | Айтем | ✅ завершён (4.1, 4.2, 4.3) |
+| 4 | Айтем | ✅ завершён (4.1, 4.2, 4.3, 4.4) |
 | 5 | Социальное | ⏳ |
 | 6 | Поиск | ⏳ |
 | 7 | Админ | ⏳ |

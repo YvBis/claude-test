@@ -741,3 +741,16 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - `UnitOfWorkInterface::clear()` отклонён: сброс общего EntityManager отцепил бы pending-сущности вызывающего.
 - Ревью (senior + architect): принято — явный `ParameterType::BINARY` для binary UUID, ассерт регистра в integration-тесте, фиксация аргументов в дедуп-тесте, документирование семантики персистентности. Отклонено с обоснованием — `wrapInTransaction` (единичный атомарный upsert достаточен; вложенная транзакция DBAL без savepoints преждевременно коммитит внешнюю), перенос `getOrCreate` в Domain Service (потерял бы атомарность; в проекте нет доменных сервисов), `is_string`-гард (контракт `array<string>`; валидация формы запроса — в контроллере 4.5).
 - AI-ревью PR #44: OpenRouter отработал (квота сбросилась), Groq fallback пропущен; вердикт ready to merge. Два inline-комментария отвечены (один невалидный — сниппет с глобальным `\Tag`; второй уже покрыт тремя тестами на регистронезависимость).
+
+## 2026-09-13 — Task 4.4 closed: item service (PR #45)
+
+- `DoctrineItemRepository` создан (в 4.1 были только entity + интерфейс). Все read-методы делают JOIN FETCH-цепочку `i.collection -> collection.owner` (to-one только, поэтому cartesian-инфляции нет). Причина: final Collection/User не проксируются ORM 3 (подтверждено эмпирически в review-5/Task 3.4).
+- «Свободная» валидация слотов (решение пользователя): слоты не сверяются со схемой `CollectionField`; `ItemDTO::fromEntity` возвращает только заполненные.
+- Слоты в DTO — массив структур `{type, slot, value}` (решение пользователя). `ItemSlotMapper` коэрсит: date → ISO-8601 (`createFromFormat` + round-trip-проверка, `Z` → `+00:00`, милли/микросекунды, offset-less → UTC), number → float, bool, text. Невалидная дата/строка → `\InvalidArgumentException` (в 4.5 мапится в 400).
+- Обновление тегов — replace-семантика по `TagId` (решение пользователя); слоты — частичное обновление (только из DTO, `null` очищает).
+- Неатомарность create (теги пишутся сразу через `getOrCreate`, Item — финальным flush): осознанно, `fwd-1` отложен; orphan-теги глобальные/безвредные, риск задокументирован в PRD.
+- N+1 по тегам в списках: отложен. `leftJoin('i.tags')` + `addSelect` сломал бы пагинацию (cartesian). Правильный фикс — batch-fetch вторым запросом или subquery-пагинация (зафиксировано в PRD).
+- Авторизация владельца на update/delete — уровень контроллера (4.5); Application-сервис принципала не знает (решение пользователя).
+- Ревью (senior + architect): принято — `SlotLimits::MAX_SLOTS_PER_TYPE` в DTO-констрейнтах, `FieldType::values()`, id-based replace тегов, `withCollectionAndOwner()` хелпер, round-trip UTC-интеграционный тест, ссылка на доки Doctrine, B-side изоляции. Отклонено — атомарная транзакция (`fwd-1`), eager-теги (ломают пагинацию).
+- OpenRabbit: Z/мс-гэп в `asDate` (реальный баг, исправлен), два ложных «needs changes» (статус Roadmap по конвенции — после мержа; `artifacts/` в репо существуют). Финальный вердикт на сквоше `3354ddc` — ready to merge.
+- Сквош 13 коммитов в один (`3354ddc`) перед мержем по просьбе пользователя.
