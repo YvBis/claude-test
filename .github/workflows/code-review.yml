@@ -41,6 +41,6 @@ jobs:
           llm_api_key: ${{ secrets.GROQ_API_KEY }}
           llm_provider: groq
           llm_api_url: https://api.groq.com/openai/v1
-          llm_model: qwen/qwen3.8-27b
+          llm_model: groq/compound
           review_mode: both
           tone_mode: balanced
