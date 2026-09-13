@@ -38,6 +38,8 @@ final class ItemServiceTest extends TestCase
     {
         $this->itemRepo = $this->createMock(ItemRepositoryInterface::class);
         $this->uow = $this->createMock(UnitOfWorkInterface::class);
+        $this->uow->method('transactional')
+            ->willReturnCallback(static fn (callable $callback) => $callback());
         $this->tagRepo = $this->createMock(TagRepositoryInterface::class);
         $tagService = new TagService($this->tagRepo);
 
@@ -69,10 +71,10 @@ final class ItemServiceTest extends TestCase
         return Item::create($this->createCollection(), $name);
     }
 
-    public function testCreateSavesAndFlushes(): void
+    public function testCreateSavesWithinTransaction(): void
     {
         $this->itemRepo->expects($this->once())->method('save');
-        $this->uow->expects($this->once())->method('flush');
+        $this->uow->expects($this->never())->method('flush');
 
         $item = $this->service->create(new CreateItemDTO('1984'), $this->createCollection());
 
@@ -119,7 +121,7 @@ final class ItemServiceTest extends TestCase
     {
         $item = $this->createItem('Old');
         $this->itemRepo->expects($this->once())->method('save');
-        $this->uow->expects($this->once())->method('flush');
+        $this->uow->expects($this->never())->method('flush');
 
         $this->service->update(new UpdateItemDTO(name: 'New'), $item);
 

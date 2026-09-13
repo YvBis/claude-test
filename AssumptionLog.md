@@ -773,3 +773,13 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - **OQ-1:** ORM-атрибуты (`#[ORM\Embeddable]`/`#[ORM\Column]`) зеркалированы как у `CollectionFieldId` (консистентность, VO не маппится). **OQ-2:** guard-тест на запрет `User\UserId` не добавлен (entity всё равно импортирует User; хрупко) — отложен до удаления `User` из entity. **OQ-3:** конверсия через `fromBytes(toBytes())`, без UUID-string round-trip.
 - PHPUnit-мисматч (composer.json `^11.5`, установлен 9.6.35) — зафиксирован, отдельная задача `fwd-4`.
 - План создан агентом `task-planner` (deepseek-v4.1-flash) — PRD `PRD/review-6-ownerid-vo.md`. 400/400 тестов, ci:all зелёный.
+
+## 2026-09-13 — fwd-1 closed: transactional boundary in UnitOfWork
+
+- `UnitOfWorkInterface::transactional(callable): mixed` (`@template T`, возврат callback насквозь); `DoctrineUnitOfWork::transactional()` → `EntityManager::wrapInTransaction`.
+- `ItemService::create`/`update` обёрнуты в `transactional` (убрали явный `flush` внутри — транзакция владеет flush+commit). `delete` — `remove`+`flush` (одна сущность). Collection/Registration не тронуты.
+- **Атомарность доказана:** `getOrCreate` пишет через `getEntityManager()->getConnection()` — та же DBAL-connection, что у EM. `wrapInTransaction` открывает транзакцию на ней → raw-INSERT тега откатывается вместе с Item. Проверено по vendor (doctrine/orm 3.6.7, dbal 4.4.3).
+- **Вложенность безопасна:** DBAL 4.4.3 для level>1 — SAVEPOINT/RELEASE/ROLLBACK TO SAVEPOINT. **Коррекция прежней записи** (2026-09-12, review-4): утверждение «вложенная DBAL-транзакция без savepoints преждевременно коммитит внешнюю» неточно для 4.4.3 — savepoints работают.
+- `wrapInTransaction` на исключении вызывает `EntityManager::close()` (clear+detach, connection не закрывается). В integration-тесте после исключения проверяем через DBAL-connection.
+- Integration-тесты (MySQL): happy-path — item+новый тег персистентны; rollback — тег, записанный raw-upsert'ом внутри упавшей транзакции, отсутствует. 2/2.
+- Plan: `PRD/fwd-1-transactional-uow.md` (task-planner, deepseek-v4.1-flash).
