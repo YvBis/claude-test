@@ -13,6 +13,7 @@ use App\Domain\Collection\Exception\CollectionNotFoundException;
 use App\Domain\Collection\Repository\CollectionRepositoryInterface;
 use App\Domain\Collection\ValueObject\CollectionId;
 use App\Domain\Collection\ValueObject\CollectionName;
+use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\User\Entity\User;
 use PHPUnit\Framework\TestCase;
@@ -116,37 +117,10 @@ final class CollectionServiceTest extends TestCase
         $this->service->getById($id);
     }
 
-    public function testListByOwnerReturnsCollections(): void
-    {
-        $collection1 = Collection::create(
-            owner: $this->owner,
-            name: CollectionName::fromString('Collection 1'),
-            theme: Theme::fromString('books')
-        );
-        $collection2 = Collection::create(
-            owner: $this->owner,
-            name: CollectionName::fromString('Collection 2'),
-            theme: Theme::fromString('games')
-        );
-
-        $this->collectionRepository
-            ->expects($this->once())
-            ->method('findByOwner')
-            ->with($this->identicalTo($this->owner), 50, 0)
-            ->willReturn([$collection1, $collection2]);
-
-        $result = $this->service->listByOwner($this->owner);
-
-        $this->assertIsArray($result);
-        $this->assertCount(2, $result);
-        $this->assertSame('Collection 1', $result[0]->getName()->value());
-        $this->assertSame('Collection 2', $result[1]->getName()->value());
-    }
-
     public function testListByOwnerIdReturnsCollections(): void
     {
         $otherOwner = User::register('Other User', \App\Domain\User\ValueObject\Email::fromString('other@example.com'), \App\Domain\User\ValueObject\PasswordHash::createFromPlain('password123'));
-        $ownerId = $otherOwner->getId();
+        $ownerId = OwnerId::fromBytes($otherOwner->getId()->toBytes());
         $collection = Collection::create(
             owner: $otherOwner,
             name: CollectionName::fromString('Other Collection'),

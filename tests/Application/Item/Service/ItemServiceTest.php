@@ -14,6 +14,7 @@ use App\Application\Tag\Service\TagService;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\FieldType;
+use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Exception\ItemNotFoundException;
@@ -190,7 +191,7 @@ final class ItemServiceTest extends TestCase
     {
         $collection = $this->createCollection();
         $item = $this->createItem();
-        $ownerId = $collection->getOwner()->getId();
+        $ownerId = OwnerId::fromBytes($collection->getOwner()->getId()->toBytes());
         $this->itemRepo->expects($this->once())
             ->method('findByOwnerId')
             ->with($ownerId, 10, 5)
