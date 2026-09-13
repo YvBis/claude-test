@@ -754,3 +754,11 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - Ревью (senior + architect): принято — `SlotLimits::MAX_SLOTS_PER_TYPE` в DTO-констрейнтах, `FieldType::values()`, id-based replace тегов, `withCollectionAndOwner()` хелпер, round-trip UTC-интеграционный тест, ссылка на доки Doctrine, B-side изоляции. Отклонено — атомарная транзакция (`fwd-1`), eager-теги (ломают пагинацию).
 - OpenRabbit: Z/мс-гэп в `asDate` (реальный баг, исправлен), два ложных «needs changes» (статус Roadmap по конвенции — после мержа; `artifacts/` в репо существуют). Финальный вердикт на сквоше `3354ddc` — ready to merge.
 - Сквош 13 коммитов в один (`3354ddc`) перед мержем по просьбе пользователя.
+
+## 2026-09-13 — fwd-3 closed: ArrayableInterface (PR #46)
+
+- Введён `App\Application\Common\DTO\ArrayableInterface` (`toArray(): array`, docblock `@return array<string, mixed>`) — единый контракт сериализации response-DTO. Реализован на `CollectionDTO`, `ItemDTO`, `TagDTO` **без изменения формы вывода** (JSON-контракт API байт-в-байт).
+- Решения пользователя: нативный return тип остаётся `array`, конкретные docblock-формы (`array{id,name}` у TagDTO) не нормализуются — PHPStan LSP проходит; `TagDTO` остаётся в `App\Application\Item\DTO` (не переносим); входные DTO вне контракта; generic-потребитель не вводится.
+- Rector добавил `#[\Override]` на 3 `toArray()` (реализация интерфейса, PHP 8.3).
+- Тест — `ArrayableInterfaceTest` на `@dataProvider` (не атрибут: установленный PHPUnit **9.6.35**, хотя composer.json требует `^11.5` — несоответствие зафиксировано, тест написан под 9).
+- 393/393 теста зелёные, ci:all зелёный.
