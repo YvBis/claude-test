@@ -33,9 +33,17 @@ interface ItemRepositoryInterface
 
     public function findById(ItemId $id): ?Item;
 
-    /** @return array<Item> ordered by createdAt ASC */
-    public function findByCollectionId(CollectionId $collectionId, int $limit = 50, int $offset = 0): array;
+    /**
+     * @param array<string> $tagNames AND-filter: item must have all given tag names
+     *
+     * @return array<Item> ordered by createdAt ASC
+     */
+    public function findByCollectionId(CollectionId $collectionId, int $limit = 50, int $offset = 0, ?string $name = null, array $tagNames = []): array;
 
-    /** @return array<Item> owned via their collection, ordered by createdAt ASC */
-    public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array;
+    /**
+     * @param array<string> $tagNames AND-filter: item must have all given tag names
+     *
+     * @return array<Item> owned via their collection, ordered by createdAt ASC
+     */
+    public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0, ?string $name = null, array $tagNames = []): array;
 }

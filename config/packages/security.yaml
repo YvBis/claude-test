@@ -27,9 +27,11 @@ security:
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc.json, roles: PUBLIC_ACCESS }
         - { path: ^/health, roles: PUBLIC_ACCESS }
-        # Anonymous GET access to collections, items, search per PRD
+        # Anonymous GET access to collections and search per PRD
+        # Item reads are owner/admin only (Task 4.5): the collection-items
+        # rule must come BEFORE the public collections rule (first match wins).
+        - { path: '^/api/collections/[^/]+/items', roles: IS_AUTHENTICATED_FULLY }
         - { path: ^/api/collections, roles: PUBLIC_ACCESS, methods: [GET] }
-        - { path: ^/api/items, roles: PUBLIC_ACCESS, methods: [GET] }
         - { path: ^/api/search, roles: PUBLIC_ACCESS, methods: [GET] }
         # Authenticated endpoints
         - { path: ^/api/logout, roles: IS_AUTHENTICATED_FULLY }

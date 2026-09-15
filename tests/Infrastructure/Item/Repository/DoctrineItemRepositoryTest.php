@@ -13,6 +13,8 @@ use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Repository\ItemRepositoryInterface;
+use App\Domain\Tag\Entity\Tag;
+use App\Domain\Tag\ValueObject\TagName;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
@@ -151,6 +153,75 @@ final class DoctrineItemRepositoryTest extends KernelTestCase
         $this->em->flush();
 
         $this->assertCount(1, $this->repo->findByOwnerId(OwnerId::fromString($owner->getId()->toString())));
+    }
+
+    private function createTag(string $name): Tag
+    {
+        $tag = Tag::create(TagName::fromString($name));
+        $this->em->persist($tag);
+
+        return $tag;
+    }
+
+    public function testFindByCollectionIdFiltersByNameCaseInsensitive(): void
+    {
+        $collection = $this->createCollection($this->createUser('namef'), 'Name Filter');
+        $this->em->persist(Item::create($collection, 'Brave New World'));
+        $this->em->persist(Item::create($collection, 'The Lord of the Rings'));
+        $this->em->flush();
+
+        $items = $this->repo->findByCollectionId($collection->getId(), 50, 0, 'brave');
+
+        $this->assertCount(1, $items);
+        $this->assertSame('Brave New World', $items[0]->getName());
+    }
+
+    public function testFindByCollectionIdFiltersByTagsWithAndSemantics(): void
+    {
+        $collection = $this->createCollection($this->createUser('tagf'), 'Tag Filter');
+        $scifi = $this->createTag('Sci-fi');
+        $drama = $this->createTag('Drama');
+
+        $both = Item::create($collection, 'Both');
+        $both->addTag($scifi);
+        $both->addTag($drama);
+        $this->em->persist($both);
+
+        $scifiOnly = Item::create($collection, 'Sci-fi Only');
+        $scifiOnly->addTag($scifi);
+        $this->em->persist($scifiOnly);
+
+        $this->em->flush();
+
+        $items = $this->repo->findByCollectionId($collection->getId(), 50, 0, null, ['sci-fi', 'drama']);
+
+        $this->assertCount(1, $items);
+        $this->assertSame('Both', $items[0]->getName());
+    }
+
+    public function testFindByOwnerIdFiltersByNameAndTagsWithPagination(): void
+    {
+        $owner = $this->createUser('combo');
+        $collection = $this->createCollection($owner, 'Combo');
+        $scifi = $this->createTag('Sci-fi');
+
+        $match1 = Item::create($collection, 'Match One');
+        $match1->addTag($scifi);
+        $this->em->persist($match1);
+
+        $match2 = Item::create($collection, 'Match Two');
+        $match2->addTag($scifi);
+        $this->em->persist($match2);
+
+        $other = Item::create($collection, 'Other Item');
+        $this->em->persist($other);
+
+        $this->em->flush();
+
+        $items = $this->repo->findByOwnerId(OwnerId::fromBytes($owner->getId()->toBytes()), 1, 0, 'match', ['sci-fi']);
+
+        $this->assertCount(1, $items);
+        $this->assertSame('Match One', $items[0]->getName());
     }
 
     public function testRemoveDeletesItem(): void
