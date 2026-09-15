@@ -846,3 +846,16 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 **Зафиксировано:** `src/Infrastructure` намеренно исключён из coverage-gate (`phpunit.xml.dist`, `<coverage>` включает только Domain+Application) — DoctrineItemRepository не измеряется; интеграционные тесты существуют, покрытие не верифицировано. Не менять без отдельного решения.
 
 **Scope:** «домен Item» трактован как весь Item-слой (Domain + Application + Infrastructure) — подтверждено пользователем.
+
+## 2026-09-15 — Периодический review (после завершения Этапа 4)
+
+**Smoke tests:** docker compose up — все 5 контейнеров Up (db healthy). `/health` → 200. E2E-auth-прогон: register 201 → login 200 → collections list/create → tags list → item create (тег «Books» авто-создан через `getOrCreate`) → list/update/delete → всё корректно.
+
+**Review checklist:**
+- Артефакты: Roadmap актуален (Этап 4 = 7/7), PRD 4.1–4.7 записаны, ARCHITECTURE дополнен (Item/Tag домены, ItemService, TagController, NIM CI, статус этапа). CHANGELOG.md создан (Этап 4).
+- Архитектура: новых проблем не выявлено; известные отложенные — fwd-2 (гибкие слоты), fwd-4 (PHPUnit ^11.5), fwd-5 (полный декоплинг Collection.owner), fwd-6 (N+1 тегов). `config/reference.php` — повторяющийся local stray-артефакт (не входит в коммиты).
+- Безопасность: `composer audit --locked` — «No security vulnerability advisories found».
+- CI: main 3/3 success; NIM primary стабилен (fast pass 34с–1м44с на ревью).
+- Зависимости: symfony/cache 7.4.18 (CVE закрыт), Symfony 7.4 актуален; PHPUnit 9.6 — bump до ^11.5 в fwd-4.
+
+**Новых `[review]`-задач не заведено** — беклог уже содержит все выявленные отложенные работы.
