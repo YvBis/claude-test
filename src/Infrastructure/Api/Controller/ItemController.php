@@ -31,8 +31,8 @@ final class ItemController extends AbstractApiController
         description: 'Returns a paginated list of items of a collection. Only the collection owner or an admin may read it. Optional filters: name (substring) and tags (AND semantics).',
         parameters: [
             new OA\Parameter(name: 'collectionId', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
-            new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 50)),
-            new OA\Parameter(name: 'offset', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 0)),
+            new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
+            new OA\Parameter(name: 'offset', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_OFFSET, minimum: self::DEFAULT_OFFSET)),
             new OA\Parameter(name: 'name', in: 'query', required: false, description: 'Substring match on item name (case-insensitive)', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'tags[]', in: 'query', required: false, description: 'Item must have all given tags (AND)', schema: new OA\Schema(type: 'array', items: new OA\Items(type: 'string'))),
         ],
@@ -101,8 +101,8 @@ final class ItemController extends AbstractApiController
         summary: 'List own items',
         description: 'Returns a paginated list of items owned by the authenticated user. Optional filters: name (substring) and tags (AND semantics).',
         parameters: [
-            new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 50)),
-            new OA\Parameter(name: 'offset', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 0)),
+            new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
+            new OA\Parameter(name: 'offset', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_OFFSET, minimum: self::DEFAULT_OFFSET)),
             new OA\Parameter(name: 'name', in: 'query', required: false, description: 'Substring match on item name (case-insensitive)', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'tags[]', in: 'query', required: false, description: 'Item must have all given tags (AND)', schema: new OA\Schema(type: 'array', items: new OA\Items(type: 'string'))),
         ],
@@ -461,24 +461,5 @@ final class ItemController extends AbstractApiController
         }
 
         return [$name, $tagNames];
-    }
-
-    /**
-     * @return array{int, int}
-     */
-    private function parsePagination(Request $request): array
-    {
-        $limit = $request->query->get('limit');
-        $offset = $request->query->get('offset');
-
-        if (null !== $limit && '' !== $limit && (!\is_string($limit) || !\ctype_digit($limit))) {
-            throw new \InvalidArgumentException('Invalid limit: must be a non-negative integer');
-        }
-
-        if (null !== $offset && '' !== $offset && (!\is_string($offset) || !\ctype_digit($offset))) {
-            throw new \InvalidArgumentException('Invalid offset: must be a non-negative integer');
-        }
-
-        return [(int) ($limit ?? 50), (int) ($offset ?? 0)];
     }
 }

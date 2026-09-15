@@ -40,6 +40,12 @@ nelmio_api_doc:
                                     name: { type: string }
                         created_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
                         updated_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
+                Tag:
+                    type: object
+                    required: [id, name]
+                    properties:
+                        id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        name: { type: string, example: 'Books' }
         servers:
             - url: 'http://localhost:8000'
               description: 'Development server'

@@ -805,3 +805,15 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - `wrapInTransaction` на исключении вызывает `EntityManager::close()` (clear+detach, connection не закрывается). В integration-тесте после исключения проверяем через DBAL-connection.
 - Integration-тесты (MySQL): happy-path — item+новый тег персистентны; rollback — тег, записанный raw-upsert'ом внутри упавшей транзакции, отсутствует. 2/2.
 - Plan: `PRD/fwd-1-transactional-uow.md` (task-planner, deepseek-v4.1-flash).
+
+## 2026-09-15 — Task 4.7: tag list/search endpoint
+
+- `GET /api/tags?search=&limit=&offset=` — список/поиск глобальных тегов для autocomplete при тегировании айтема. Доступ auth-only (catch-all `^/api` → `IS_AUTHENTICATED_FULLY`), read-only.
+- **D1:** search = подстрока `LIKE %term%`, ci-коллация, wildcards `%_` экранируются (`addcslashes`); `ORDER BY name ASC`.
+- **D2/D3/D4:** auth-only; limit default 50 (1..100); ответ — bare-массив `TagDTO[]`.
+- **Поиск-терм НЕ нормализуется через `TagName`** (тот требует ≥2 символов и whitelist) — поисковая строка свободная: trim + strip `\p{Cc}` + collapse whitespace, пустая → null (все теги). TagName остаётся для СОЗДАНИЯ тега (через айтемы).
+- `TagRepositoryInterface::search(?string $term, int $limit = 50, int $offset = 0): array` + Doctrine impl (DQL `t.name.value LIKE`). `TagService::listTags()` — нормализация + делегирование.
+- Тесты: интеграционные (MySQL) 4 — все без терма, ci-подстрока, escape wildcards, пагинация+порядок; functional 8 — 401 аноним, список, search ci, escape, пагинация, 400 limit/offset/out-of-range.
+- **Нюанс:** API-роуты регистрируются только через `config/routes/dev/attributes.yaml`; после добавления контроллера нужен `rm -rf var/cache/test` (иначе «No route found» в функциональных тестах).
+- Plan: `PRD/4.7-tag-list-endpoint.md`.
+- **Контракт пагинации /api/items выровнен** (review PR #54): `parsePagination` переехал в `AbstractApiController` с валидацией `limit 1..100`, `offset >= 0`. Ранее `/api/items?limit=200` (или 0) проходил без валидации. Breaking-совместимость: потребители с `limit>100`/`limit=0` теперь получают 400. Сознательное ужесточение, все тесты зелёные.

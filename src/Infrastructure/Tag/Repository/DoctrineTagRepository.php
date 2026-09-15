@@ -85,4 +85,22 @@ final class DoctrineTagRepository extends ServiceEntityRepository implements Tag
         return $this->findByName($name)
             ?? throw new \RuntimeException(\sprintf('Tag "%s" not found after upsert', $name->value()));
     }
+
+    #[\Override]
+    public function search(?string $term, int $limit = 50, int $offset = 0): array
+    {
+        $qb = $this->createQueryBuilder('t')
+            ->orderBy('t.name.value', 'ASC');
+
+        if (null !== $term) {
+            $qb->andWhere('t.name.value LIKE :term')
+                ->setParameter('term', '%'.\addcslashes($term, '%_\\').'%');
+        }
+
+        return $qb
+            ->setMaxResults($limit)
+            ->setFirstResult($offset)
+            ->getQuery()
+            ->getResult();
+    }
 }

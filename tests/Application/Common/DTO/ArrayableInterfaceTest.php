@@ -7,7 +7,7 @@ namespace App\Tests\Application\Common\DTO;
 use App\Application\Collection\DTO\CollectionDTO;
 use App\Application\Common\DTO\ArrayableInterface;
 use App\Application\Item\DTO\ItemDTO;
-use App\Application\Item\DTO\TagDTO;
+use App\Application\Tag\DTO\TagDTO;
 use PHPUnit\Framework\TestCase;
 
 final class ArrayableInterfaceTest extends TestCase
