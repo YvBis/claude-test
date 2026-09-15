@@ -157,7 +157,7 @@ GitHub Actions
 ├── PHPUnit (tests + coverage gate ≥ 80%, каждая ветка и main)
 ├── Composer Audit (security, hard gate)
 └── AI Code Review — OpenRabbit, summary + inline comments (PR only, non-draft):
-    OpenRouter free pool (`openrouter/free`), при падении — NVIDIA NIM fallback (`openai/gpt-oss-20b`, https://integrate.api.nvidia.com/v1, секрет `NVIDIA_API_KEY`)
+    NVIDIA NIM (`openai/gpt-oss-20b`, https://integrate.api.nvidia.com/v1, секрет `NVIDIA_API_KEY`) — основной, при падении — OpenRouter free pool (`openrouter/free`)
 ```
 
 **Локально:** `docker compose exec app composer ci:all`
