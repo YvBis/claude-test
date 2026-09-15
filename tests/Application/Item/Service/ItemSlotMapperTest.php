@@ -136,6 +136,14 @@ final class ItemSlotMapperTest extends TestCase
         $this->mapper->applySlots($item, [new ItemSlotDTO('date', 1, 'not-a-date')]);
     }
 
+    public function testThrowsOnNonStringForDateSlot(): void
+    {
+        $item = $this->createItem();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->mapper->applySlots($item, [new ItemSlotDTO('date', 1, 12345)]);
+    }
+
     public function testThrowsOnRelativeDateString(): void
     {
         $item = $this->createItem();
