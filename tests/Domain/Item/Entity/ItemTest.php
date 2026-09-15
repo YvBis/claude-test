@@ -319,6 +319,34 @@ final class ItemTest extends TestCase
         $this->assertNull($item->getSlotValue(FieldType::text(), 1));
     }
 
+    public function testSetDateSlotToNullResetsSlot(): void
+    {
+        $item = Item::create($this->collection, '1984');
+        $item->setSlotValue(FieldType::date(), 1, new \DateTimeImmutable('2026-09-12T10:00:00+00:00'));
+
+        $item->setSlotValue(FieldType::date(), 1, null);
+
+        $this->assertNull($item->getSlotValue(FieldType::date(), 1));
+    }
+
+    public function testSetBoolSlotToNullResetsSlot(): void
+    {
+        $item = Item::create($this->collection, '1984');
+        $item->setSlotValue(FieldType::bool(), 1, true);
+
+        $item->setSlotValue(FieldType::bool(), 1, null);
+
+        $this->assertNull($item->getSlotValue(FieldType::bool(), 1));
+    }
+
+    public function testSetTextSlotOverMaxLengthThrows(): void
+    {
+        $item = Item::create($this->collection, '1984');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $item->setSlotValue(FieldType::text(), 1, \str_repeat('a', Item::MAX_TEXT_SLOT_LENGTH + 1));
+    }
+
     public function testSetSlotValueTouchesEntity(): void
     {
         $item = Item::create($this->collection, '1984');

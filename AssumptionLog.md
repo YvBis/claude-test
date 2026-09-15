@@ -834,3 +834,15 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 **Инцидент CI:** OpenRabbit-ревью сгорело в 15-мин таймауте — OpenRouter-шаг утонул в ретраях 429 (RPD exhausted), NIM-fallback не успел (у экшена нет input'а на retry/timeout). Повторный ран — 1m42s. Предложен хардненинг: NIM primary + OpenRouter free fallback.
 
 **Тесты:** 457 (1044 ассерта), `ci:all` exit 0. PR #54 merged.
+
+## 2026-09-15 — Task 4.6: Unit-тесты домена Item (audit-close)
+
+**Решение:** audit-close (прецедент 3.5/3.6). Задача фактически выполнена попутно в 4.1/4.4/4.5/4.7.
+
+**Проверка:** замер покрытия clover по `src/Domain/Item/` + `src/Application/Item/` (полный прогон): было 10 непокрытых стейтментов (9 в `Item.php`, 1 в `ItemSlotMapper.php`), после 4 новых тестов — **0 uncovered (311 stmts)**. Полный набор: 461 тестов, 1048 ассертов, 99.59% измеряемых строк (Domain+Application).
+
+**Новые тесты:** `testSetDateSlotToNullResetsSlot`, `testSetBoolSlotToNullResetsSlot`, `testSetTextSlotOverMaxLengthThrows` (ItemTest), `testThrowsOnNonStringForDateSlot` (ItemSlotMapperTest).
+
+**Зафиксировано:** `src/Infrastructure` намеренно исключён из coverage-gate (`phpunit.xml.dist`, `<coverage>` включает только Domain+Application) — DoctrineItemRepository не измеряется; интеграционные тесты существуют, покрытие не верифицировано. Не менять без отдельного решения.
+
+**Scope:** «домен Item» трактован как весь Item-слой (Domain + Application + Infrastructure) — подтверждено пользователем.
