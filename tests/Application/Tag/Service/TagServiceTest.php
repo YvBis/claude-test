@@ -97,4 +97,44 @@ final class TagServiceTest extends TestCase
 
         $this->assertSame([], $this->service->resolveByNames([]));
     }
+
+    public function testListTagsPassesThroughNullTerm(): void
+    {
+        $this->repo->expects($this->once())
+            ->method('search')
+            ->with(null, 50, 0)
+            ->willReturn([]);
+
+        $this->assertSame([], $this->service->listTags(null));
+    }
+
+    public function testListTagsNormalizesAndCollapsesWhitespace(): void
+    {
+        $this->repo->expects($this->once())
+            ->method('search')
+            ->with('Bo ok', 25, 5)
+            ->willReturn([]);
+
+        $this->assertSame([], $this->service->listTags("  Bo\t ok  ", 25, 5));
+    }
+
+    public function testListTagsStripsControlCharacters(): void
+    {
+        $this->repo->expects($this->once())
+            ->method('search')
+            ->with('ab', 50, 0)
+            ->willReturn([]);
+
+        $this->assertSame([], $this->service->listTags("a\x00b"));
+    }
+
+    public function testListTagsBlankTermBecomesNull(): void
+    {
+        $this->repo->expects($this->once())
+            ->method('search')
+            ->with(null, 50, 0)
+            ->willReturn([]);
+
+        $this->assertSame([], $this->service->listTags('   '));
+    }
 }

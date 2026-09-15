@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Application\Item\DTO;
+namespace App\Application\Tag\DTO;
 
 use App\Application\Common\DTO\ArrayableInterface;
 use App\Domain\Tag\Entity\Tag;

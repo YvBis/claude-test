@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Application\Item\DTO;
 
 use App\Application\Common\DTO\ArrayableInterface;
+use App\Application\Tag\DTO\TagDTO;
 use App\Domain\Collection\ValueObject\FieldType;
 use App\Domain\Common\Constant\SlotLimits;
 use App\Domain\Item\Entity\Item;

@@ -50,4 +50,31 @@ final readonly class TagService
 
         return $result;
     }
+
+    /**
+     * Lists tags whose name contains the term (case-insensitive substring),
+     * ordered by name ASC. The search term is free-form (trimmed, control
+     * characters stripped) and is NOT validated through TagName, so a single
+     * character is a valid query. Empty term lists all tags.
+     *
+     * @return array<Tag>
+     */
+    public function listTags(?string $term, int $limit = 50, int $offset = 0): array
+    {
+        $term = $this->normalizeTerm($term);
+
+        return $this->tagRepository->search($term, $limit, $offset);
+    }
+
+    private function normalizeTerm(?string $term): ?string
+    {
+        if (null === $term) {
+            return null;
+        }
+
+        $term = \trim((string) \preg_replace('/[\p{Cc}]+/u', '', $term));
+        $term = (string) \preg_replace('/\s+/u', ' ', $term);
+
+        return '' === $term ? null : $term;
+    }
 }

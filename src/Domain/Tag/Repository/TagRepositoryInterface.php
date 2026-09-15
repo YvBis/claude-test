@@ -38,4 +38,12 @@ interface TagRepositoryInterface
      * a losing insert becomes a no-op and the already persisted tag is returned.
      */
     public function getOrCreate(TagName $name): Tag;
+
+    /**
+     * Finds tags whose name contains the given term (case-insensitive,
+     * substring match, wildcards escaped), ordered by name ASC.
+     *
+     * @return array<Tag>
+     */
+    public function search(?string $term, int $limit = 50, int $offset = 0): array;
 }

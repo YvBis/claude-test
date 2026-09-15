@@ -106,7 +106,7 @@ Item * ──── * Tag   (item_tags)
 |--------|------|----------|
 | `RegistrationService` | `src/Application/User/Service/RegistrationService.php` | Регистрация пользователя |
 | `AuthenticationService` | `src/Application/User/Service/AuthenticationService.php` | Аутентификация (login), JWT |
-| `TagService` | `src/Application/Tag/Service/TagService.php` | `resolveByNames` — нормализация/дедуп имён, найти-или-создать тег (flush у вызывающего) |
+| `TagService` | `src/Application/Tag/Service/TagService.php` | `resolveByNames` — нормализация/дедуп имён, найти-или-создать тег (flush у вызывающего); `listTags` — список/поиск по подстроке (ci) |
 | `ItemService` | `src/Application/Item/Service/ItemService.php` | CRUD айтемов + списки; слоты через `ItemSlotMapper`, теги через `TagService`; create/update в `uow->transactional()`, delete — remove+flush |
 | `ItemSlotMapper` | `src/Application/Item/Service/ItemSlotMapper.php` | Коэрсия `{type, slot, value}` → слоты Item: date ISO-8601 (Z/милли/микро, UTC-нормализация), number→float, bool, text; `null` очищает слот |
 
@@ -132,7 +132,8 @@ Item * ──── * Tag   (item_tags)
 | `ItemController` | `src/Infrastructure/Api/Controller/ItemController.php` | CRUD айтемов + списки: `POST /api/collections/{id}/items`, `GET /api/collections/{id}/items` и `GET /api/items` (свои) с фильтрами `?name` (LIKE, ci) и `?tags[]` (AND), `GET/PATCH/DELETE /api/items/{id}`. Доступ владелец+админ (`User::getRole()->isAdmin()`); слоты/теги `\InvalidArgumentException` → 400 |
 | `DoctrineUserRepository` | `src/Infrastructure/User/Repository/DoctrineUserRepository.php` | Реализация репозитория User |
 | `DoctrineCollectionFieldRepository` | `src/Infrastructure/Collection/Repository/DoctrineCollectionFieldRepository.php` | Реализация репозитория CollectionField |
-| `DoctrineTagRepository` | `src/Infrastructure/Tag/Repository/DoctrineTagRepository.php` | Реализация репозитория Tag; `getOrCreate` — атомарный MySQL upsert |
+| `DoctrineTagRepository` | `src/Infrastructure/Tag/Repository/DoctrineTagRepository.php` | Реализация репозитория Tag; `getOrCreate` — атомарный MySQL upsert; `search` — подстрока `LIKE` (ci, wildcards-escaped), `ORDER BY name` |
+| `TagController` | `src/Infrastructure/Api/Controller/TagController.php` | `GET /api/tags` — список/поиск тегов (?search ci-подстрока, ?limit, ?offset); auth-only, bare `TagDTO[]` |
 | `DoctrineItemRepository` | `src/Infrastructure/Item/Repository/DoctrineItemRepository.php` | Реализация репозитория Item; все read-методы JOIN FETCH `i.collection -> collection.owner` (final-сущности не проксируются ORM 3); `IDENTITY`-сравнение бинарного UUID |
 | `UserProvider` | `src/Infrastructure/Security/UserProvider.php` | Symfony Security user provider |
 | `ClockInjectListener` | `src/Infrastructure/Doctrine/Listener/ClockInjectListener.php` | Автоинъекция Clock в сущности |
@@ -156,7 +157,7 @@ GitHub Actions
 ├── PHPUnit (tests + coverage gate ≥ 80%, каждая ветка и main)
 ├── Composer Audit (security, hard gate)
 └── AI Code Review — OpenRabbit, summary + inline comments (PR only, non-draft):
-    OpenRouter free pool (`openrouter/free`), при падении — Groq fallback (`qwen/qwen3.8-27b`)
+    OpenRouter free pool (`openrouter/free`), при падении — NVIDIA NIM fallback (`openai/gpt-oss-20b`, https://integrate.api.nvidia.com/v1, секрет `NVIDIA_API_KEY`)
 ```
 
 **Локально:** `docker compose exec app composer ci:all`
