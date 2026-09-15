@@ -817,3 +817,20 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - **Нюанс:** API-роуты регистрируются только через `config/routes/dev/attributes.yaml`; после добавления контроллера нужен `rm -rf var/cache/test` (иначе «No route found» в функциональных тестах).
 - Plan: `PRD/4.7-tag-list-endpoint.md`.
 - **Контракт пагинации /api/items выровнен** (review PR #54): `parsePagination` переехал в `AbstractApiController` с валидацией `limit 1..100`, `offset >= 0`. Ранее `/api/items?limit=200` (или 0) проходил без валидации. Breaking-совместимость: потребители с `limit>100`/`limit=0` теперь получают 400. Сознательное ужесточение, все тесты зелёные.
+
+## 2026-09-15 — Task 4.7: API-эндпоинт тегов (GET /api/tags)
+
+**Реализовано:** `GET /api/tags?search=&limit=&offset=` — auth-only, bare `TagDTO[]`, `ORDER BY name ASC`; поиск = ci-подстрока (`LIKE %term%`, `%`/`_`/`\` экранированы через `addcslashes`). Слои: `TagRepositoryInterface::search(?string $term, int $limit, int $offset)` + `DoctrineTagRepository`; `TagService::listTags()` с нормализацией term (trim, strip control-символов, collapse whitespace, blank → null — свободная форма, НЕ через `TagName`, т.к. одиночный символ валиден для поиска); тонкий `TagController`; `Tag`-схема в `api_doc.yaml`; OpenAPI перегенерирован.
+
+**Решения:**
+- Поиск подстрокой (D1), доступ auth-only (D2), default limit 50 (D3), bare-массив (D4) — подтверждены пользователем.
+- `parsePagination` вынесен в `AbstractApiController` (общий с `ItemController`) — контракт пагинации выровнен: `limit 1..100`, `offset >= 0`. Ранее `/api/items?limit=200`/`limit=0` проходил без валидации; теперь 400 (сознательное ужесточение).
+- Границы пагинации — типизированные константы `DEFAULT_LIMIT/MIN_LIMIT/MAX_LIMIT/DEFAULT_OFFSET` (правка по ревью пользователя: «Hardcoded values are not good»); OA-аннотации ссылаются на константы, у `/api/items` добавлены min/max.
+- `TagDTO` перенесён `Application/Item/DTO` → `Application/Tag/DTO` (bounded-context fix по ревью архитектора).
+- `config/reference.php` — локальный stray-артефакт, повторно исключался из коммитов.
+
+**Отложено:** N+1 тегов в списках — `fwd-6`; `?owner` для айтемов и guest-view — Этап 5.
+
+**Инцидент CI:** OpenRabbit-ревью сгорело в 15-мин таймауте — OpenRouter-шаг утонул в ретраях 429 (RPD exhausted), NIM-fallback не успел (у экшена нет input'а на retry/timeout). Повторный ран — 1m42s. Предложен хардненинг: NIM primary + OpenRouter free fallback.
+
+**Тесты:** 457 (1044 ассерта), `ci:all` exit 0. PR #54 merged.
