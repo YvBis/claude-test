@@ -8,6 +8,7 @@ use App\Application\Collection\DTO\CollectionDTO;
 use App\Application\Common\DTO\ArrayableInterface;
 use App\Application\Item\DTO\ItemDTO;
 use App\Application\Tag\DTO\TagDTO;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class ArrayableInterfaceTest extends TestCase
@@ -22,9 +23,7 @@ final class ArrayableInterfaceTest extends TestCase
         yield 'tag' => [TagDTO::class];
     }
 
-    /**
-     * @dataProvider responseDtoProvider
-     */
+    #[DataProvider('responseDtoProvider')]
     public function testImplementsArrayableInterface(string $class): void
     {
         $this->assertTrue(\is_subclass_of($class, ArrayableInterface::class));

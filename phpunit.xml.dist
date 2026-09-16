@@ -4,18 +4,17 @@
          bootstrap="tests/bootstrap.php"
          colors="true"
          executionOrder="depends"
-         forceCoversAnnotation="false"
-         beStrictAboutCoversAnnotation="false"
+         requireCoverageMetadata="false"
+         beStrictAboutCoverageMetadata="false"
          beStrictAboutOutputDuringTests="true"
-         beStrictAboutTodoAnnotatedTests="true"
          failOnRisky="true"
          failOnWarning="true"
          processIsolation="false"
          cacheResult="true"
-         verbose="false"
+         cacheDirectory=".phpunit.cache"
          stderr="true">
     <extensions>
-        <extension class="DAMA\DoctrineTestBundle\PHPUnit\PHPUnitExtension"/>
+        <bootstrap class="DAMA\DoctrineTestBundle\PHPUnit\PHPUnitExtension"/>
     </extensions>
     <testsuites>
         <testsuite name="Domain">
@@ -29,7 +28,7 @@
         </testsuite>
     </testsuites>
 
-    <coverage processUncoveredFiles="true">
+    <source>
         <include>
             <directory suffix=".php">src/Domain</directory>
             <directory suffix=".php">src/Application</directory>
@@ -38,6 +37,9 @@
             <directory suffix=".php">src/Infrastructure</directory>
             <file>src/Kernel.php</file>
         </exclude>
+    </source>
+
+    <coverage includeUncoveredFiles="true">
         <report>
             <text outputFile="php://stdout" showUncoveredFiles="false" showOnlySummary="true"/>
             <clover outputFile="var/coverage/clover.xml"/>
