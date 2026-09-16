@@ -62,7 +62,7 @@
 
 | fwd-7 | [future] Публичный/гостевой доступ к айтемам и коллекциям (PRD story 37: «гость видит чужие коллекции и айтемы»). Сейчас (Этап 4, D1) чтение = только владелец+админ; Этап 5 (D1) открыл чтение аутентифицированным. Остаток: anonymous-доступ — ослабление security.yaml (`^/api/items`, `^/api/collections` GET → PUBLIC_ACCESS), конверт 401→200 для анонима, guest-view тесты. Затронет: security.yaml, ItemController/CollectionController (опциональный getUser), functional-тесты 4.5. Estimate: 1-2ч | todo | From 2026-09-15: решение Этапа 5 D1 — только аутентифицированные, гостевой доступ отложен |
 
-| fwd-8 | [future] Устранить потенциальный N+1 счётчиков в item-DTO при обогащении `likes_count`/`comments_count`/`liked_by_me` (Этап 5, D6). Если агрегация на каждый item списка даст N+1 — batch-подсчёт (`GROUP BY` по item_id для страницы) по прецеденту fwd-6. Estimate: 1-2ч | todo | From 2026-09-15: риск Этапа 5 — счётчики в списках |
+| fwd-8 | [future] Устранить потенциальный N+1 счётчиков в item-DTO при обогащении `likes_count`/`comments_count`/`liked_by_me` (Этап 5, D6). Если агрегация на каждый item списка даст N+1 — batch-подсчёт (`GROUP BY` по item_id для страницы) по прецеденту fwd-6. Конкретные сигнатуры (под 5.5, зафиксировано architect-ревью 5.3): репозиторий — `countByItemIds(array<ItemId>): array<string,int>` (`GROUP BY IDENTITY(...)`) и `likedItemIdsBy(OwnerId, array<ItemId>): array<string>` (`EXISTS`/`IN`); сервис — `LikeService::countByItems(array<ItemId>)` / `likedItemIdsBy(...)` (аналогично Comment). Тот же приём для `listByItem` (перегидратация 4-join на список — кандидат на проекцию). Estimate: 1-2ч | todo | From 2026-09-15: риск Этапа 5 — счётчики в списках. 2026-09-16: уточнено на ревью 5.3 |
 
 | fwd-9 | [future] Изолировать тест-БД от dev. Сейчас `docker-compose.yml` задаёт `DATABASE_URL=.../taskflow` env-переменной контейнера → она переопределяет `.env.test` (`taskflow_test` на host.docker.internal): все тесты локально идут в dev-БД `taskflow`. Открытое при 5.1 (smoke-данные «загрязнили» тестовый прогон). Кандидаты: (a) убрать env из docker-compose → `env_file` с dev-значением, чтобы `.env.test` работал для тестов; (b) отдельный сервис `db_test` в compose; (c) CI уже изолирован (свой MySQL-сервис). Estimate: 1-2ч | done | From 2026-09-15: открыто при 5.1 — тесты ходят в dev `taskflow`. Closed 2026-09-16 (PR #59): `tests/bootstrap.php` в test-окружении переопределяет `DATABASE_URL` из `.env.test`, если текущее значение ещё не указывает на `taskflow_test` (value-sniff guard — CI сам задаёт `taskflow_test` и не трогается); создана БД `taskflow_test` (+`docker/mysql/init/01-test-db.sql` для чистых установок); миграции применены; добавлен `TestDatabaseIsolationTest`. Проверено: test→`taskflow_test`, dev→`taskflow`, CI не затронут |
 
@@ -98,7 +98,7 @@
 |--------|----------|--------|
 | 5.1 | [x] Сущность Like с уникальным ограничением (user_id, item_id) | done (PRD/5.1-like-entity.md) |
 | 5.2 | [x] Сущность Comment с owner_id, item_id | done (PRD/5.2-comment-entity.md) |
-| 5.3 | [ ] Сервис лайков — добавление, удаление, переключение | todo |
+| 5.3 | [x] Сервис лайков — добавление, удаление, переключение | done (PRD/5.3-like-service.md) |
 | 5.4 | [ ] Сервис комментариев — создание, редактирование, удаление | todo |
 | 5.5 | [ ] API-эндпоинты лайков и комментариев | todo |
 | 5.6 | [ ] Unit-тесты для социальных функций | todo |
@@ -149,12 +149,12 @@
 - **Этап 2 (Пользователь)**: 5/5 задач выполнено
 - **Этап 3 (Коллекция)**: 6/6 задач выполнено
 - **Этап 4 (Айтем)**: 7/7 задач выполнено
-- **Этап 5 (Социальное)**: 2/6 задач выполнено
+- **Этап 5 (Социальное)**: 3/6 задач выполнено
 - **Этап 6 (Поиск)**: 0/4 задач выполнено
 - **Этап 7 (Админ)**: 0/7 задач выполнено
 - **Этап 8 (Тестирование)**: 0/6 задач выполнено
 
-**Итого**: 19/46 задач выполнено
+**Итого**: 20/46 задач выполнено
 
 ---
 
