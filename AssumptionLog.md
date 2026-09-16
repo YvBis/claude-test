@@ -931,3 +931,27 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - **Отмечено (не фикс):** `INNER JOIN` в `withAll` — комментарии без item/collection недостижимы (софт-делита нет); listing-проекция для объёмных списков — кандидат в fwd-8-класс задач; `CountByItemId`/`ById` — scalar-only, без гидратации.
 
 **Процессные заметки:** S1 превысил бюджет 150 строк исходников (Comment 121 + CommentContent 68 + интерфейс 49 + CommentId 22 = 260) — VO+entity+interface в одной подзадаче по образцу 5.1; зафиксировано как отклонение. `ARCHITECTURE.md` дополнен пропущенной на 5.1 секцией Like + Comment (док-долг 5.1). `config/reference.php` (dirty из-за миграций) исключён из PR — политика `fwd-11`.
+
+## 2026-09-16 — Task 5.3: Сервис лайков (Этап 5)
+
+**Реализовано:** `LikeService` (`src/Application/Like/Service/LikeService.php`, `final readonly`) — `like`/`unlike` (идемпотентно), `toggle` (возвращает новое состояние), `isLikedBy`, `countByItem`, `listByItem`, `removeLike` (админский путь), `toDTO`/`toDTOList`; `LikeDTO` (`src/Application/Like/DTO/`) с `ArrayableInterface`; 13 юнит-тестов (моки репозитория и UoW, без БД).
+
+**Решения (утверждены пользователем 2026-09-16, «на все автоаппрув»):**
+- **Идемпотентность:** `like()` при существующем лайке возвращает существующий (без `save`); `unlike()` при отсутствии — no-op. Соответствует UNIQUE `(owner_id, item_id)` и упрощает HTTP-семантику в 5.5.
+- **`toggle()` → `bool`** (новое состояние). Счётчик контроллер собирает через `countByItem` — сервис не смешивает мутацию и агрегацию.
+- **`LikeDTO` + `listByItem`** — под PRD «получить все лайки айтема»; `toArray()` snake_case + ATOM (конвенция `ItemDTO`/`TagDTO`).
+- **`removeLike(Like)`** — прямой путь для админского удаления (5.5/7.6), т.к. `unlike` требует пару (owner, item), которой у админа может не быть.
+- **Транзакции:** один агрегат → `save`/`remove` + `uow->flush()`, без `transactional()` (как `ItemService::delete`).
+- **`LikeNotFoundException` не заводим** — при идемпотентности не нужен.
+- **Гонка `like()`/`toggle()`:** «найти → создать» под конкуренцией может дать `UniqueConstraintViolation` (UNIQUE-индекс). Для MVP принимается для обеих операций (у `toggle` тот же hazard); кандидат в беклог — race-safe атомарный upsert (по образцу `TagRepository::getOrCreate`).
+- `OwnerId` строится из `User` (`OwnerId::fromBytes($user->getId()->toBytes())`), т.к. `findByOwnerAndItem` принимает `OwnerId`.
+
+**3-агентное ревью (senior APPROVE, architect REVISE, tech-lead REVISE) и применённые фиксы:**
+- **`getById(string): ?Like`** добавлен (architect MEDIUM): админский путь (5.5/7.6) иначе не мог получить `Like` через сервис и вынуждал бы контроллер тянуть репозиторий. Возвращает `null` (без исключения, по решению), контроллер маппит в 404.
+- **`LikeDTO` добавлен в `ArrayableInterfaceTest::responseDtoProvider`** (architect LOW) — контрактный тест теперь покрывает новый DTO.
+- **Качество тестов** (senior/tech-lead): `save` теперь проверяется через `with(...)` (owner+item), `testIsLikedBy` разделён на true/false, `testToDTOListMapsAllLikes` использует второго пользователя (не нарушает UNIQUE-инвариант), добавлен тест дефолтной пагинации `listByItem` (50/0), добавлены `getById` делегирование и `null`. Итого 17 тестов.
+- **Документация:** статус PRD → «Выполнено»; зафиксировано превышение бюджета S1 (**168 строк** исходников: `LikeService` 127 + `LikeDTO` 41 > 150) — укладывается в критерий «≤2ч», по аналогии с 5.2.
+- **Отклонено (осознанно):** вынос `isLikedBy` на `EXISTS`/`countByOwnerAndItem` (senior LOW) и batch-счётчики для списков (architect MEDIUM) — это оптимизации уровня 5.5, зафиксированы в fwd-8 с конкретными сигнатурами, а не в 5.3. `toggle()` без делегирования в `like`/`unlike` — оставлено (один `find`, без двойного запроса).
+- **Отклонено (ложная находка ИИ-ревью OpenRabbit):** вердикт `needs changes` на сквоше утверждал «`findLike` helper missing → compile-time error» и «unused import / truncated comments». Опровергнуто: `findLike` определён в `LikeService.php:139` (вызовы 37/54/70/86), все 9 импортов используются, `php -l` — без ошибок, PHPStan level 9 — `No errors`, CI jobs Static Analysis & Lint и Unit Tests — pass (528 тестов). Тот же прогон параллельно перечислял корректные факты, т.е. это галлюцинация смешанного вывода, а не реальный дефект. В код ничего не вносилось.
+
+**Проверено:** `LikeServiceTest` 17/17 (в т.ч. проверка, что `findByOwnerAndItem` вызывается с корректным `OwnerId`/`ItemId`, и `save` — с верным владельцем/айтемом); `composer ci:all` — 528 tests, 1249 assertions, exit 0.
