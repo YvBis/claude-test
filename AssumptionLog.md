@@ -904,3 +904,30 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 **Прочее (в PR #60):** `phpunit.xml.dist` — `includeUncoveredFiles="true"` выставлен явно (дефолт `true`; явность защищает гейт от будущего дрейфа дефолта). `.gitignore` — `.phpunit.cache/` добавлен в секцию Testing (не дублируется). Guard `TestDatabaseIsolationTest::testDamaTransactionalIsolationIsActive` — assert `StaticDriver::isKeepStaticConnections()`, ловит повтор «extension silently skipped» мгновенно.
 
 **Замечено:** `composer.json` в репозитории был CRLF; при правке нормализован в LF (`core.autocrlf=input`) → 127-строчный whole-file churn. Обсуждалось; принято как нормализация, политика — `fwd-12` (`.gitattributes`). `willReturnOnConsecutiveCalls` (`TagServiceTest:82`) deprecated в PHPUnit 10, удаляется в 12 — `fwd-13`. `config/reference.php` исключён из PR (политика — `fwd-11`).
+
+## 2026-09-16 — Task 5.2: Сущность Comment (Этап 5)
+
+**Реализовано:** `Comment` domain — `CommentId` (бинарный UUID), `CommentContent` (embeddable, immutable), `Comment` entity (`owner` `ManyToOne User`, `item` `ManyToOne Item`, оба `ON DELETE CASCADE`, embedded `content`, `createdAt`/`updatedAt`, `ClockAwareTrait`, `create(User, Item, CommentContent)`, `changeContent()` c no-op-гардом по нормализованному равенству + `touch()`), `CommentRepositoryInterface` (`save/remove/findById/findByItemId/findByOwnerId/countByItemId`), `DoctrineCommentRepository` (JOIN FETCH-цепочка `c.owner` + `c.item→collection→owner` против ghost-proxy final-сущностей; `IDENTITY`+binary; порядок `createdAt ASC, id ASC`), миграция `Version20260916145324` (golden-style DATETIME(6)/`utf8mb4_0900_ai_ci`, FK CASCADE, `INDEX idx_comment_item` + `INDEX idx_comment_owner`), 36 тестов (27 юнит + 9 интеграционных на реальном MySQL).
+
+**Решения (утверждены пользователем 2026-09-16):**
+- **Опечатка артефакта:** domain-model перечисляет `Comment: id, owner_id, comment_id` — `comment_id` исправлен на `item_id` (связи артефакта и Roadmap 5.2 однозначно про айтем).
+- **Длина контента 3000** (не 1000 и не 2000); `CommentContent` — `VARCHAR(3000)` (utf8mb4, DYNAMIC row format допускает; колонка без индекса).
+- **Переводы строк сохраняются, пробелы не схлопываются** — контент это Markdown. Осознанное расхождение с `TagName`/`FieldName` (там `\s+` → пробел): санитизация = нормализация `\r\n`/`\r` → `\n`, strip `\p{Cc}` **кроме** `\n` и `\t`, `trim` краёв; внутреннее сохраняется байт-в-байт. Markdown хранится как есть (экранирование/рендеринг — фронт).
+- **UNIQUE нет** — пользователь комментирует айтем многократно. Поэтому (в отличие от Like, где UNIQUE покрывал owner-префикс) добавлен отдельный `INDEX idx_comment_owner(owner_id)`.
+- **`findByOwnerId` делаем** (задел под «мои комментарии» и админ-операции 5.5/7.6); owner-запрос идёт через `IDENTITY(c.owner) = :ownerId` + binary.
+- Правка отслеживается только `updatedAt` (без флага `isEdited`).
+
+**Замечено:** `DoctrineCommentRepository` создан изначально с интерфейсным алиасом (`debug:container` показывает приватный alias из `ServiceRepositoryCompilerPass` DoctrineBundle) — 7 ошибок `ServiceNotFoundException` в тестах были из-за **устаревшего тест-контейнера**, лечится `rm -rf var/cache/test` (memory #30). Guard-тест после round-trip сравнивает `createdAt`/`updatedAt` по форматированной строке (`Y-m-d H:i:s.u`), т.к. `assertSame` на двух `DateTimeImmutable` из БД проверяет идентичность объектов.
+
+**Проверено:** `composer ci:all` — 510 tests, 1191 assertions, exit 0 (после review-фиксов); миграция применена к dev + test (`schema:update --dump-sql` → «Nothing to update»; `SHOW INDEX` подтверждает композитные индексы).
+
+**3-агентное ревью (senior APPROVE, architect APPROVE, tech-lead REVISE) и применённые фиксы:**
+- **Композитные индексы** (architect + OpenRabbit): `idx_comment_item(item_id, created_at, id)` / `idx_comment_owner(owner_id, created_at, id)` — обслуживают `ORDER BY created_at, id` без filesort. InnoDB и так добавляет PK `id` к secondary-индексам, но `id` указан **явно** (по запросу OpenRabbit) для читаемости/переносимости. Правка entity + миграции; миграция откатана и применена заново на dev и test (проверено `SHOW INDEX` — по 3 колонки).
+- **`countByOwnerId`** (architect): добавлен в интерфейс/репозиторий — симметрия с `countByItemId`, нужен для пагинации «моих комментариев» в 5.5.
+- **Guard на невалидный UTF-8** (senior MEDIUM): `preg_replace('/…/u')` при битой кодировке возвращает `null` — раньше `?? ''` приводил к ложному «cannot be empty»; теперь явный `InvalidArgumentException('Comment content must be valid UTF-8')`. Тест добавлен.
+- **Детерминизм order-тестов** (senior MEDIUM): `DoctrineCommentRepositoryTest` для сортировочных тестов использует `MockClock` со сдвигом между созданиями (иначе три комментария могут попасть в одну микросекунду и tie уйдёт на `id`).
+- **Тест каскада при удалении user** (tech-lead MAJOR): `testCascadeOnUserDelete` — критерий приёмки заявлял каскад и по айтему, и по пользователю, а тест был только на айтем.
+- **Отклонено:** снятие `#[Assert\NotBlank]`/`#[Assert\Length]` с `CommentContent` (senior/architect NIT как «мёртвый» слой) — оставлено для консистентности с `TagName`/`FieldName` (в проекте VO несут и Assert, и валидацию в конструкторе; Assert срабатывает, когда VO валидируется через Symfony Validator на API-слое в 5.5).
+- **Отмечено (не фикс):** `INNER JOIN` в `withAll` — комментарии без item/collection недостижимы (софт-делита нет); listing-проекция для объёмных списков — кандидат в fwd-8-класс задач; `CountByItemId`/`ById` — scalar-only, без гидратации.
+
+**Процессные заметки:** S1 превысил бюджет 150 строк исходников (Comment 121 + CommentContent 68 + интерфейс 49 + CommentId 22 = 260) — VO+entity+interface в одной подзадаче по образцу 5.1; зафиксировано как отклонение. `ARCHITECTURE.md` дополнен пропущенной на 5.1 секцией Like + Comment (док-долг 5.1). `config/reference.php` (dirty из-за миграций) исключён из PR — политика `fwd-11`.

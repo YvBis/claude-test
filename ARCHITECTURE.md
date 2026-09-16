@@ -91,6 +91,35 @@ TaskFlow — REST API для управления личными коллекц�
 - `TagName`: trim, strip control-символов, collapse whitespace, длина 2..30, whitelist как у `FieldName`
 - Связь с Item — many-to-many через `item_tags` (оба FK `ON DELETE CASCADE`)
 
+### Like (`src/Domain/Like/`)
+
+| Компонент | Путь | Описание |
+|-----------|------|----------|
+| `Like` | `Entity/Like.php` | Отметка «нравится» (id, owner, item, createdAt); owner/item — `ManyToOne` с `ON DELETE CASCADE` |
+| `LikeId` | `ValueObject/LikeId.php` | Бинарный UUID |
+| `LikeRepositoryInterface` | `Repository/LikeRepositoryInterface.php` | Интерфейс репозитория (`save`, `remove`, `findById`, `findByOwnerAndItem`, `findByItemId`, `countByItemId`) |
+
+**Бизнес-правила:**
+- Один лайк на пару (пользователь, айтем): UNIQUE `uniq_like_owner_item(owner_id, item_id)`; двойной лайк → `UniqueConstraintViolation`
+- `idx_like_item(item_id)` — списки лайков айтема; отдельный owner-индекс не нужен (UNIQUE покрывает префикс `owner_id`)
+- Удаление айтема/пользователя каскадно удаляет лайки
+
+### Comment (`src/Domain/Comment/`)
+
+| Компонент | Путь | Описание |
+|-----------|------|----------|
+| `Comment` | `Entity/Comment.php` | Комментарий (id, owner, item, content, createdAt, updatedAt); owner/item — `ManyToOne` с `ON DELETE CASCADE` |
+| `CommentId` | `ValueObject/CommentId.php` | Бинарный UUID |
+| `CommentContent` | `ValueObject/CommentContent.php` | Markdown-текст (длина 1..3000; нормализация `\r\n`→`\n`, strip control-символов кроме `\n`/`\t`, trim краёв; внутренние пробелы/переносы сохраняются) |
+| `CommentRepositoryInterface` | `Repository/CommentRepositoryInterface.php` | Интерфейс репозитория (`save`, `remove`, `findById`, `findByItemId`, `findByOwnerId`, `countByItemId`, `countByOwnerId`) |
+
+**Бизнес-правила:**
+- Один пользователь может комментировать айтем многократно — **UNIQUE нет**
+- Индексы композитные под сортировку: `idx_comment_item(item_id, created_at, id)` и `idx_comment_owner(owner_id, created_at, id)` → индекс обслуживает `ORDER BY created_at, id` без filesort (`id` указан явно; InnoDB добавляет PK и так)
+- Правка `changeContent()` + `touch()`: `updatedAt` меняется, no-op при нормализованно равном контенте
+- Удаление айтема/пользователя каскадно удаляет комментарии
+- Контент хранится как есть (markdown); рендеринг/экранирование — забота фронтенда
+
 ## Связи
 
 ```
@@ -98,6 +127,10 @@ User 1 ──── * Collection
 Collection 1 ──── * CollectionField
 Collection 1 ──── * Item
 Item * ──── * Tag   (item_tags)
+User 1 ──── * Like
+Item 1 ──── * Like   (UNIQUE owner_id + item_id)
+User 1 ──── * Comment
+Item 1 ──── * Comment
 ```
 
 ## Application Services
@@ -179,7 +212,7 @@ GitHub Actions
 | 2 | Пользователь | ✅ завершён |
 | 3 | Коллекция | ✅ завершён |
 | 4 | Айтем | ✅ завершён (4.1–4.7) |
-| 5 | Социальное | ⏳ |
+| 5 | Социальное | 🔄 в работе (5.1 Like, 5.2 Comment) |
 | 6 | Поиск | ⏳ |
 | 7 | Админ | ⏳ |
 | 8 | Тестирование | ⏳ |
