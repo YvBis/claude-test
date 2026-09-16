@@ -876,3 +876,16 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 **review-7 заведён** (tech-lead: debug-код в `src/Kernel.php` — file_put_contents на каждый boot во всех env + error_log).
 
 **Ревью-конвенция исправлена:** с этой задачи 3 агента (senior+architect+tech-lead) на трёх моделях (CLAUDE.md 5.6.1, PR #57).
+
+## 2026-09-16 — Infra cleanup: канонический Kernel (review-7) + изоляция тест-БД (fwd-9)
+
+**review-7 — `src/Kernel.php` приведён к каноническому Flex-виду:** `class Kernel extends BaseKernel { use MicroKernelTrait; }`. Удалены `registerBundles()`, `configureContainer()`, `configureRoutes()`, `isDebug()` и весь debug-мусор (3× `file_put_contents('/tmp/kernel_debug.log')` + `error_log` на каждый boot).
+- `config/bundles.php` стал единственным источником бандлов: добавлены `LexikJWTAuthenticationBundle` (был только в мёртвом `registerBundles()`), `DAMADoctrineTestBundle => ['test'=>true]`, `NelmioApiDocBundle => ['dev'=>true,'test'=>true]` (сохраняет прежнее поведение).
+- Attribute-роуты API (`src/Infrastructure/Api/Controller/`) перенесены из кастомного метода Kernel в `config/routes.yaml`; дублирующие `resource:` убраны из `config/routes/dev/attributes.yaml` (оставлены swagger UI/openapi).
+- Проверено: `debug:router` dev/test/prod (15 API-роутов), `cache:warmup --env=prod` OK, `/tmp/kernel_debug.log` больше не создаётся, `ci:all` 469/1069 зелёный.
+- **Важное открытие:** `config/bundles.php` до этого был **мёртв** — `registerBundles()` в Kernel полностью его переопределял; любой бандл, добавленный в bundles.php, не грузился.
+
+**fwd-9 — изоляция тест-БД:** корень проблемы — `docker-compose.yml` отдаёт `DATABASE_URL=…/taskflow` (dev) через `env_file: .env` в real env контейнера, что затеняет `.env.test`; `tests/bootstrap.php` намеренно не грузит Dotenv в test, а `phpunit.xml.dist` `DATABASE_URL` не задаёт → локальные тесты шли в dev-БД. Решение (минимально инвазивное, без правки env_file/JWT): `tests/bootstrap.php` в test-окружении **переопределяет только `DATABASE_URL`** значением из `.env.test`, **если текущее значение ещё не указывает на `taskflow_test`** (value-sniff guard: CI задаёт `taskflow_test` сам и не затирается; локальный `CI=1` тоже не ломает — в отличие от флага `CI`). `.env.test` → `db:3306/taskflow_test`, user `taskflow`. Создана БД `taskflow_test` (+ `docker/mysql/init/01-test-db.sql` для чистых volume), применены миграции (3). Добавлен guard-тест `TestDatabaseIsolationTest` (assert активной БД = `taskflow_test`), закрывающий ветку, которую CI напрямую не исполняет.
+- **Отклонено:** вариант «убрать `DATABASE_URL` из docker-compose» из первоначального плана — не работает: значение всё равно попадает в контейнер через `env_file: .env`. Также отвергнута правка `env_file`/`JWT_PASSPHRASE`, т.к. JWT-ключи локально привязаны к значению из `.env` (memory #97) — риск сломать auth-тесты. Отвергнут флаг `CI` как единственный переключатель (architect: локальный `CI=1` тихо уводит тесты в dev) — заменён на value-sniff.
+- Проверено: test→`taskflow_test`, dev→`taskflow`, `ci:all` 469/1069 зелёный.
+- **Backlog:** `fwd-10` (дубль `DATABASE_URL` в `.env`), `fwd-11` (политика для дрейфующего `config/reference.php`).

@@ -78,6 +78,16 @@ docker compose exec app composer test
 docker compose exec app composer phpunit:no-coverage
 ```
 
+> **Тестовая БД**: локальные тесты идут в отдельную БД `taskflow_test`, а не в dev `taskflow`.
+> `tests/bootstrap.php` переопределяет `DATABASE_URL` значением из `.env.test`, если текущее
+> значение ещё не указывает на `taskflow_test` (контейнер экспортирует dev-значение через
+> `env_file`, которое иначе затеняет `.env.test`; CI сам задаёт `taskflow_test` и не трогается).
+> Подготовить тестовую БД (один раз; для свежего volume создаётся автоматически через
+> `docker/mysql/init/01-test-db.sql`):
+> ```bash
+> docker compose exec -e DATABASE_URL="mysql://taskflow:taskflow_pass@db:3306/taskflow_test?serverVersion=8.0" app sh -c "php bin/console doctrine:database:create --if-not-exists --env=test && php bin/console doctrine:migrations:migrate --env=test"
+> ```
+
 Для запуска тестов с покрытием (Xdebug включается через `XDEBUG_MODE=coverage`; `composer coverage:check` делает это автоматически):
 ```bash
 docker compose exec app composer coverage:check
