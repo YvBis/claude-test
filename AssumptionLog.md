@@ -859,3 +859,20 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - Зависимости: symfony/cache 7.4.18 (CVE закрыт), Symfony 7.4 актуален; PHPUnit 9.6 — bump до ^11.5 в fwd-4.
 
 **Новых `[review]`-задач не заведено** — беклог уже содержит все выявленные отложенные работы.
+
+## 2026-09-15 — Task 5.1: Сущность Like (Этап 5)
+
+**Реализовано:** `Like` domain (`LikeId`, `Like` entity: owner `ManyToOne User`, item `ManyToOne Item`, UNIQUE `uniq_like_owner_item(owner_id, item_id)`, INDEX `idx_like_item`), `LikeRepositoryInterface` (`save/remove/findById/findByOwnerAndItem/findByItemId/countByItemId`), `DoctrineLikeRepository` (JOIN FETCH-цепочка `l.owner` + `l.item→collection→owner` против ghost-proxy final-сущностей; `IDENTITY`+binary параметры; `orderBy createdAt ASC, addOrderBy id ASC` — детерминированный порядок при tie µs), миграция `Version20260915202634` (golden-style DATETIME(6)/utf8mb4_0900_ai_ci, FK CASCADE), 8 интеграционных тестов (persist/reload, unique-violation, cascade, repo-методы в `DoctrineLikeRepositoryTest`).
+
+**Решения (3-agent ревью: senior APPROVE, architect REVISE, tech-lead NEEDS-CHANGES):**
+- `findById(LikeId)` добавлен в интерфейс — конвенция всех sibling-репозиториев + нужен для админ-удаления (5.5).
+- `idx_like_item(item_id)` явный; отдельный owner-индекс редундантен (UNIQUE покрывает префикс owner_id) — убран.
+- Тесты сплитнуты по конвенции: entity-persistence → `LikePersistenceTest`, repo-методы → `DoctrineLikeRepositoryTest`.
+- fwd-5 scope расширен: read-цепочка `Like → item.collection.owner` входит в будущий декоплинг.
+- Отклонено (задокументировано): public `@internal` конструктор Like — консистентно с Tag (паттерн тест-объектов).
+
+**⚠️ Операционное открытие (DB-env):** `docker-compose.yml` задаёт `DATABASE_URL=.../taskflow` env-переменной контейнера → она **переопределяет `.env.test`** (`host.docker.internal:3306/taskflow_test`). Итог: все тесты локально идут в dev-БД `taskflow` (не `taskflow_test`). «Загрязнение» тест-данными = общий DB с dev-данными (smoke). Зафиксировано как **fwd-9** в Roadmap; при настройке изолированной тест-БД — убрать env из docker-compose или вынести в `env_file`.
+
+**review-7 заведён** (tech-lead: debug-код в `src/Kernel.php` — file_put_contents на каждый boot во всех env + error_log).
+
+**Ревью-конвенция исправлена:** с этой задачи 3 агента (senior+architect+tech-lead) на трёх моделях (CLAUDE.md 5.6.1, PR #57).
