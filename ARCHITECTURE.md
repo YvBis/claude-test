@@ -178,6 +178,7 @@ Item 1 ──── * Comment
 | `TagController` | `src/Infrastructure/Api/Controller/TagController.php` | `GET /api/tags` — список/поиск тегов (?search ci-подстрока, ?limit, ?offset); auth-only, bare `TagDTO[]` |
 | `DoctrineItemRepository` | `src/Infrastructure/Item/Repository/DoctrineItemRepository.php` | Реализация репозитория Item; все read-методы JOIN FETCH `i.collection -> collection.owner` (final-сущности не проксируются ORM 3); `IDENTITY`-сравнение бинарного UUID |
 | `UserProvider` | `src/Infrastructure/Security/UserProvider.php` | Symfony Security user provider |
+| `SocialContentVoter` | `src/Infrastructure/Security/Voter/SocialContentVoter.php` | Модерация соц. контента: `SOCIAL_EDIT`/`SOCIAL_DELETE` для `Comment`/`Like`, автор или админ; `Like`+`SOCIAL_EDIT` запрещён всем. Регистрируется autoconfigure (тег `security.voter`). Требует гидрированный `owner` (репозитории JOIN FETCH). Ручной JSON-403 в контроллерах сохранён |
 | `ClockInjectListener` | `src/Infrastructure/Doctrine/Listener/ClockInjectListener.php` | Автоинъекция Clock в сущности |
 
 **Doctrine Types:**
@@ -221,7 +222,7 @@ GitHub Actions
 | 2 | Пользователь | ✅ завершён |
 | 3 | Коллекция | ✅ завершён |
 | 4 | Айтем | ✅ завершён (4.1–4.7) |
-| 5 | Социальное | 🔄 core готов (5.1–5.6); этап не закрыт: 5.10 (Voter), smoke test, периодический review |
+| 5 | Социальное | 🔄 core готов (5.1–5.6, 5.10); этап не закрыт: smoke test, периодический review |
 | 6 | Поиск | ⏳ |
 | 7 | Админ | ⏳ |
 | 8 | Тестирование | ⏳ |

@@ -278,6 +278,10 @@ final class CommentControllerTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR));
 
         $this->assertResponseStatusCodeSame(403);
+        $this->assertSame(
+            ['error' => 'Forbidden', 'message' => 'You do not have permission to edit this comment'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
+        );
     }
 
     public function testAdminCanUpdateForeignComment(): void
@@ -358,6 +362,10 @@ final class CommentControllerTest extends WebTestCase
         $this->client->request('DELETE', '/api/comments/'.$commentId, [], [], $this->authHeaders($foreign['token']));
 
         $this->assertResponseStatusCodeSame(403);
+        $this->assertSame(
+            ['error' => 'Forbidden', 'message' => 'You do not have permission to delete this comment'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
+        );
     }
 
     public function testDeleteNonExistentCommentReturns404(): void

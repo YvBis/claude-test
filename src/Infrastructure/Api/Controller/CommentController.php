@@ -11,6 +11,7 @@ use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Comment\Entity\Comment;
 use App\Domain\Item\Entity\Item;
 use App\Domain\User\Entity\User;
+use App\Infrastructure\Security\Voter\SocialContentVoter;
 use OpenApi\Attributes as OA;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -252,7 +253,7 @@ final class CommentController extends AbstractApiController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        if (!$this->canManage($user, $comment->getOwner())) {
+        if (!$this->isGranted(SocialContentVoter::SOCIAL_EDIT, $comment)) {
             return new JsonResponse([
                 'error' => 'Forbidden',
                 'message' => 'You do not have permission to edit this comment',
@@ -311,7 +312,7 @@ final class CommentController extends AbstractApiController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        if (!$this->canManage($user, $comment->getOwner())) {
+        if (!$this->isGranted(SocialContentVoter::SOCIAL_DELETE, $comment)) {
             return new JsonResponse([
                 'error' => 'Forbidden',
                 'message' => 'You do not have permission to delete this comment',

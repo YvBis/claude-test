@@ -9,6 +9,7 @@ use App\Application\Like\Service\LikeService;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Like\Entity\Like;
 use App\Domain\User\Entity\User;
+use App\Infrastructure\Security\Voter\SocialContentVoter;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -195,7 +196,7 @@ final class LikeController extends AbstractApiController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        if (!$this->canManage($user, $like->getOwner())) {
+        if (!$this->isGranted(SocialContentVoter::SOCIAL_DELETE, $like)) {
             return new JsonResponse([
                 'error' => 'Forbidden',
                 'message' => 'You do not have permission to delete this like',
