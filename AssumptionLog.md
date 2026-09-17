@@ -955,3 +955,29 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - **Отклонено (ложная находка ИИ-ревью OpenRabbit):** вердикт `needs changes` на сквоше утверждал «`findLike` helper missing → compile-time error» и «unused import / truncated comments». Опровергнуто: `findLike` определён в `LikeService.php:139` (вызовы 37/54/70/86), все 9 импортов используются, `php -l` — без ошибок, PHPStan level 9 — `No errors`, CI jobs Static Analysis & Lint и Unit Tests — pass (528 тестов). Тот же прогон параллельно перечислял корректные факты, т.е. это галлюцинация смешанного вывода, а не реальный дефект. В код ничего не вносилось.
 
 **Проверено:** `LikeServiceTest` 17/17 (в т.ч. проверка, что `findByOwnerAndItem` вызывается с корректным `OwnerId`/`ItemId`, и `save` — с верным владельцем/айтемом); `composer ci:all` — 528 tests, 1249 assertions, exit 0.
+
+## 2026-09-16 — Task 5.4: Сервис комментариев (Этап 5)
+
+**Реализовано (Application-слой над доменом `Comment` из 5.2):** `CommentDTO` (`id`, `owner_id`, `owner_name`, `item_id`, `content`, `created_at`/`updated_at` ATOM; `implements ArrayableInterface`; snake_case; точная `array{...}`-аннотация) + `CommentService` (`create`, `getById`, `changeContent`, `delete`, `listByItem`, `listByOwner`, `countByItem`, `countByOwner`, `toDTO`, `toDTOList`); 21 тест (16 сервис + 5 DTO) + регистрация `CommentDTO` в контрактном `ArrayableInterfaceTest`.
+
+**Решения (утверждены 2026-09-16):**
+- **Авторизация — на уровне контроллера** (как `ItemController::canAccess`); сервис правил доступа не содержит. Правка/удаление «своего» и админское «любого» — это 5.5/7.6 поверх `getById` + `changeContent`/`delete`.
+- **Удаление своего комментария пользователем** включено (PRD 20 «менять свои…»; админ-удаление — 117).
+- **`CommentDTO.owner_name`** включён (PRD 56 «под своим именем»): `owner` гидрируется JOIN FETCH-цепочкой в репозитории, дополнительных запросов нет. Аналогичное поле для `LikeDTO` не добавлялось (нужно будет для UI лайков — кандидат к fwd-8/5.5).
+- **`getById(string): ?Comment`** — без `CommentNotFoundException`: `null` → 404 в контроллере (конвенция `LikeService`). Расхождение с `ItemService::getById()` (тот бросает `ItemNotFoundException`) зафиксировано осознанно: сосуществуют две конвенции — «бросить» и «вернуть null»; для новых сервисов берём null-вариант.
+- **`changeContent()` возвращает `Comment`**; при нормализованно равном контенте сервис возвращает комментарий **без** `save`/`flush` (доменный `changeContent()` — no-op; сервисный guard нужен, чтобы не делать пустой flush управляемой сущности). Guard в сервисе дублирует доменный осознанно.
+- **Owner-чтения принимают `OwnerId`** (`listByOwner`, `countByOwner`) — симметрия с `ItemId`; конверсию `User → OwnerId` делает контроллер 5.5 (как `CollectionController`). `create(User, Item, string)` принимает `User`, т.к. он нужен `Comment::create`. `listByOwner`/`countByOwner` оставлены, потому что планируется экран «мои комментарии» (PRD 20).
+- **Транзакции:** один агрегат на мутацию → `save`/`remove` + `uow->flush()`, без `transactional()`.
+- **Валидация контента:** `CommentContent::fromString` бросает `\InvalidArgumentException` (пусто / >3000). **Для 5.5 зафиксировано:** невалидный контент → **422**, битый id → 400/404. Оба случая бросают один и тот же тип `\InvalidArgumentException`, поэтому в 5.5 **нельзя** копировать blanket-catch `ItemController` (там `InvalidArgumentException` → 404); это отмечено в docblock `CommentService::getById()` и в PRD.
+
+**3-агентное ревью (senior APPROVE, architect APPROVE, tech-lead NEEDS-CHANGES — только по полноте S3, код не менялся):**
+- **Senior finding (принято):** у `listByOwner` не было теста дефолтной пагинации (в отличие от `listByItem`) — добавлен `testListByOwnerUsesDefaultPagination`.
+- **Architect (принято замечанием):** для списочных чтений `findByItemId`/`findByOwnerId` JOIN-цепочка `item → collection → collectionOwner` избыточна (DTO читает только owner id/name + item id) — два лишних to-one join на строку; N+1 нет (limit 50), оптимизация отнесена к fwd-8 (там уже зафиксирован приём «проекция для списков» для лайков). `withAll` сохранён для `findById`.
+- **Tech-lead (принято):** S2/S3 полнота — коммит кода, запись в AssumptionLog, строка `CommentService` в ARCHITECTURE, статус Roadmap/прогресс, чекбоксы PRD; формулировка PRD про порядок «ревью до commit/push» поправлена.
+- **Бюджет:** S1 — 52 source-строки, S2 — 129 source; оба ≤150 (тесты считаются отдельно). Превышения нет (в отличие от 5.2/5.3).
+
+**Ревью OpenRabbit (PR #63, вердикт `looks good to me`), 2 находки:**
+- **Принято как замечание (architect-находка дублирована ботом):** для списочных чтений (`findByItemId`/`findByOwnerId`) полная JOIN-цепочка `item → collection → collectionOwner` избыточна — DTO читает только `owner_name` и `item_id`. Оставлено осознанно: цепочка нужна `findById` (авторизация «автор или админ» в 5.5/7.6 требует владельца коллекции айтема), а единый хелпер `withAll` гарантирует инвариант «любой прочитанный комментарий полностью гидрирован». Стоимость — 2 лишних to-one join на строку при `limit ≤ 50` (не N+1); оптимизация отнесена к fwd-8.
+- **Отклонено:** «добавить debug-log/событие на no-op ветку `changeContent`» — no-op означает, что запрошенное состояние уже существует: мутации не было, строки не менялись, доменный `changeContent()` — no-op по проекту. Логгер/событие в Application-слое связал бы его с инфраструктурой, тогда как сервисы проекта свободны от side effects кроме `save`/`remove` + `flush`. Аудит/логирование запросов — уровень HTTP (5.5) или event-subscriber.
+
+**Проверено:** `CommentServiceTest` 16/16 + `CommentDTOTest` 5/5; `composer ci:all` — 550 tests, 1321 assertions, exit 0.
