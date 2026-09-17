@@ -89,8 +89,9 @@ abstract class AbstractApiController extends BaseAbstractController
     }
 
     /**
-     * Authorization rule shared by item and social mutations: the owner of the
-     * resource or an administrator may manage it.
+     * Authorization rule for item and collection mutations: the owner of the
+     * resource or an administrator may manage it. Social content moderation is
+     * handled by `App\Infrastructure\Security\Voter\SocialContentVoter` instead.
      */
     protected function canManage(User $user, User $owner): bool
     {

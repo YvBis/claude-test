@@ -220,6 +220,10 @@ final class LikeControllerTest extends WebTestCase
         $this->client->request('DELETE', '/api/likes/'.$likeId, [], [], $this->authHeaders($owner['token']));
 
         $this->assertResponseStatusCodeSame(204);
+
+        $this->client->request('DELETE', '/api/likes/'.$likeId, [], [], $this->authHeaders($owner['token']));
+
+        $this->assertResponseStatusCodeSame(404);
     }
 
     public function testDeleteForeignLikeReturns403(): void
@@ -237,6 +241,10 @@ final class LikeControllerTest extends WebTestCase
         $this->client->request('DELETE', '/api/likes/'.$likeId, [], [], $this->authHeaders($foreign['token']));
 
         $this->assertResponseStatusCodeSame(403);
+        $this->assertSame(
+            ['error' => 'Forbidden', 'message' => 'You do not have permission to delete this like'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
+        );
     }
 
     public function testAdminCanDeleteForeignLike(): void
