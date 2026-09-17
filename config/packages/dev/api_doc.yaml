@@ -46,6 +46,35 @@ nelmio_api_doc:
                     properties:
                         id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
                         name: { type: string, example: 'Books' }
+                ItemDetail:
+                    allOf:
+                        - $ref: '#/components/schemas/Item'
+                        - type: object
+                          required: [likes_count, comments_count, liked_by_me]
+                          properties:
+                              likes_count: { type: integer, example: 3 }
+                              comments_count: { type: integer, example: 2 }
+                              liked_by_me: { type: boolean, example: false }
+                Like:
+                    type: object
+                    required: [id, owner_id, owner_name, item_id, created_at]
+                    properties:
+                        id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        owner_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        owner_name: { type: string, example: 'John Doe' }
+                        item_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        created_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
+                Comment:
+                    type: object
+                    required: [id, owner_id, owner_name, item_id, content, created_at, updated_at]
+                    properties:
+                        id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        owner_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        owner_name: { type: string, example: 'John Doe' }
+                        item_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        content: { type: string, maxLength: 3000, example: 'Great read! ## Notes' }
+                        created_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
+                        updated_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
         servers:
             - url: 'http://localhost:8000'
               description: 'Development server'

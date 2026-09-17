@@ -120,7 +120,7 @@ final class CollectionController extends AbstractApiController
         path: '/api/collections/{id}',
         security: [['Bearer' => []]],
         summary: 'Get a collection by ID',
-        description: 'Returns a single collection if it belongs to the authenticated user.',
+        description: 'Returns a single collection. Any authenticated user may read it.',
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -161,17 +161,6 @@ final class CollectionController extends AbstractApiController
                 )
             ),
             new OA\Response(
-                response: 403,
-                description: 'Forbidden',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Forbidden'),
-                        new OA\Property(property: 'message', type: 'string', example: 'You do not have permission to access this collection'),
-                    ]
-                )
-            ),
-            new OA\Response(
                 response: 404,
                 description: 'Collection not found',
                 content: new OA\JsonContent(
@@ -200,14 +189,11 @@ final class CollectionController extends AbstractApiController
                 'error' => 'Not Found',
                 'message' => $collectionNotFoundException->getMessage(),
             ], Response::HTTP_NOT_FOUND);
-        }
-
-        // Authorization: only owner can view
-        if ($collection->getOwner()->getId()->toString() !== $user->getId()->toString()) {
+        } catch (\InvalidArgumentException $invalidArgumentException) {
             return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to access this collection',
-            ], Response::HTTP_FORBIDDEN);
+                'error' => 'Not Found',
+                'message' => $invalidArgumentException->getMessage(),
+            ], Response::HTTP_NOT_FOUND);
         }
 
         return new JsonResponse(
@@ -306,7 +292,7 @@ final class CollectionController extends AbstractApiController
 
         $dtos = $collectionService->toDTOList($collections);
 
-        return new JsonResponse($dtos, Response::HTTP_OK);
+        return new JsonResponse($this->toArrayPayload($dtos), Response::HTTP_OK);
     }
 
     #[Route('/api/collections/{id}', name: 'api_collection_update', methods: ['PATCH'])]
