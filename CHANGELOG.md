@@ -1,5 +1,30 @@
 # Changelog
 
+## Этап 5 — Социальное (core завершён 2026-09-17; закрытие этапа отложено: 5.10 Voter, smoke test, периодический review)
+
+### Фичи
+- **Like domain** (5.1): сущность с UNIQUE `(owner_id, item_id)`, `LikeId`, каскадные FK, индекс `idx_like_item`.
+- **Comment domain** (5.2): сущность с Markdown-контентом 1..3000 (`CommentContent`, переносы строк сохраняются), правка с no-op при нормализованно равном контенте, композитные индексы под сортировку.
+- **LikeService** (5.3): `like`/`unlike` идемпотентны, `toggle`, `isLikedBy`, `countByItem`, `listByItem`, админский `removeLike`.
+- **CommentService** (5.4): `create`/`changeContent`/`delete`, списки по айтему и по владельцу, счётчики, `CommentDTO.owner_name`.
+- **Likes & comments API** (5.5): 9 эндпоинтов — лайки (`POST`/`DELETE`/`GET /api/items/{id}/likes`, `DELETE /api/likes/{id}`), комментарии (`POST`/`GET /api/items/{id}/comments`, `GET /api/comments`, `PATCH`/`DELETE /api/comments/{id}`); автор или админ на модерации; карта ошибок id→404 / контент→422 / тело→400.
+- **Like domain tests** (5.6): прямые unit-тесты `LikeId` и `Like` (паритет с `Comment`).
+
+### Изменения поведения
+- **Чтение айтемов и коллекций** открыто любому аутентифицированному пользователю (требование соцфункций); `GET /api/items` остаётся списком своих айтемов.
+- **`GET /api/items/{id}`** отдаёт счётчики `likes_count`, `comments_count` и флаг `liked_by_me` (`ItemDetailDTO`); списки счётчики не отдают во избежание N+1.
+
+### Исправления
+- Латентный 500 в `CollectionController::get` на некорректном UUID коллекции → 404.
+- Списки айтемов и коллекций приведены к единому snake_case/ATOM-контракту (`toArrayPayload()`); ранее сериализовались camelCase-свойства DTO и сырые `DateTimeImmutable`.
+- Некорректный id на путях лайков/комментариев → 404 вместо необработанного исключения (500).
+
+### CI
+- Провайдеры AI-ревью поменяны местами: OpenRouter free — основной, NVIDIA NIM — фолбэк; время ревью сократилось с ~13–15 мин до ~1 мин.
+
+### Тесты
+- +154 теста с Этапа 4 (615 tests суммарно; coverage gate ≥80% зелёный).
+
 ## Этап 4 — Доменная модель: Айтем (завершён 2026-09-15)
 
 ### Фичи
