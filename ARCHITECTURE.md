@@ -143,6 +143,7 @@ Item 1 ──── * Comment
 | `ItemService` | `src/Application/Item/Service/ItemService.php` | CRUD айтемов + списки; слоты через `ItemSlotMapper`, теги через `TagService`; create/update в `uow->transactional()`, delete — remove+flush |
 | `ItemSlotMapper` | `src/Application/Item/Service/ItemSlotMapper.php` | Коэрсия `{type, slot, value}` → слоты Item: date ISO-8601 (Z/милли/микро, UTC-нормализация), number→float, bool, text; `null` очищает слот |
 | `LikeService` | `src/Application/Like/Service/LikeService.php` | Лайки: `like`/`unlike` (идемпотентно), `toggle` (возвращает новое состояние), `isLikedBy`, `countByItem`, `listByItem`, `removeLike` (админский путь), `toDTO`/`toDTOList`; мутации — `save`/`remove` + `uow->flush()` |
+| `CommentService` | `src/Application/Comment/Service/CommentService.php` | Комментарии: `create`, `getById` (`?Comment` → 404), `changeContent` (no-op без flush), `delete`, `listByItem`/`listByOwner` (пагинация), `countByItem`/`countByOwner`, `toDTO`/`toDTOList`; авторизация — на контроллере (5.5) |
 
 **Транзакции:** `UnitOfWorkInterface` (`src/Application/Common/Transaction/`) — `flush()` и `transactional(callable): mixed` (граница транзакции на уровне Application). Реализация `DoctrineUnitOfWork` (`src/Infrastructure/Common/Transaction/`) делегирует `EntityManager::wrapInTransaction`. ItemService create/update обёрнуты в `transactional()`; `getOrCreate` (raw upsert) делит DBAL-соединение EM → атомарность тегов+item; вложенные вызовы безопасны (savepoints).
 
@@ -155,6 +156,7 @@ Item 1 ──── * Comment
 - `ItemSlotDTO` — type, slot (1..`SlotLimits::MAX_SLOTS_PER_TYPE`), value
 - `TagDTO` — id, name
 - `LikeDTO` — id, owner_id, item_id, created_at (ATOM)
+- `CommentDTO` — id, owner_id, owner_name, item_id, content, created_at, updated_at (ATOM)
 
 ## Infrastructure
 
@@ -214,7 +216,7 @@ GitHub Actions
 | 2 | Пользователь | ✅ завершён |
 | 3 | Коллекция | ✅ завершён |
 | 4 | Айтем | ✅ завершён (4.1–4.7) |
-| 5 | Социальное | 🔄 в работе (5.1 Like, 5.2 Comment) |
+| 5 | Социальное | 🔄 в работе (5.1 Like, 5.2 Comment, 5.3 LikeService, 5.4 CommentService) |
 | 6 | Поиск | ⏳ |
 | 7 | Админ | ⏳ |
 | 8 | Тестирование | ⏳ |
