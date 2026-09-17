@@ -104,6 +104,7 @@
 | 5.6 | [ ] Unit-тесты для социальных функций | todo |
 | 5.7 | [review] API-эндпоинт «мои лайки» (`GET /api/likes`) — симметрия с `GET /api/comments`; 5.5 отдала только «мои комментарии» (PRD 20). | todo |
 | 5.8 | [review] `DELETE /api/items/{id}/comments/{commentId}` — вложенный путь для админ-контекста; 5.5 отдала `DELETE /api/comments/{id}`. | todo |
+| 5.9 | [review] Выделить повторяющуюся обработку исключений в `AbstractApiController`: каждый контроллер вручную собирает `JsonResponse` с `{error, message}` для 400/401/403/404/422 (`ItemController`, `CollectionController`, `LikeController`, `CommentController`, `TagController`), плюс `@var User` / `if (!$user instanceof User)` повторяется в каждом действии. Нужны хелперы вида `errorResponse(int $status, string $error, string $message)`, `unauthorized()`, `notFound()`, `forbidden()`, `badRequest()`, `unprocessable()` и `currentUser(): User` (с единым 401). Также рассмотреть единый `try/catch` для `\InvalidArgumentException` (id → 404, контент → 422) и serializer-исключений (400), чтобы карта ошибок 5.5 задавалась один раз. Estimate: 1-2ч | todo |
 
 ## Этап 6: Полнотекстовый поиск
 
