@@ -234,6 +234,34 @@ final class CollectionControllerTest extends WebTestCase
         $this->assertSame('To Fetch', $response['name']);
     }
 
+    public function testGetForeignReturns200(): void
+    {
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+            'name' => 'Foreign Collection',
+            'theme' => 'movies',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(201);
+
+        $created = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $id = $created['id'];
+
+        $foreign = $this->registerUser();
+
+        $this->client->request('GET', '/api/collections/'.$id, [], [], $this->authHeaders($foreign['token']));
+
+        $this->assertResponseStatusCodeSame(200);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame($id, $response['id']);
+        $this->assertSame('Foreign Collection', $response['name']);
+    }
+
+    public function testGetReturns404ForInvalidUuid(): void
+    {
+        $this->client->request('GET', '/api/collections/not-a-uuid', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(404);
+    }
+
     public function testGetReturns404ForMissing(): void
     {
         $missingId = '00000000-0000-0000-0000-000000000000';

@@ -956,6 +956,32 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 
 **Проверено:** `LikeServiceTest` 17/17 (в т.ч. проверка, что `findByOwnerAndItem` вызывается с корректным `OwnerId`/`ItemId`, и `save` — с верным владельцем/айтемом); `composer ci:all` — 528 tests, 1249 assertions, exit 0.
 
+## 2026-09-17 — Task 5.5: API-эндпоинты лайков и комментариев (Этап 5)
+
+**Реализовано:** 9 эндпоинтов — `POST`/`DELETE`/`GET /api/items/{id}/likes` (идемпотентно; POST отдаёт `{likes_count}`), `DELETE /api/likes/{id}` (автор или админ, PRD 118), `POST`/`GET /api/items/{id}/comments`, `GET /api/comments` (свои), `PATCH`/`DELETE /api/comments/{id}` (автор или админ, PRD 117). `LikeController`, `CommentController`, `CommentRequestDTO`, `ItemDetailDTO`, `AbstractApiController::toArrayPayload()`/`canManage()`/`findItemOrNull()`, `LikeDTO.owner_name`, счётчики в `GET /api/items/{id}`, схемы OpenAPI `ItemDetail`/`Like`/`Comment`.
+
+**D1 релаксация чтения:** `ItemController::get`/`listByCollection` и `CollectionController::get` открыты любому аутентифицированному (соцфича бессмысленна без чтения чужого айтема); `GET /api/items` остаётся owner-scoped. Заодно починен латентный 500 `CollectionController::get` на битом UUID (ловился только `CollectionNotFoundException`). Гостевой доступ — по-прежнему fwd-7.
+
+**Счётчики:** только `GET /api/items/{id}` через `ItemDetailDTO` (вариант C, `allOf: [Item]`); списки счётчики не отдают сознательно — иначе N+1 на страницу; batch-агрегация — fwd-8. Счётчики читаются после мутации (сервисы флашат внутри).
+
+**Карта ошибок:** id (битый/несуществующий) → 404; контент (пусто/>3000) → 422; тело (битый JSON) → 400. Отсутствующий `content` → дефолт `''` в `CommentRequestDTO` → домен → 422 (не TypeError). Тонкий DTO без `#[Assert]` — сознательно: `Assert` дал бы 400 вместо мандатного 422.
+
+**Ревью (3 агента — senior REVISE, architect REVISE, tech-lead REVISE), всё принято:**
+- 🔴 malformed id на like/comment-путях давал 500 (uncaught `\InvalidArgumentException`) → `findCommentOrNull`/`findLikeOrNull` + 6 функциональных тестов на `not-a-uuid`.
+- 🔴 списки Item/Collection сериализовали DTO-объекты (camelCase, сырой `DateTimeImmutable`) → мигрированы на `toArrayPayload()`; форма ответа теперь едина.
+- 🟡 `CommentRequestDTO` переехал `Infrastructure\Api\Controller` → `Application\Comment\DTO` (конвенция слоя).
+- 🟡 `canManage`/`findItemOrNull` подняты в `AbstractApiController` (были три копии); `ItemController::canAccess` переименован в `canManage`.
+- 🟡 PRD-карта ошибок противоречила коду (`{}` → 422, а не 400) — исправлена таблица.
+- 🟡 Roadmap 7.6 пере-скоуплен: правка/удаление контента сделаны в 5.5, за 7.6 остаётся аудит-список и админ-UI.
+- Тестовые пробелы закрыты: границы 3000/3001, пагинация like/comment, `liked_by_me=false` для чужого пользователя, malformed UUID ×3.
+- **Отклонено:** вынесение авторизации в Symfony Voter сейчас — решение зафиксировано как рефакторинг Этапа 7 (дублирование `canManage` по контроллерам осознанно на MVP).
+
+**Бюджет:** S1 ~45, S2 (LikeController) 224 строки, S3 (CommentController + DTO) ~367 — S2/S3 превысили лимит 150 source-строк (S3 >2×). Оценка PRD была неверной; декомпозиция не пересматривалась, т.к. обе подзадачи уложились в изначальный бюджет 2ч и резались по когезии (like-контроллер / comment-контроллер + карта ошибок).
+
+**Проверено:** 48 новых/обновлённых тестов; `composer ci:all` — 601 test, 1645 assertions, exit 0; OpenAPI перегенерирован (5 новых путей + 3 схемы).
+
+**Замечено:** `LikeService::like()` — find-then-insert, гонка даёт `UniqueConstraintViolation` → 500 на HTTP-слое (5.3-заметка); 5.5 — первая HTTP-поверхность, кандидат на атомарный upsert.
+
 ## 2026-09-16 — Task 5.4: Сервис комментариев (Этап 5)
 
 **Реализовано (Application-слой над доменом `Comment` из 5.2):** `CommentDTO` (`id`, `owner_id`, `owner_name`, `item_id`, `content`, `created_at`/`updated_at` ATOM; `implements ArrayableInterface`; snake_case; точная `array{...}`-аннотация) + `CommentService` (`create`, `getById`, `changeContent`, `delete`, `listByItem`, `listByOwner`, `countByItem`, `countByOwner`, `toDTO`, `toDTOList`); 21 тест (16 сервис + 5 DTO) + регистрация `CommentDTO` в контрактном `ArrayableInterfaceTest`.

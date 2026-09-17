@@ -155,8 +155,10 @@ Item 1 ──── * Comment
 - `ItemDTO` — id, name, tags `array<TagDTO>`, слоты только заполненные, collection_id, timestamps (ATOM)
 - `ItemSlotDTO` — type, slot (1..`SlotLimits::MAX_SLOTS_PER_TYPE`), value
 - `TagDTO` — id, name
-- `LikeDTO` — id, owner_id, item_id, created_at (ATOM)
+- `LikeDTO` — id, owner_id, owner_name, item_id, created_at (ATOM)
 - `CommentDTO` — id, owner_id, owner_name, item_id, content, created_at, updated_at (ATOM)
+- `CommentRequestDTO` — content (Application/Comment/DTO; тонкий, валидация в `CommentContent` → 422) 
+- `ItemDetailDTO` — `ItemDTO::toArray()` + likes_count, comments_count, liked_by_me (только `GET /api/items/{id}`)
 
 ## Infrastructure
 
@@ -165,8 +167,11 @@ Item 1 ──── * Comment
 | `LoginController` | `src/Infrastructure/Api/Controller/LoginController.php` | POST /api/login |
 | `LogoutController` | `src/Infrastructure/Api/Controller/LogoutController.php` | POST /api/logout |
 | `RegistrationController` | `src/Infrastructure/Api/Controller/RegistrationController.php` | POST /api/register |
-| `CollectionController` | `src/Infrastructure/Api/Controller/CollectionController.php` | CRUD коллекций; `GET /api/collections` с `?owner={uuid}` (чужие коллекции, двоичный UUID через `IDENTITY`) |
-| `ItemController` | `src/Infrastructure/Api/Controller/ItemController.php` | CRUD айтемов + списки: `POST /api/collections/{id}/items`, `GET /api/collections/{id}/items` и `GET /api/items` (свои) с фильтрами `?name` (LIKE, ci) и `?tags[]` (AND), `GET/PATCH/DELETE /api/items/{id}`. Доступ владелец+админ (`User::getRole()->isAdmin()`); слоты/теги `\InvalidArgumentException` → 400 |
+| `CollectionController` | `src/Infrastructure/Api/Controller/CollectionController.php` | CRUD коллекций; `GET /api/collections` с `?owner={uuid}` (чужие коллекции, двоичный UUID через `IDENTITY`); `GET /api/collections/{id}` — любой аутентифицированный (D1) |
+| `ItemController` | `src/Infrastructure/Api/Controller/ItemController.php` | CRUD айтемов + списки: `POST /api/collections/{id}/items`, `GET /api/collections/{id}/items` и `GET /api/items` (свои) с фильтрами `?name` (LIKE, ci) и `?tags[]` (AND), `GET/PATCH/DELETE /api/items/{id}`. Чтение — любой аутентифицированный (D1 Этапа 5); запись — владелец+админ; слоты/теги `\InvalidArgumentException` → 400. `GET /api/items/{id}` отдаёт `ItemDetailDTO` (+`likes_count`/`comments_count`/`liked_by_me`) |
+| `TagController` | `src/Infrastructure/Api/Controller/TagController.php` | `GET /api/tags` — список/поиск тегов |
+| `LikeController` | `src/Infrastructure/Api/Controller/LikeController.php` | Лайки: `POST`/`DELETE /api/items/{id}/likes` (идемпотентно, `{likes_count}`), `GET /api/items/{id}/likes` (пагинация), `DELETE /api/likes/{id}` — автор или админ (PRD 118) |
+| `CommentController` | `src/Infrastructure/Api/Controller/CommentController.php` | Комментарии: `POST`/`GET /api/items/{id}/comments`, `GET /api/comments` (свои), `PATCH`/`DELETE /api/comments/{id}` — автор или админ (PRD 117). Карта ошибок: id → 404, контент → 422, тело → 400 (`CommentRequestDTO` в Application) |
 | `DoctrineUserRepository` | `src/Infrastructure/User/Repository/DoctrineUserRepository.php` | Реализация репозитория User |
 | `DoctrineCollectionFieldRepository` | `src/Infrastructure/Collection/Repository/DoctrineCollectionFieldRepository.php` | Реализация репозитория CollectionField |
 | `DoctrineTagRepository` | `src/Infrastructure/Tag/Repository/DoctrineTagRepository.php` | Реализация репозитория Tag; `getOrCreate` — атомарный MySQL upsert; `search` — подстрока `LIKE` (ci, wildcards-escaped), `ORDER BY name` |
@@ -216,7 +221,7 @@ GitHub Actions
 | 2 | Пользователь | ✅ завершён |
 | 3 | Коллекция | ✅ завершён |
 | 4 | Айтем | ✅ завершён (4.1–4.7) |
-| 5 | Социальное | 🔄 в работе (5.1 Like, 5.2 Comment, 5.3 LikeService, 5.4 CommentService) |
+| 5 | Социальное | 🔄 в работе (5.1–5.4 done, 5.5 API-эндпоинты) |
 | 6 | Поиск | ⏳ |
 | 7 | Админ | ⏳ |
 | 8 | Тестирование | ⏳ |

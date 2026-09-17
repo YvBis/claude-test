@@ -220,14 +220,18 @@ final class ItemControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(401);
     }
 
-    public function testListByCollectionForeignReturns403(): void
+    public function testListByCollectionForeignReturns200(): void
     {
         $collectionId = $this->createCollection();
+        $this->createItem($collectionId, ['name' => 'Brave New World']);
         $foreign = $this->registerUser();
 
         $this->client->request('GET', '/api/collections/'.$collectionId.'/items', [], [], $this->authHeaders($foreign['token']));
 
-        $this->assertResponseStatusCodeSame(403);
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertCount(1, $data);
+        $this->assertSame('Brave New World', $data[0]['name']);
     }
 
     public function testListByCollectionFiltersByName(): void
@@ -331,9 +335,52 @@ final class ItemControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(200);
         $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
         $this->assertSame('1984', $data['name']);
+        $this->assertSame(0, $data['likes_count']);
+        $this->assertSame(0, $data['comments_count']);
+        $this->assertFalse($data['liked_by_me']);
     }
 
-    public function testGetForeignReturns403(): void
+    public function testGetReturnsCounters(): void
+    {
+        $collectionId = $this->createCollection();
+        $itemId = $this->createItem($collectionId);
+
+        $this->client->request('POST', '/api/items/'.$itemId.'/likes', [], [], $this->authHeaders());
+        $this->assertResponseStatusCodeSame(200);
+
+        $this->client->request('POST', '/api/items/'.$itemId.'/comments', [], [], $this->authHeaders(), \json_encode([
+            'content' => 'note',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(201);
+
+        $this->client->request('GET', '/api/items/'.$itemId, [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame(1, $data['likes_count']);
+        $this->assertSame(1, $data['comments_count']);
+        $this->assertTrue($data['liked_by_me']);
+    }
+
+    public function testGetForeignItemReportsNotLikedByMe(): void
+    {
+        $collectionId = $this->createCollection();
+        $itemId = $this->createItem($collectionId);
+
+        $this->client->request('POST', '/api/items/'.$itemId.'/likes', [], [], $this->authHeaders());
+        $this->assertResponseStatusCodeSame(200);
+
+        $foreign = $this->registerUser();
+
+        $this->client->request('GET', '/api/items/'.$itemId, [], [], $this->authHeaders($foreign['token']));
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame(1, $data['likes_count']);
+        $this->assertFalse($data['liked_by_me']);
+    }
+
+    public function testGetForeignReturns200(): void
     {
         $collectionId = $this->createCollection();
         $itemId = $this->createItem($collectionId);
@@ -341,7 +388,9 @@ final class ItemControllerTest extends WebTestCase
 
         $this->client->request('GET', '/api/items/'.$itemId, [], [], $this->authHeaders($foreign['token']));
 
-        $this->assertResponseStatusCodeSame(403);
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('1984', $data['name']);
     }
 
     public function testGetNonExistentReturns404(): void
@@ -441,7 +490,7 @@ final class ItemControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(403);
     }
 
-    public function testAdminCanAccessForeignItem(): void
+    public function testAdminSeesForeignItem(): void
     {
         $collectionId = $this->createCollection();
         $itemId = $this->createItem($collectionId);

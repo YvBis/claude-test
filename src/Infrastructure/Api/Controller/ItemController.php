@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace App\Infrastructure\Api\Controller;
 
 use App\Application\Collection\Service\CollectionService;
+use App\Application\Comment\Service\CommentService;
 use App\Application\Exception\ValidationException;
 use App\Application\Item\DTO\CreateItemDTO;
+use App\Application\Item\DTO\ItemDetailDTO;
 use App\Application\Item\DTO\UpdateItemDTO;
 use App\Application\Item\Service\ItemService;
+use App\Application\Like\Service\LikeService;
 use App\Domain\Collection\Exception\CollectionNotFoundException;
 use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Item\Exception\ItemNotFoundException;
@@ -28,7 +31,7 @@ final class ItemController extends AbstractApiController
         path: '/api/collections/{collectionId}/items',
         security: [['Bearer' => []]],
         summary: 'List items of a collection',
-        description: 'Returns a paginated list of items of a collection. Only the collection owner or an admin may read it. Optional filters: name (substring) and tags (AND semantics).',
+        description: 'Returns a paginated list of items of a collection. Any authenticated user may read it. Optional filters: name (substring) and tags (AND semantics).',
         parameters: [
             new OA\Parameter(name: 'collectionId', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
@@ -45,7 +48,6 @@ final class ItemController extends AbstractApiController
             ),
             new OA\Response(response: 400, description: 'Bad request (invalid filter)'),
             new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 403, description: 'Forbidden'),
             new OA\Response(response: 404, description: 'Collection not found'),
         ],
     )]
@@ -72,13 +74,6 @@ final class ItemController extends AbstractApiController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        if (!$this->canAccess($user, $collection->getOwner())) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to access this collection',
-            ], Response::HTTP_FORBIDDEN);
-        }
-
         [$name, $tagNames] = $this->parseFilters($request);
 
         try {
@@ -91,7 +86,7 @@ final class ItemController extends AbstractApiController
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        return new JsonResponse($itemService->toDTOList($items), Response::HTTP_OK);
+        return new JsonResponse($this->toArrayPayload($itemService->toDTOList($items)), Response::HTTP_OK);
     }
 
     #[Route('/api/items', name: 'api_item_list_own', methods: ['GET'])]
@@ -144,7 +139,7 @@ final class ItemController extends AbstractApiController
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        return new JsonResponse($itemService->toDTOList($items), Response::HTTP_OK);
+        return new JsonResponse($this->toArrayPayload($itemService->toDTOList($items)), Response::HTTP_OK);
     }
 
     #[Route('/api/items/{id}', name: 'api_item_get', methods: ['GET'])]
@@ -152,7 +147,7 @@ final class ItemController extends AbstractApiController
         path: '/api/items/{id}',
         security: [['Bearer' => []]],
         summary: 'Get an item by ID',
-        description: 'Returns a single item if it belongs to a collection of the authenticated user, or the user is an admin.',
+        description: 'Returns a single item. Any authenticated user may read it.',
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
         ],
@@ -161,15 +156,18 @@ final class ItemController extends AbstractApiController
             new OA\Response(
                 response: 200,
                 description: 'Item retrieved successfully',
-                content: new OA\JsonContent(ref: '#/components/schemas/Item'),
+                content: new OA\JsonContent(ref: '#/components/schemas/ItemDetail'),
             ),
             new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 403, description: 'Forbidden'),
             new OA\Response(response: 404, description: 'Item not found'),
         ],
     )]
-    public function get(string $id, ItemService $itemService): JsonResponse
-    {
+    public function get(
+        string $id,
+        ItemService $itemService,
+        LikeService $likeService,
+        CommentService $commentService,
+    ): JsonResponse {
         /** @var User $user */
         $user = $this->getUser();
 
@@ -191,14 +189,14 @@ final class ItemController extends AbstractApiController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        if (!$this->canAccess($user, $item->getCollection()->getOwner())) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to access this item',
-            ], Response::HTTP_FORBIDDEN);
-        }
+        $detail = ItemDetailDTO::fromItem(
+            $item,
+            $likeService->countByItem($item->getId()),
+            $commentService->countByItem($item->getId()),
+            $likeService->isLikedBy($user, $item),
+        );
 
-        return new JsonResponse($itemService->toDTO($item)->toArray(), Response::HTTP_OK);
+        return new JsonResponse($detail->toArray(), Response::HTTP_OK);
     }
 
     #[Route('/api/collections/{collectionId}/items', name: 'api_item_create', methods: ['POST'])]
@@ -278,7 +276,7 @@ final class ItemController extends AbstractApiController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        if (!$this->canAccess($user, $collection->getOwner())) {
+        if (!$this->canManage($user, $collection->getOwner())) {
             return new JsonResponse([
                 'error' => 'Forbidden',
                 'message' => 'You do not have permission to create items in this collection',
@@ -360,7 +358,7 @@ final class ItemController extends AbstractApiController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        if (!$this->canAccess($user, $item->getCollection()->getOwner())) {
+        if (!$this->canManage($user, $item->getCollection()->getOwner())) {
             return new JsonResponse([
                 'error' => 'Forbidden',
                 'message' => 'You do not have permission to update this item',
@@ -426,7 +424,7 @@ final class ItemController extends AbstractApiController
             ], Response::HTTP_NOT_FOUND);
         }
 
-        if (!$this->canAccess($user, $item->getCollection()->getOwner())) {
+        if (!$this->canManage($user, $item->getCollection()->getOwner())) {
             return new JsonResponse([
                 'error' => 'Forbidden',
                 'message' => 'You do not have permission to delete this item',
@@ -436,11 +434,6 @@ final class ItemController extends AbstractApiController
         $itemService->delete($item);
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
-    }
-
-    private function canAccess(User $user, User $owner): bool
-    {
-        return $user->getRole()->isAdmin() || $user->getId()->toString() === $owner->getId()->toString();
     }
 
     /**

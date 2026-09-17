@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Api\Controller;
 
+use App\Application\Common\DTO\ArrayableInterface;
 use App\Application\Exception\ValidationException;
+use App\Application\Item\Service\ItemService;
+use App\Domain\Item\Entity\Item;
+use App\Domain\Item\Exception\ItemNotFoundException;
+use App\Domain\User\Entity\User;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController as BaseAbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -61,6 +66,48 @@ abstract class AbstractApiController extends BaseAbstractController
             'error' => 'Validation failed',
             'details' => $errors,
         ], Response::HTTP_BAD_REQUEST);
+    }
+
+    /**
+     * Serialize a list of ArrayableInterface DTOs to plain snake_case arrays.
+     *
+     * JsonResponse encodes objects with json_encode, which would leak the DTO
+     * property names (camelCase) and raw \DateTimeImmutable objects instead of
+     * the documented snake_case/ATOM contract. Routing the list through
+     * toArray() keeps list payloads identical in shape to single-resource ones.
+     *
+     * @param array<ArrayableInterface> $dtos
+     *
+     * @return array<array<string, mixed>>
+     */
+    protected function toArrayPayload(array $dtos): array
+    {
+        return \array_map(
+            static fn (ArrayableInterface $dto): array => $dto->toArray(),
+            $dtos,
+        );
+    }
+
+    /**
+     * Authorization rule shared by item and social mutations: the owner of the
+     * resource or an administrator may manage it.
+     */
+    protected function canManage(User $user, User $owner): bool
+    {
+        return $user->getRole()->isAdmin() || $user->getId()->toString() === $owner->getId()->toString();
+    }
+
+    /**
+     * Load an item by raw id, mapping both a malformed UUID and a missing item
+     * to null so the caller can answer 404.
+     */
+    protected function findItemOrNull(string $itemId, ItemService $itemService): ?Item
+    {
+        try {
+            return $itemService->getById($itemId);
+        } catch (ItemNotFoundException|\InvalidArgumentException) {
+            return null;
+        }
     }
 
     /**
