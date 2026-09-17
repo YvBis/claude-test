@@ -101,10 +101,11 @@
 | 5.3 | [x] Сервис лайков — добавление, удаление, переключение | done (PRD/5.3-like-service.md) |
 | 5.4 | [x] Сервис комментариев — создание, редактирование, удаление | done (PRD/5.4-comment-service.md) |
 | 5.5 | [x] API-эндпоинты лайков и комментариев | done (PRD/5.5-social-api.md) |
-| 5.6 | [ ] Unit-тесты для социальных функций | todo |
+| 5.6 | [x] Unit-тесты домена Like (tests-only) | done (PRD/5.6-social-tests.md) |
 | 5.7 | [review] API-эндпоинт «мои лайки» (`GET /api/likes`) — симметрия с `GET /api/comments`; 5.5 отдала только «мои комментарии» (PRD 20). | todo |
-| 5.8 | [review] `DELETE /api/items/{id}/comments/{commentId}` — вложенный путь для админ-контекста; 5.5 отдала `DELETE /api/comments/{id}`. | todo |
-| 5.9 | [review] Выделить повторяющуюся обработку исключений в `AbstractApiController`: каждый контроллер вручную собирает `JsonResponse` с `{error, message}` для 400/401/403/404/422 (`ItemController`, `CollectionController`, `LikeController`, `CommentController`, `TagController`), плюс `@var User` / `if (!$user instanceof User)` повторяется в каждом действии. Нужны хелперы вида `errorResponse(int $status, string $error, string $message)`, `unauthorized()`, `notFound()`, `forbidden()`, `badRequest()`, `unprocessable()` и `currentUser(): User` (с единым 401). Также рассмотреть единый `try/catch` для `\InvalidArgumentException` (id → 404, контент → 422) и serializer-исключений (400), чтобы карта ошибок 5.5 задавалась один раз. Estimate: 1-2ч | todo |
+| 5.8 | [review] `DELETE /api/items/{id}/comments/{commentId}` — вложенный путь для админ-контекста; 5.5 отдала `DELETE /api/comments/{id}`. Зависит от 5.10 (та же область `canManage` в контроллерах). | todo |
+| 5.9 | [review] Выделить повторяющуюся обработку исключений в `AbstractApiController`: каждый контроллер вручную собирает `JsonResponse` с `{error, message}` для 400/401/403/404/422 (`ItemController`, `CollectionController`, `LikeController`, `CommentController`, `TagController`), плюс `@var User` / `if (!$user instanceof User)` повторяется в каждом действии. Нужны хелперы вида `errorResponse(int $status, string $error, string $message)`, `unauthorized()`, `notFound()`, `forbidden()`, `badRequest()`, `unprocessable()` и `currentUser(): User` (с единым 401). Также рассмотреть единый `try/catch` для `\InvalidArgumentException` (id → 404, контент → 422) и serializer-исключений (400), чтобы карта ошибок 5.5 задавалась один раз. После 5.10 сужается: `canManage` у `ItemController` остаётся (осознанный split-brain). Зависит от 5.10. Estimate: 1-2ч | todo |
+| 5.10 | [ ] Social moderation Voter: `SocialContentVoter` (атрибуты EDIT/DELETE, admin-OR-owner) для `Like`/`Comment`; перевод `LikeController::delete`, `CommentController::update`/`delete` с `canManage` на голосование; ручной JSON-403 сохраняется (нет `AccessDeniedException`→JSON listener); unit-тест матрицы {автор, чужой, чужой-админ, гость} × {EDIT, DELETE} × {Comment, Like}; `debug:security`/`lint:container` в проверках. Depends: 5.6. Estimate: 2ч | todo |
 
 ## Этап 6: Полнотекстовый поиск
 
@@ -152,12 +153,14 @@
 - **Этап 2 (Пользователь)**: 5/5 задач выполнено
 - **Этап 3 (Коллекция)**: 6/6 задач выполнено
 - **Этап 4 (Айтем)**: 7/7 задач выполнено
-- **Этап 5 (Социальное)**: 5/6 задач выполнено
+- **Этап 5 (Социальное)**: 6/7 core задач выполнено (5.1–5.6); этап не закрыт: 5.10 (Voter), smoke test, периодический review. Review-бэклог 5.7–5.9 открыт
 - **Этап 6 (Поиск)**: 0/4 задач выполнено
 - **Этап 7 (Админ)**: 0/7 задач выполнено
 - **Этап 8 (Тестирование)**: 0/6 задач выполнено
 
-**Итого**: 22/46 задач выполнено
+**Итого**: 30/48 задач выполнено
+
+> Правило счёта: в знаменатель этапа входят только строки таблицы этапа (`[ ]`/`[x]`). Строки `[review]` и `[future]` исключаются из счётчиков этапа и ведутся отдельной строкой бэклога. `Итого` — арифметическая сумма строк этапов, пересчитывается при каждом изменении, никогда не инкрементируется от прошлого значения.
 
 ---
 
