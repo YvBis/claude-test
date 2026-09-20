@@ -114,6 +114,10 @@
 | 5.7 | [review] API-эндпоинт «мои лайки» (`GET /api/likes`) — симметрия с `GET /api/comments`; 5.5 отдала только «мои комментарии» (PRD 20). | todo |
 | 5.8 | [review] `DELETE /api/items/{id}/comments/{commentId}` — вложенный путь для админ-контекста; 5.5 отдала `DELETE /api/comments/{id}`. Зависит от 5.10 (та же область `canManage` в контроллерах). | todo |
 | 5.9 | [review] Выделить повторяющуюся обработку исключений в `AbstractApiController`: каждый контроллер вручную собирает `JsonResponse` с `{error, message}` для 400/401/403/404/422 (`ItemController`, `CollectionController`, `LikeController`, `CommentController`, `TagController`), плюс `@var User` / `if (!$user instanceof User)` повторяется в каждом действии. Нужны хелперы вида `errorResponse(int $status, string $error, string $message)`, `unauthorized()`, `notFound()`, `forbidden()`, `badRequest()`, `unprocessable()` и `currentUser(): User` (с единым 401). Также рассмотреть единый `try/catch` для `\InvalidArgumentException` (id → 404, контент → 422) и serializer-исключений (400), чтобы карта ошибок 5.5 задавалась один раз. После 5.10 сужается: `canManage` у `ItemController` остаётся (осознанный split-brain). Зависит от 5.10. Estimate: 1-2ч | todo |
+| 5.11 | [review] CI: Symfony-aware диагностика `symfony-lsp check` (symfony/language-tools v0.21.0) — `scripts/symfony-lsp-check.sh` (закреплённая версия + SHA256), composer-скрипт `ci:symfony-lsp`, пилотный non-blocking CI-job `symfony-diagnostics` (`--source-only --format=github`), `.symfony-lsp.json` с `excludePaths: [config/reference.php]` (фикс exit 12), guard-тест. | done (PRD/5.11-symfony-lsp-check.md) |
+| 5.12 | [review] Убрать устаревший ключ `lexik_jwt_authentication.encoder.crypto_engine` (`config/packages/lexik_jwt_authentication.yaml:8`) — найдено `symfony-lsp check` (warning `config.deprecated_key`). | todo |
+| 5.13 | [review] Перевести `symfony-lsp` в CI на runtime-режим (маршруты, DI-контейнер, Doctrine-метаданные): добавить MySQL/Redis-сервисы и генерацию JWT-ключей (образец — job `unit-tests` + `setup-ci`); после недели зелёного пилота сделать job блокирующим. Локально проверено: runtime `exit 0`, `complete: true`. | todo |
+| 5.14 | [review] Сделать CI-job `symfony-diagnostics` блокирующим: убрать `continue-on-error`, добавить в `needs` у `ci-summary` — решение по итогам недели пилота (~2026-09-27, не дожидаясь 5.13). Заодно: закрепить ожидаемый SHA256 бинарника константой в репо (сейчас `SHA256SUMS` тянется из того же релиза — TOFU-доверие) и завести регулярную проверку версии `symfony-lsp` (0.x-релизы частые, Dependabot скачиваемый бинарник не видит). | todo |
 
 ## Этап 6: Полнотекстовый поиск
 
@@ -161,7 +165,7 @@
 - **Этап 2 (Пользователь)**: 5/5 задач выполнено
 - **Этап 3 (Коллекция)**: 6/6 задач выполнено
 - **Этап 4 (Айтем)**: 7/7 задач выполнено
-- **Этап 5 (Социальное)**: 7/7 core задач выполнено (5.1–5.6, 5.10); этап не закрыт: smoke test и периодический review. Review-бэклог 5.7–5.9 открыт
+- **Этап 5 (Социальное)**: 7/7 core задач выполнено (5.1–5.6, 5.10); этап не закрыт: smoke test и периодический review. Review-бэклог 5.7–5.9, 5.12–5.14 открыт (5.11 закрыта)
 - **Этап 6 (Поиск)**: 0/4 задач выполнено
 - **Этап 7 (Админ)**: 0/7 задач выполнено
 - **Этап 8 (Тестирование)**: 0/6 задач выполнено

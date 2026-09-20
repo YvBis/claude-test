@@ -120,6 +120,19 @@ docker compose exec app composer ci:all       # все проверки + тес
 docker compose exec app composer ci:static:quality  # только статический анализ
 ```
 
+Symfony-aware диагностика (маршруты, DI-контейнер, Twig, переводы, конфиги бандлов) — внешний
+checker [`symfony-lsp`](https://github.com/symfony/language-tools) (`symfony/language-tools`):
+```bash
+docker compose exec app composer ci:symfony-lsp                    # runtime-анализ (запускает приложение)
+docker compose exec app composer ci:symfony-lsp -- --source-only   # статический анализ, как в CI
+```
+
+> В CI checker работает в **пилотном** режиме: `--source-only` (приложение не запускается), публикует
+> аннотации и не блокирует мерж (`continue-on-error: true` в `.github/workflows/ci.yml`). Скрипт
+> `scripts/symfony-lsp-check.sh` ставит закреплённую версию с проверкой SHA256 в `var/bin/`; версия
+> переопределяется переменной `SYMFONY_LSP_VERSION`. На момент запуска пилота активных находок нет;
+> найденная deprecated-настройка заведена задачей `5.12` в `Roadmap.md`.
+
 ## Smoke tests
 
 После запуска приложения проверьте доступность основных эндпоинтов:

@@ -357,7 +357,7 @@ docker compose exec app composer openapi:generate
 - **Репозитории**: интерфейс в Domain, реализация в Infrastructure
 - **Маркеры слоёв**: `DomainMarker`, `ApplicationMarker`, `InfrastructureMarker`
 - **UUID**: бинарный формат через `UuidBinaryValue`
-- **Тесты**: PHPUnit 9, DoctrineTestBundle для изоляции БД
+- **Тесты**: PHPUnit 11.5, DAMA\DoctrineTestBundle для изоляции БД
 
 ### Текущий статус (обновлять при изменениях)
 
@@ -365,5 +365,5 @@ docker compose exec app composer openapi:generate
 - **Этап 2 (Пользователь)**: ✅ завершён
 - **Этап 3 (Коллекция)**: ✅ завершён
 - **Этап 4 (Айтем)**: ✅ завершён (4.1–4.7)
-- **Этап 5 (Социальное)**: 🔄 core готов (5.1–5.6, 5.10); этап не закрыт: smoke test + периодический review pending; открыт review-бэклог 5.7–5.9
+- **Этап 5 (Социальное)**: 🔄 core готов (5.1–5.6, 5.10); этап не закрыт: smoke test + периодический review pending; открыт review-бэклог 5.7–5.9, 5.12–5.14 (5.11 — `symfony-lsp` в CI — закрыта)
 - **Этап 6-8**: ⏳ в очереди

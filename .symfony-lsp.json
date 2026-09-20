@@ -1,0 +1,5 @@
+{
+    "version": 1,
+    "excludePaths": ["config/reference.php"],
+    "releaseMetadata": false
+}
