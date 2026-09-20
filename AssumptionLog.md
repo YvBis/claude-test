@@ -1037,3 +1037,23 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 - **Ручная проверка регистрации:** `debug:container --tag=security.voter` показывает ровно один `SocialContentVoter`; автотест на тег не добавлен — регистрация косвенно покрыта функциональными тестами (если voter выпадет, GRANTED-кейсы для админа/владельца упадут).
 - **Ревью (3 агента):** senior `APPROVE`, architect `APPROVE`, tech-lead `SHIP-WITH-NITS`. Применено: docblock-тип data-provider, inline FQN → `use`, комментарий к defensive `instanceof`, докблок Voter об инварианте owner, снят `{@see}`-импорт в базовом контроллере, тест идемпотентности DELETE→404. Отклонено: автотест тега voter (косвенно покрыт), вынос общего предиката (бэклог).
 - **Проверено:** `composer ci:all` — 634 tests / 1689 assertions, exit 0; `lint:container` без ошибок; voter в `debug:container`.
+
+## 2026-09-20 — Task 5.11: Symfony-aware диагностика `symfony-lsp` в CI (инфраструктура)
+
+**Контекст:** задача из периодического review (аспект «CI/инфраструктура»), взята по прямой команде пользователя вне очереди 5.7–5.9. Источник — `symfony/language-tools` (`symfony-lsp` v0.21.0, релиз 2026-09-19): standalone-бинарник, подкоманда `check` (headless), форматы `human|json|github|gitlab|sarif`, стабильные коды выхода (`0` — ок, `10` — блокирующие находки, `11` — ошибка конфигурации, `12` — неполный анализ).
+
+**Решения:**
+
+- **Пилот non-blocking.** CI-job `symfony-diagnostics` идёт с `--source-only` (приложение не запускается: не нужны PHP, БД, Redis, JWT-ключи) и `continue-on-error: true`; в `needs` у `ci-summary` не входит. Перевод в блокирующий — отдельная задача **5.14** с датой решения (~2026-09-27), намеренно **не** привязана к 5.13 (runtime-режим): иначе тишина пилота тянулась бы, пока не доделают runtime.
+- **Runtime-режим проверен локально, в CI отложен.** В контейнере runtime-прогон даёт `complete: true`, `exit 0` и реальную находку (`config.deprecated_key`: `lexik_jwt_authentication.encoder.crypto_engine`) за ~46 с. В CI runtime требует MySQL/Redis-сервисов и JWT-ключей — вынесено в 5.13.
+- **`excludePaths: [config/reference.php]`.** Runtime-прогон падал с `exit 12` («The selected file "config/reference.php" changed during the diagnostics check») — известный дрейф автогенерируемого `config/reference.php` (см. fwd-11). Исключение лечит это и **не подменяет** fwd-11: там git-политика для файла, здесь — самоперезапись файла во время runtime-анализа. После закрытия fwd-11 исключение станет безвредным.
+- **Baseline не заводится.** Source-only — 0 диагностик; runtime — 1 warning (warnings не блокируют по умолчанию). Блокирующих находок нет, поэтому `.symfony-lsp-baseline.json` не нужен.
+- **Единый runner-скрипт.** `scripts/symfony-lsp-check.sh` — общий источник правды для composer-скрипта и CI: версия закреплена (`SYMFONY_LSP_VERSION`, по умолчанию `0.21.0`), SHA256 сверяется из релизного `SHA256SUMS`, бинарник кэшируется в `var/bin/` (gitignored). Дублирования версии нет: в CI она задана через `env` и попадает в cache-key индекса.
+- **Бинарник не кэшируется в CI.** Кэшируется только индекс (`var/symfony-lsp`). Сам бинарник не кэшируем сознательно: восстановленный из кэша файл обошёл бы проверку SHA256. 4.7 МБ на прогон — приемлемая цена за инвариант.
+- **Принятые риски.** `SHA256SUMS` тянется из того же GitHub-релиза, что и бинарник (TOFU-доверие: от повреждения/MITM защищает, от компрометации релиза — нет) — пиннинг digest'а в 5.14. Частота 0.x-релизов: Dependabot скачиваемый бинарник не видит, bump ручной — тоже в 5.14.
+- **Editor-LSP `symfony-lsp` на этой машине не подключаем.** Официальный гайд OpenCode ограничен Linux/Apple Silicon; Windows-сборка существует (`windows-x64.zip`), но не проверялась. Редакторный PHP-LSP остаётся `phpantom`.
+- **`CLAUDE.md`.** Устаревшая строка «Тесты: PHPUnit 9, DoctrineTestBundle» исправлена на «PHPUnit 11.5, DAMA\DoctrineTestBundle» (политика §7 — устаревшие доки правятся сразу).
+
+**Ревью (3 агента):** senior `APPROVE`, architect `NEEDS-CHANGES`, tech-lead `NEEDS-CHANGES`. Блокер у обоих один — незаписанные артефакты (эта запись + чекбоксы PRD); техника одобрена. Применено: версия в cache-key, блочно-scoped guard + негативная проверка `ci-summary`, `setup-ci` для parity CI↔локально, уборка после распаковки + `grep -F`, задача 5.14 на expiry пилота, правки README. Отклонено: кэш бинарника (обходил бы SHA256-проверку).
+
+**Проверено:** `composer ci:all` — 638 tests / 1703 assertions, exit 0 (было 634, +4 guard-теста); `SymfonyLspConfigTest` 4/4 (14 assertions); `bash scripts/symfony-lsp-check.sh --source-only` — 0 диагностик, exit 0 (в т.ч. с нуля, `rm -rf var/bin`); `composer ci:symfony-lsp` (runtime) — exit 0, complete, 1 warning; дифф не трогает `src/`.

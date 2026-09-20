@@ -113,6 +113,7 @@
             "@ci:static:quality",
             "@ci:test"
         ],
+        "ci:symfony-lsp": "bash scripts/symfony-lsp-check.sh",
         "ci:lint": "@phpcs:check"
     },
     "conflict": {

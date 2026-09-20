@@ -70,6 +70,33 @@ jobs:
       - name: Run static analysis (PHPStan, PHPCSFixer check, Rector dry-run)
         run: composer ci:static:quality
 
+  symfony-diagnostics:
+    name: Symfony Diagnostics (symfony-lsp)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Pilot phase: the checker publishes GitHub annotations only and must not
+    # block merges. Roadmap 5.14 turns it into a blocking gate.
+    continue-on-error: true
+    env:
+      SYMFONY_LSP_VERSION: '0.21.0'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup CI environment
+        uses: ./.github/actions/setup-ci
+
+      - name: Cache symfony-lsp index
+        uses: actions/cache@v4
+        with:
+          path: var/symfony-lsp
+          key: symfony-lsp-${{ runner.os }}-${{ env.SYMFONY_LSP_VERSION }}-${{ hashFiles('composer.lock') }}
+          restore-keys: |
+            symfony-lsp-${{ runner.os }}-${{ env.SYMFONY_LSP_VERSION }}-
+
+      - name: Run Symfony Language Tools checker (source-only)
+        run: bash scripts/symfony-lsp-check.sh --source-only --format=github
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
