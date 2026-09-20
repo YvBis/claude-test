@@ -27,7 +27,9 @@ security:
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc.json, roles: PUBLIC_ACCESS }
         - { path: ^/health, roles: PUBLIC_ACCESS }
-        # Anonymous GET access to collections and search per PRD
+        # Anonymous GET access to collections and search per PRD (firewall level):
+        # PUBLIC_ACCESS lets the request through, but controllers that require a user
+        # answer 401 — full guest views are Roadmap task fwd-7.
         # Item reads are owner/admin only (Task 4.5): the collection-items
         # rule must come BEFORE the public collections rule (first match wins).
         - { path: '^/api/collections/[^/]+/items', roles: IS_AUTHENTICATED_FULLY }

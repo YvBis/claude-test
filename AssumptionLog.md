@@ -1057,3 +1057,23 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 **Ревью (3 агента):** senior `APPROVE`, architect `NEEDS-CHANGES`, tech-lead `NEEDS-CHANGES`. Блокер у обоих один — незаписанные артефакты (эта запись + чекбоксы PRD); техника одобрена. Применено: версия в cache-key, блочно-scoped guard + негативная проверка `ci-summary`, `setup-ci` для parity CI↔локально, уборка после распаковки + `grep -F`, задача 5.14 на expiry пилота, правки README. Отклонено: кэш бинарника (обходил бы SHA256-проверку).
 
 **Проверено:** `composer ci:all` — 638 tests / 1703 assertions, exit 0 (было 634, +4 guard-теста); `SymfonyLspConfigTest` 4/4 (14 assertions); `bash scripts/symfony-lsp-check.sh --source-only` — 0 диагностик, exit 0 (в т.ч. с нуля, `rm -rf var/bin`); `composer ci:symfony-lsp` (runtime) — exit 0, complete, 1 warning; дифф не трогает `src/`.
+
+## 2026-09-20 — Периодический review (после Этапа 5)
+
+Триггеры по CLAUDE.md §7: конец под-этапа + 11 PR с прошлого review (15.09, #57–#68: весь Этап 5 и 5.11). Scope — Этап 5 (5.1–5.6, 5.10, 5.11) + инфра. Код в `src/` не менялся, кроме одного robustness-фикса guard-теста (см. ниже).
+
+**Артефакты (дрейфы, исправлены сразу, без задач):** проектный `opencode.json` — строка «Этапы 1-2, 2/6» актуализирована (Этапы 1–4 ✅, Этап 5 core ✅, открыты 5.7–5.9, 5.12–5.15); `ARCHITECTURE.md` — CI-блок дополнен job'ом `symfony-diagnostics`, статус Этапа 5 (smoke 20.09), слита дублированная строка `TagController`, добавлены `AbstractApiController` и `nginx`; `CHANGELOG.md` — заголовок Этапа 5, записи 5.10 (Voter) и 5.11 (symfony-lsp), счётчик тестов (638); `config/packages/security.yaml` — уточнён комментарий про анонимный доступ (firewall пропускает, контроллер отвечает 401; полный guest — fwd-7). Счётчики Roadmap `31/48` проверены арифметикой — верны.
+
+**Архитектура (новых задач нет):** дубли контроллеров (`getUser()`-guard, 404-конверт, parsePagination-try/catch) и несогласованный конверт `{error,details}` vs `{error,message}` — уже задача 5.9, дублей не завожу. `LikeService::toggle()` и `CommentService::countByOwner()` не вызываются в `src`, но `toggle` прямо требуется PRD 5.3, оба покрыты тестами — не дефект, наблюдение. `canManage` без прямых unit-тестов, но косвенно покрыт функциональными 403 (`testCreateInForeignCollectionReturns403`, `testUpdateForeignReturns403`, `testDeleteForeignReturns403`). Слои чисты: Voter — Infrastructure над Domain-сущностями.
+
+**Безопасность (новых задач нет):** PUBLIC_ACCESS работает на уровне firewall (проверено: `/api/doc.json` → 200 анонимно); 401 на `GET /api/collections` — из контроллера (`{"error":"Unauthorized"}`), остаток гостевого доступа = fwd-7. Матрица Voter покрыта (5.10); DTO не отдают внутренних полей; markdown не экранируется — осознанно, задокументировано. Deprecated `crypto_engine` — уже 5.12.
+
+**CI (стабилен):** с 15.09 все прогоны `success`; единственный `cancelled` — штатная concurrency-отмена на main. Новый job `symfony-diagnostics` — зелёный (PR + merge). Косметика: прямой `vendor/bin/phpunit` без `--no-coverage` даёт xdebug-warning (composer-скрипты корректны). `composer ci:all` — 638 tests / 1703 assertions, exit 0.
+
+**Зависимости:** `composer audit` — чисто, advisories нет. `composer outdated --direct` — 20 пакетов (patch/minor): `symfony/redis-messenger` 7.3.10 → 7.4.19 отстаёт на minor от остальных 7.4.x; phpunit 12 и rector 2.6 — мажоры, не срочно. Новая задача **5.15** (routine bump + выравнивание).
+
+**Robustness-фикс guard-теста (в этом review):** `SymfonyLspConfigTest::jobBlock` падал локально на Windows (`Job "symfony-diagnostics" was not found`) — regex был привязан к `\n`, а checkout даёт CRLF; в CI (LF) тест проходил. Добавлена нормализация `\r\n` → `\n`. Попутно выяснено: `write`-тул на этой машине пишет CRLF, `edit` сохраняет EOL; git (`autocrlf`) это прозрачно обрабатывает, CI на Linux всегда видит LF — но regex-тесты обязаны нормализовать. Зафиксировано как урок.
+
+**Новые задачи:** только 5.15. Отклонено: прямые unit-тесты `canManage` (косвенно покрыт), удаление `toggle`/`countByOwner` (spec/tests), правки по 5.9/fwd-7/fwd-11 (уже заведены).
+
+**Проверено:** `composer ci:all` — 638 tests / 1703 assertions, exit 0; `SymfonyLspConfigTest` 4/4; дифф не трогает `src/` (кроме robustness-фикса теста), `config/reference.php` отреверчен (fwd-11).
