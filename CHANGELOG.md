@@ -1,6 +1,6 @@
 # Changelog
 
-## Этап 5 — Социальное (core завершён 2026-09-17; закрытие этапа отложено: 5.10 Voter, smoke test, периодический review)
+## Этап 5 — Социальное (core завершён 2026-09-17; этап не закрыт: periodic review 20.09 — в работе; 5.10 и smoke test выполнены)
 
 ### Фичи
 - **Like domain** (5.1): сущность с UNIQUE `(owner_id, item_id)`, `LikeId`, каскадные FK, индекс `idx_like_item`.
@@ -9,6 +9,8 @@
 - **CommentService** (5.4): `create`/`changeContent`/`delete`, списки по айтему и по владельцу, счётчики, `CommentDTO.owner_name`.
 - **Likes & comments API** (5.5): 9 эндпоинтов — лайки (`POST`/`DELETE`/`GET /api/items/{id}/likes`, `DELETE /api/likes/{id}`), комментарии (`POST`/`GET /api/items/{id}/comments`, `GET /api/comments`, `PATCH`/`DELETE /api/comments/{id}`); автор или админ на модерации; карта ошибок id→404 / контент→422 / тело→400.
 - **Like domain tests** (5.6): прямые unit-тесты `LikeId` и `Like` (паритет с `Comment`).
+- **Social moderation Voter** (5.10): `SocialContentVoter` (`SOCIAL_EDIT`/`SOCIAL_DELETE` для `Like`/`Comment`, автор или админ; `Like`+`SOCIAL_EDIT` запрещён всем); ручной JSON-403 в контроллерах сохранён.
+- **Symfony-aware диагностика** (5.11): `symfony-lsp check` в CI (source-only пилот, non-blocking) + локальный `composer ci:symfony-lsp`; первая находка — deprecated `lexik_jwt_authentication.encoder.crypto_engine` (задача 5.12).
 
 ### Изменения поведения
 - **Чтение айтемов и коллекций** открыто любому аутентифицированному пользователю (требование соцфункций); `GET /api/items` остаётся списком своих айтемов.
@@ -21,9 +23,11 @@
 
 ### CI
 - Провайдеры AI-ревью поменяны местами: OpenRouter free — основной, NVIDIA NIM — фолбэк; время ревью сократилось с ~13–15 мин до ~1 мин.
+- `symfony-diagnostics`: `symfony-lsp check` в режиме source-only (пилот, non-blocking, GitHub-аннотации).
 
 ### Тесты
 - +154 теста с Этапа 4 (615 tests суммарно; coverage gate ≥80% зелёный).
+- 638 tests / 1703 assertions на момент review 20.09 (5.10: 634; 5.11: +4 guard-теста); финальная цифра — при закрытии этапа.
 
 ## Этап 4 — Доменная модель: Айтем (завершён 2026-09-15)
 

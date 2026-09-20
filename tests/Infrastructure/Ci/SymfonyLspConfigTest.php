@@ -110,6 +110,8 @@ final class SymfonyLspConfigTest extends TestCase
      */
     private function jobBlock(string $workflow, string $job): string
     {
+        // Normalize line endings: Windows checkouts use CRLF, CI uses LF.
+        $workflow = \str_replace("\r\n", "\n", $workflow);
         $pattern = '/^ {2}'.\preg_quote($job, '/').':\n(.*?)(?=^ {2}[a-z][a-z-]*:|\z)/ms';
 
         self::assertSame(
