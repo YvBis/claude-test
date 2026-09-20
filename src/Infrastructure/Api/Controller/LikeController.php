@@ -6,6 +6,7 @@ namespace App\Infrastructure\Api\Controller;
 
 use App\Application\Item\Service\ItemService;
 use App\Application\Like\Service\LikeService;
+use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Like\Entity\Like;
 use App\Domain\User\Entity\User;
@@ -157,6 +158,54 @@ final class LikeController extends AbstractApiController
         }
 
         $likes = $likeService->listByItem($item->getId(), $limit, $offset);
+
+        return new JsonResponse($this->toArrayPayload($likeService->toDTOList($likes)), Response::HTTP_OK);
+    }
+
+    #[Route('/api/likes', name: 'api_like_list_own', methods: ['GET'])]
+    #[OA\Get(
+        path: '/api/likes',
+        security: [['Bearer' => []]],
+        summary: 'List own likes',
+        description: 'Returns a paginated list of likes given by the authenticated user, oldest first.',
+        parameters: [
+            new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
+            new OA\Parameter(name: 'offset', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_OFFSET, minimum: self::DEFAULT_OFFSET)),
+        ],
+        tags: ['Likes'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Likes retrieved successfully',
+                content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Like')),
+            ),
+            new OA\Response(response: 400, description: 'Bad request (invalid pagination)'),
+            new OA\Response(response: 401, description: 'Unauthorized'),
+        ],
+    )]
+    public function listOwn(Request $request, LikeService $likeService): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        try {
+            [$limit, $offset] = $this->parsePagination($request);
+        } catch (\InvalidArgumentException $invalidArgumentException) {
+            return new JsonResponse([
+                'error' => 'Bad Request',
+                'message' => $invalidArgumentException->getMessage(),
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $likes = $likeService->listByOwner(
+            OwnerId::fromBytes($user->getId()->toBytes()),
+            $limit,
+            $offset,
+        );
 
         return new JsonResponse($this->toArrayPayload($likeService->toDTOList($likes)), Response::HTTP_OK);
     }

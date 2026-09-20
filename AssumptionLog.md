@@ -1058,6 +1058,28 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 
 **Проверено:** `composer ci:all` — 638 tests / 1703 assertions, exit 0 (было 634, +4 guard-теста); `SymfonyLspConfigTest` 4/4 (14 assertions); `bash scripts/symfony-lsp-check.sh --source-only` — 0 диагностик, exit 0 (в т.ч. с нуля, `rm -rf var/bin`); `composer ci:symfony-lsp` (runtime) — exit 0, complete, 1 warning; дифф не трогает `src/`.
 
+## 2026-09-20 — Task 5.7: API-эндпоинт «мои лайки» (`GET /api/likes`)
+
+**Контекст:** review-задача; симметрия с `GET /api/comments` (5.5 отдала только «мои комментарии», PRD artifacts требование 20). Прямой зеркальный перенос Comment-паттерна на Like.
+
+**Решения:**
+
+- **Зеркало, не абстракция.** `LikeRepositoryInterface::findByOwnerId` + `DoctrineLikeRepository::findByOwnerId` (withAll, `IDENTITY(l.owner)`, `createdAt ASC, id ASC`) + `LikeService::listByOwner` + `LikeController::listOwn` (`GET /api/likes`, `api_like_list_own`) — построчно повторяют Comment-twin. Общую абстракцию не вводим (сущности разные; настоящий дубль — контроллерный boilerplate, его заберёт 5.9).
+- **Без `countByOwnerId`** — YAGNI: эндпоинт не отдаёт счётчики (architect подтвердил; у Comment он без консьюмера).
+- **`security.yaml` не тронут** — `^/api` уже требует auth; 401-guard в контроллере как fallback (как у Comment).
+- **Ручной стиль ошибок** — осознанно до 5.9, чтобы не конфликтовать с его рефактором.
+- **Covering-индекс `idx_like_owner`** (находка architect-ревью, принята): без него `findByOwnerId` делает filesort по всему сету лайков владельца; зеркало `idx_comment_owner` (Task 5.2). Атрибут `#[ORM\Index]` на `Like` + миграция (up `CREATE INDEX`, down `DROP INDEX`, non-destructive). Проверено: `schema:update --dump-sql` пуст на dev и test; мигрированы обе БД.
+- **N+1 нет** — `withAll` тянет owner+item+collection+collectionOwner одним запросом (подтверждено architect).
+- **`openapi.json` перегенерирован** (tracked) — добавлен только путь `/api/likes`, ноль удалённых/изменённых путей и схем.
+
+**Ревью (3 агента):** senior `APPROVE`, tech-lead `SHIP-WITH-NITS`, architect `SHIP-WITH-NITS`. Важно: запрошена модель `opencode-go/qwen3.7-plus`, фактически отработал `opencode-go/deepseek-v4-pro` — у суб­агента нет механизма выбора модели; раскрыто пользователю, ревью при этом полное и нашло реальный индексный гэп. Применено: covering-индекс (+миграция). Ниты про `item_id`-ассёрты в paginate-тестах отклонены как опциональные (порядок покрыт на уровне репозитория; Comment-twin так же слаб — симметрия). Отклонено: `countByOwnerId`, пре-экстракция shared-абстракции, `withAll`-трейт (отложить).
+
+**TDD:** RED (9 новых тестов: 4 errors + 5 failures — нет методов и маршрута) → GREEN (все проходят). Маршрут `api_like_list_own GET /api/likes` зарегистрирован. Тест-кэш `var/cache/test` пришлось чистить вручную (stale routes после добавления `#[Route]` — локальная особенность; в CI кэш пустой, проблемы нет).
+
+**Фоновая находка (не в скоупе, зафиксирована):** контейнерный `DATABASE_URL` (dev `taskflow`) затеняет `.env.test` для `bin/console --env=test` — миграции test-БД запускать только с явным `-e DATABASE_URL=...taskflow_test` (образец в README §86-88). Это проявление известного fwd-9 (касается только CLI; PHPUnit изолирован через `tests/bootstrap.php`).
+
+**Проверено:** `composer ci:all` — 647 tests / 1749 assertions, exit 0 (было 638, +9); `composer openapi:validate` OK; `schema:update --dump-sql` пуст (dev+test); дифф — Like-вертикаль + `LikeController` + `openapi.json` + тесты + PRD/доки, `src/` вне Like не тронут, `config/reference.php` отреверчен.
+
 ## 2026-09-20 — Периодический review (после Этапа 5)
 
 Триггеры по CLAUDE.md §7: конец под-этапа + 11 PR с прошлого review (15.09, #57–#68: весь Этап 5 и 5.11). Scope — Этап 5 (5.1–5.6, 5.10, 5.11) + инфра. Код в `src/` не менялся, кроме одного robustness-фикса guard-теста (см. ниже).

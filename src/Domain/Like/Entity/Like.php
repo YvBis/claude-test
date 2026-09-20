@@ -15,6 +15,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Entity]
 #[ORM\Table(name: 'likes')]
 #[ORM\Index(name: 'idx_like_item', columns: ['item_id'])]
+#[ORM\Index(name: 'idx_like_owner', columns: ['owner_id', 'created_at', 'id'])]
 #[ORM\UniqueConstraint(name: 'uniq_like_owner_item', columns: ['owner_id', 'item_id'])]
 final class Like
 {
