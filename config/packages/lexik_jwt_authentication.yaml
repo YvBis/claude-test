@@ -5,5 +5,4 @@ lexik_jwt_authentication:
     token_ttl: 3600
     clock_skew: 0
     encoder:
-        crypto_engine: 'openssl'
         signature_algorithm: 'RS256'

@@ -1099,6 +1099,27 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 
 **Проверено:** `composer ci:all` — 657 tests / 1818 assertions, exit 0 (было 647, +10 тестов); `openapi:validate` OK; маршрут `api_comment_delete_in_item` в `debug:router`; `security.yaml` не тронут; дифф — `CommentController` + openapi + тесты + доки; `config/reference.php` отреверчен.
 
+## 2026-09-21 — Task 5.12: удалён deprecated `encoder.crypto_engine`
+
+**Контекст:** находка `symfony-lsp check` (runtime: `config.deprecated_key`), единственная реальная проблема, которую дал checker. Правка — одна строка конфига.
+
+**Доказательство безопасности:** схема бандла (`config/reference.php`, дамп схемы, а не значений) прямо говорит: `crypto_engine` **deprecated since 2.5**, «built-in encoders support OpenSSL only», **Default: "openssl"**. Установлен `lexik/jwt-authentication-bundle v2.21.0`, конфиг lexik в проекте единственный (нет переопределений в dev/prod/test) → удаление ключа поведение не меняет: движок берётся по умолчанию, тот же OpenSSL.
+
+**Ключевая находка про `config/reference.php` (и почему его нет в диффе).** Мы собирались перегенерировать файл и включить удаление в дифф, но ресёрч показал, что:
+- файл пишет `PhpConfigReferenceDumpPass`, регистрируемый `FrameworkBundle` **только при `kernel.debug`** (`FrameworkBundle.php:213-216`);
+- это **дамп схемы** конфигов бандлов: содержит `token_ttl?: … // Default: 3600`, то есть опциональные ключи с дефолтами бандлов, а не наши значения;
+- строка `crypto_engine?: … // Deprecated …` — часть схемы **Lexik**, и после удаления нашей YAML-строки она **осталась на месте** (проверено: `grep crypto_engine config` даёт только строку схемы в `config/reference.php`; номер строки не фиксируем — файл регенерируется при каждом debug-прогоне);
+- содержимое ещё и **env-зависимо** через `.kernel.bundles_definition` (DAMA только в test, Nelmio в dev+test), поэтому файл флапает между dev и test — это и есть природа «дрейфа» из fwd-11.
+Решение: `reference.php` в задачу не включать, а **fwd-11 расширить** этими фактами (в частности: «CI regenerate+diff-check» имеет смысл только с фиксацией одного канонического env, и deprecated-ключи конфигов этот файл ловить не может).
+
+**Регрессионная сетка.** Source-only режим checker'а в CI конфиг-депрекейшены **не видит** (они всплывают только в runtime-анализе), поэтому добавлен статический guard-тест `tests/Infrastructure/Security/JwtConfigurationTest.php`: `encoder.crypto_engine` отсутствует, `signature_algorithm` остаётся `RS256`, `secret_key`/`public_key`/`pass_phrase: %env(JWT_PASSPHRASE)%` на месте. Проверку контейнера делать бессмысленно — эффективное значение совпадает до и после (дефолт `openssl`); смысл теста — фиксация «ключ не вернулся в YAML». Включение runtime-режима в CI — задача 5.13.
+
+**TDD:** RED (1 из 3 новых тестов падал — `crypto_engine` присутствовал) → GREEN (3/3).
+
+**Проверено:** `composer ci:all` — 660 tests / 1824 assertions, exit 0 (было 657, +3); `composer ci:symfony-lsp` runtime — `0 diagnostics` (было `1 diagnostics`: `config.deprecated_key`), `complete: true`, exit 0; дифф — только `config/packages/lexik_jwt_authentication.yaml` (−1 строка) + новый тест + PRD/доки.
+
+**Про `config/reference.php` в диффе:** прогоны `ci:all` и checker'а выполняются с `kernel.debug=true`, поэтому каждый из них перезаписывает `config/reference.php` (env-зависимый дамп схемы, fwd-11) — файл «дрейфует» сам по себе, не из-за 5.12. Перед коммитом дрейф отревёрчен (`git checkout -- config/reference.php`), в коммит входят только файлы задачи. Ревьюеры (senior/architect/tech-lead) этот дрейф флагнули как блокер по скоупу — исправлено ревертом.
+
 ## 2026-09-20 — Периодический review (после Этапа 5)
 
 Триггеры по CLAUDE.md §7: конец под-этапа + 11 PR с прошлого review (15.09, #57–#68: весь Этап 5 и 5.11). Scope — Этап 5 (5.1–5.6, 5.10, 5.11) + инфра. Код в `src/` не менялся, кроме одного robustness-фикса guard-теста (см. ниже).
