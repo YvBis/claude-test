@@ -407,6 +407,147 @@ final class CommentControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(404);
     }
 
+    public function testDeleteInItemOwnReturns204(): void
+    {
+        $owner = $this->registerUser();
+        $itemId = $this->createItem($this->createCollection($owner['token']), $owner['token']);
+        $commentId = $this->createComment($itemId, $owner['token'], 'to delete in item');
+
+        $this->client->request('DELETE', '/api/items/'.$itemId.'/comments/'.$commentId, [], [], $this->authHeaders($owner['token']));
+
+        $this->assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', '/api/items/'.$itemId.'/comments', [], [], $this->authHeaders($owner['token']));
+        $this->assertSame([], \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR));
+    }
+
+    public function testAdminCanDeleteForeignCommentInItem(): void
+    {
+        $owner = $this->registerUser();
+        $itemId = $this->createItem($this->createCollection($owner['token']), $owner['token']);
+        $commentId = $this->createComment($itemId, $owner['token'], 'moderate me in item');
+        $admin = $this->registerUser();
+        $this->promoteToAdmin($admin['id']);
+
+        $this->client->request('DELETE', '/api/items/'.$itemId.'/comments/'.$commentId, [], [], $this->authHeaders($admin['token']));
+
+        $this->assertResponseStatusCodeSame(204);
+    }
+
+    public function testDeleteForeignCommentInItemReturns403(): void
+    {
+        $owner = $this->registerUser();
+        $itemId = $this->createItem($this->createCollection($owner['token']), $owner['token']);
+        $commentId = $this->createComment($itemId, $owner['token'], 'protected in item');
+        $foreign = $this->registerUser();
+
+        $this->client->request('DELETE', '/api/items/'.$itemId.'/comments/'.$commentId, [], [], $this->authHeaders($foreign['token']));
+
+        $this->assertResponseStatusCodeSame(403);
+        $this->assertSame(
+            ['error' => 'Forbidden', 'message' => 'You do not have permission to delete this comment'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
+        );
+    }
+
+    public function testDeleteCommentFromAnotherItemReturns404(): void
+    {
+        $owner = $this->registerUser();
+        $collectionId = $this->createCollection($owner['token']);
+        $itemId = $this->createItem($collectionId, $owner['token']);
+        $otherItemId = $this->createItem($collectionId, $owner['token']);
+        $commentId = $this->createComment($itemId, $owner['token'], 'belongs to the first item');
+
+        $this->client->request('DELETE', '/api/items/'.$otherItemId.'/comments/'.$commentId, [], [], $this->authHeaders($owner['token']));
+
+        $this->assertResponseStatusCodeSame(404);
+        $this->assertSame(
+            ['error' => 'Not Found', 'message' => \sprintf('Comment with id "%s" not found in item "%s"', $commentId, $otherItemId)],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
+        );
+
+        $this->client->request('GET', '/api/items/'.$itemId.'/comments', [], [], $this->authHeaders($owner['token']));
+        $remaining = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertCount(1, $remaining);
+        $this->assertSame($commentId, $remaining[0]['id']);
+    }
+
+    public function testDeleteNonExistentCommentInItemReturns404(): void
+    {
+        $owner = $this->registerUser();
+        $itemId = $this->createItem($this->createCollection($owner['token']), $owner['token']);
+
+        $this->client->request('DELETE', '/api/items/'.$itemId.'/comments/018f0a1b-2c3d-4e5f-6789-0123456789ab', [], [], $this->authHeaders($owner['token']));
+
+        $this->assertResponseStatusCodeSame(404);
+        $this->assertSame(
+            ['error' => 'Not Found', 'message' => 'Comment with id "018f0a1b-2c3d-4e5f-6789-0123456789ab" not found'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
+        );
+    }
+
+    public function testDeleteMalformedCommentIdInItemReturns404(): void
+    {
+        $owner = $this->registerUser();
+        $itemId = $this->createItem($this->createCollection($owner['token']), $owner['token']);
+
+        $this->client->request('DELETE', '/api/items/'.$itemId.'/comments/not-a-uuid', [], [], $this->authHeaders($owner['token']));
+
+        $this->assertResponseStatusCodeSame(404);
+        $this->assertSame(
+            ['error' => 'Not Found', 'message' => 'Comment with id "not-a-uuid" not found'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
+        );
+    }
+
+    public function testDeleteInItemNonExistentItemReturns404(): void
+    {
+        $owner = $this->registerUser();
+        $itemId = $this->createItem($this->createCollection($owner['token']), $owner['token']);
+        $commentId = $this->createComment($itemId, $owner['token'], 'reachable only through its own item');
+
+        $this->client->request('DELETE', '/api/items/018f0a1b-2c3d-4e5f-6789-0123456789ab/comments/'.$commentId, [], [], $this->authHeaders($owner['token']));
+
+        $this->assertResponseStatusCodeSame(404);
+        $this->assertSame(
+            ['error' => 'Not Found', 'message' => \sprintf('Comment with id "%s" not found in item "%s"', $commentId, '018f0a1b-2c3d-4e5f-6789-0123456789ab')],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
+        );
+    }
+
+    public function testDeleteInItemWithoutAuthReturns401(): void
+    {
+        $this->client->request('DELETE', '/api/items/018f0a1b-2c3d-4e5f-6789-0123456789ab/comments/018f0a1b-2c3d-4e5f-6789-0123456789ac');
+
+        $this->assertResponseStatusCodeSame(401);
+    }
+
+    public function testDeleteInItemMalformedItemIdReturns404(): void
+    {
+        $owner = $this->registerUser();
+        $itemId = $this->createItem($this->createCollection($owner['token']), $owner['token']);
+        $commentId = $this->createComment($itemId, $owner['token'], 'addressed through a malformed item');
+
+        $this->client->request('DELETE', '/api/items/not-a-uuid/comments/'.$commentId, [], [], $this->authHeaders($owner['token']));
+
+        $this->assertResponseStatusCodeSame(404);
+        $this->assertSame(
+            ['error' => 'Not Found', 'message' => \sprintf('Comment with id "%s" not found in item "%s"', $commentId, 'not-a-uuid')],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
+        );
+    }
+
+    public function testDeleteInItemAcceptsUppercaseItemId(): void
+    {
+        $owner = $this->registerUser();
+        $itemId = $this->createItem($this->createCollection($owner['token']), $owner['token']);
+        $commentId = $this->createComment($itemId, $owner['token'], 'deleted through an uppercase item id');
+
+        $this->client->request('DELETE', '/api/items/'.\strtoupper($itemId).'/comments/'.$commentId, [], [], $this->authHeaders($owner['token']));
+
+        $this->assertResponseStatusCodeSame(204);
+    }
+
     public function testCreateAtMaxLengthReturns201(): void
     {
         $owner = $this->registerUser();

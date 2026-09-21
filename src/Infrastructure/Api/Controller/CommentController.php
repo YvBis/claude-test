@@ -324,6 +324,66 @@ final class CommentController extends AbstractApiController
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
+    #[Route('/api/items/{itemId}/comments/{id}', name: 'api_comment_delete_in_item', methods: ['DELETE'])]
+    #[OA\Delete(
+        path: '/api/items/{itemId}/comments/{id}',
+        security: [['Bearer' => []]],
+        summary: 'Delete a comment within an item',
+        description: 'Deletes a comment addressed through its item. Same authorization as DELETE /api/comments/{id} (author or administrator). The comment must belong to the given item, otherwise 404.',
+        parameters: [
+            new OA\Parameter(name: 'itemId', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
+        ],
+        tags: ['Comments'],
+        responses: [
+            new OA\Response(response: 204, description: 'Comment deleted successfully (no content)'),
+            new OA\Response(response: 401, description: 'Unauthorized'),
+            new OA\Response(response: 403, description: 'Forbidden'),
+            new OA\Response(response: 404, description: 'Comment not found in this item'),
+        ],
+    )]
+    public function deleteInItem(string $itemId, string $id, CommentService $commentService): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $comment = $this->findCommentOrNull($id, $commentService);
+
+        if (!$comment instanceof Comment) {
+            return new JsonResponse([
+                'error' => 'Not Found',
+                'message' => \sprintf('Comment with id "%s" not found', $id),
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        // Path consistency: the comment must belong to the item named in the
+        // URL. Compared as strings, case-insensitively: UUIDs are
+        // case-insensitive per RFC 4122 while the canonical form is lowercase,
+        // and a malformed itemId then simply fails to match (404) instead of
+        // throwing from the ItemId value object.
+        if (0 !== \strcasecmp($comment->getItem()->getId()->toString(), $itemId)) {
+            return new JsonResponse([
+                'error' => 'Not Found',
+                'message' => \sprintf('Comment with id "%s" not found in item "%s"', $id, $itemId),
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        if (!$this->isGranted(SocialContentVoter::SOCIAL_DELETE, $comment)) {
+            return new JsonResponse([
+                'error' => 'Forbidden',
+                'message' => 'You do not have permission to delete this comment',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        $commentService->delete($comment);
+
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
     private function findCommentOrNull(string $id, CommentService $commentService): ?Comment
     {
         try {
