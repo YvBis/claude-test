@@ -84,6 +84,8 @@
 
 | fwd-17 | [future] `AccessDeniedException` → JSON listener: убрать ручные 403-блоки из контроллеров (`LikeController`/`CommentController` + будущие), чтобы `isGranted` бросал, а конверт `{error, message}` строился один раз. Осознанный долг 5.10 (D11 PRD). Стык с 5.9. Estimate: 1ч | todo | From 2026-09-17: architect-review PR 5.10 — ручной JSON-403 сохранён |
 
+| fwd-18 | [future] Дублирование DELETE-поверхности у комментариев: `DELETE /api/comments/{id}` и `DELETE /api/items/{itemId}/comments/{id}` делают одно и то же (тот же Voter, тот же `CommentService::delete`); различие только в проверке консистентности пути. Оба shipped до первого релиза, внешних клиентов нет → решить политику: объявить вложенный путь каноническим, а плоский пометить deprecated и удалить в следующем мажоре (либо, наоборот, оставить плоский и снять вложенный). Стык с fwd-17/5.9 (тот же контроллер). Estimate: 0.5ч + решение | todo | From 2026-09-21: architect-review PR 5.8 — две URL на одну операцию |
+
 ## Этап 4: Доменная модель — Айтем
 
 ### Управление айтемами с динамическими полями
@@ -112,7 +114,7 @@
 | 5.6 | [x] Unit-тесты домена Like (tests-only) | done (PRD/5.6-social-tests.md) |
 | 5.10 | [x] Social moderation Voter: `SocialContentVoter` (атрибуты EDIT/DELETE, admin-OR-owner) для `Like`/`Comment`; перевод `LikeController::delete`, `CommentController::update`/`delete` с `canManage` на голосование; ручной JSON-403 сохраняется (нет `AccessDeniedException`→JSON listener); unit-тест матрицы {автор, чужой, чужой-админ, гость} × {EDIT, DELETE} × {Comment, Like}; `lint:container` + `debug:container --tag=security.voter` в проверках. Depends: 5.6. Estimate: 3ч (ревизия: +тесты) | done (PRD/5.10-social-voter.md) |
 | 5.7 | [review] API-эндпоинт «мои лайки» (`GET /api/likes`) — симметрия с `GET /api/comments`; 5.5 отдала только «мои комментарии» (PRD 20). | done (PRD/5.7-own-likes-endpoint.md) |
-| 5.8 | [review] `DELETE /api/items/{id}/comments/{commentId}` — вложенный путь для админ-контекста; 5.5 отдала `DELETE /api/comments/{id}`. Зависит от 5.10 (та же область `canManage` в контроллерах). | todo |
+| 5.8 | [review] `DELETE /api/items/{id}/comments/{commentId}` — вложенный путь для админ-контекста; 5.5 отдала `DELETE /api/comments/{id}`. Зависит от 5.10. Реализовано как автор-или-админ (D1 в PRD 5.8), не admin-only. | done (PRD/5.8-nested-comment-delete.md) |
 | 5.9 | [review] Выделить повторяющуюся обработку исключений в `AbstractApiController`: каждый контроллер вручную собирает `JsonResponse` с `{error, message}` для 400/401/403/404/422 (`ItemController`, `CollectionController`, `LikeController`, `CommentController`, `TagController`), плюс `@var User` / `if (!$user instanceof User)` повторяется в каждом действии. Нужны хелперы вида `errorResponse(int $status, string $error, string $message)`, `unauthorized()`, `notFound()`, `forbidden()`, `badRequest()`, `unprocessable()` и `currentUser(): User` (с единым 401). Также рассмотреть единый `try/catch` для `\InvalidArgumentException` (id → 404, контент → 422) и serializer-исключений (400), чтобы карта ошибок 5.5 задавалась один раз. После 5.10 сужается: `canManage` у `ItemController` остаётся (осознанный split-brain). Зависит от 5.10. Estimate: 1-2ч | todo |
 | 5.11 | [review] CI: Symfony-aware диагностика `symfony-lsp check` (symfony/language-tools v0.21.0) — `scripts/symfony-lsp-check.sh` (закреплённая версия + SHA256), composer-скрипт `ci:symfony-lsp`, пилотный non-blocking CI-job `symfony-diagnostics` (`--source-only --format=github`), `.symfony-lsp.json` с `excludePaths: [config/reference.php]` (фикс exit 12), guard-тест. | done (PRD/5.11-symfony-lsp-check.md) |
 | 5.12 | [review] Убрать устаревший ключ `lexik_jwt_authentication.encoder.crypto_engine` (`config/packages/lexik_jwt_authentication.yaml:8`) — найдено `symfony-lsp check` (warning `config.deprecated_key`). | todo |
@@ -166,7 +168,7 @@
 - **Этап 2 (Пользователь)**: 5/5 задач выполнено
 - **Этап 3 (Коллекция)**: 6/6 задач выполнено
 - **Этап 4 (Айтем)**: 7/7 задач выполнено
-- **Этап 5 (Социальное)**: 7/7 core задач выполнено (5.1–5.6, 5.10); 5.11 закрыта; smoke test выполнен 20.09; этап не закрыт: периодический review — в работе. Review-бэклог 5.8–5.9, 5.12–5.15 открыт (5.7, 5.11 закрыты)
+- **Этап 5 (Социальное)**: 7/7 core задач выполнено (5.1–5.6, 5.10); 5.11 закрыта; smoke test выполнен 20.09; этап не закрыт: периодический review — в работе. Review-бэклог 5.9, 5.12–5.15 открыт (5.7, 5.8, 5.11 закрыты)
 - **Этап 6 (Поиск)**: 0/4 задач выполнено
 - **Этап 7 (Админ)**: 0/7 задач выполнено
 - **Этап 8 (Тестирование)**: 0/6 задач выполнено
