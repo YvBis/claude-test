@@ -72,6 +72,20 @@ final class DoctrineLikeRepository extends ServiceEntityRepository implements Li
     }
 
     #[\Override]
+    public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array
+    {
+        return $this->withAll($this->createQueryBuilder('l'))
+            ->where('IDENTITY(l.owner) = :ownerId')
+            ->setParameter('ownerId', $ownerId->toBytes(), 'binary')
+            ->orderBy('l.createdAt', 'ASC')
+            ->addOrderBy('l.id', 'ASC')
+            ->setMaxResults($limit)
+            ->setFirstResult($offset)
+            ->getQuery()
+            ->getResult();
+    }
+
+    #[\Override]
     public function countByItemId(ItemId $itemId): int
     {
         return (int) $this->createQueryBuilder('l')

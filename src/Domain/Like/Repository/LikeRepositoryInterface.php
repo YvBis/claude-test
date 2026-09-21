@@ -43,5 +43,13 @@ interface LikeRepositoryInterface
      */
     public function findByItemId(ItemId $itemId, int $limit = 50, int $offset = 0): array;
 
+    /**
+     * Lists likes authored by an owner ordered by createdAt ASC (id as
+     * deterministic tiebreaker for equal microsecond timestamps).
+     *
+     * @return array<Like>
+     */
+    public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array;
+
     public function countByItemId(ItemId $itemId): int;
 }

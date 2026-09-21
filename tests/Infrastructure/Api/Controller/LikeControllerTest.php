@@ -318,6 +318,73 @@ final class LikeControllerTest extends WebTestCase
         $this->assertCount(2, $data);
     }
 
+    public function testListOwnReturnsOnlyOwnLikes(): void
+    {
+        $owner = $this->registerUser();
+        $itemId = $this->createItem($this->createCollection($owner['token']), $owner['token']);
+        $foreign = $this->registerUser();
+
+        $this->client->request('POST', '/api/items/'.$itemId.'/likes', [], [], $this->authHeaders($owner['token']));
+        $this->assertResponseStatusCodeSame(200);
+        $this->client->request('POST', '/api/items/'.$itemId.'/likes', [], [], $this->authHeaders($foreign['token']));
+        $this->assertResponseStatusCodeSame(200);
+
+        $this->client->request('GET', '/api/likes', [], [], $this->authHeaders($foreign['token']));
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertCount(1, $data);
+        $this->assertSame($foreign['id'], $data[0]['owner_id']);
+    }
+
+    public function testListOwnWithoutAuthReturns401(): void
+    {
+        $this->client->request('GET', '/api/likes');
+
+        $this->assertResponseStatusCodeSame(401);
+    }
+
+    public function testListOwnEmptyReturnsEmptyArray(): void
+    {
+        $owner = $this->registerUser();
+
+        $this->client->request('GET', '/api/likes', [], [], $this->authHeaders($owner['token']));
+
+        $this->assertResponseStatusCodeSame(200);
+        $this->assertSame([], \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR));
+    }
+
+    public function testListOwnPaginates(): void
+    {
+        $owner = $this->registerUser();
+        $collectionId = $this->createCollection($owner['token']);
+        $firstItemId = $this->createItem($collectionId, $owner['token']);
+        $secondItemId = $this->createItem($collectionId, $owner['token']);
+        $thirdItemId = $this->createItem($collectionId, $owner['token']);
+
+        foreach ([$firstItemId, $secondItemId, $thirdItemId] as $itemId) {
+            $this->client->request('POST', '/api/items/'.$itemId.'/likes', [], [], $this->authHeaders($owner['token']));
+            $this->assertResponseStatusCodeSame(200);
+        }
+
+        $this->client->request('GET', '/api/likes?limit=2&offset=1', [], [], $this->authHeaders($owner['token']));
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertCount(2, $data);
+        $this->assertSame($secondItemId, $data[0]['item_id']);
+        $this->assertSame($thirdItemId, $data[1]['item_id']);
+    }
+
+    public function testListOwnWithInvalidLimitReturns400(): void
+    {
+        $owner = $this->registerUser();
+
+        $this->client->request('GET', '/api/likes?limit=0', [], [], $this->authHeaders($owner['token']));
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
     protected function tearDown(): void
     {
         if ([] !== $this->extraUserIds) {

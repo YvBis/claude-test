@@ -110,6 +110,16 @@ final readonly class LikeService
     }
 
     /**
+     * Lists the likes given by an owner (the "my likes" listing), oldest first.
+     *
+     * @return array<Like>
+     */
+    public function listByOwner(OwnerId $ownerId, int $limit = 50, int $offset = 0): array
+    {
+        return $this->likeRepository->findByOwnerId($ownerId, $limit, $offset);
+    }
+
+    /**
      * Removes a like directly — used by the administrative path (5.5 / 7.6).
      */
     public function removeLike(Like $like): void

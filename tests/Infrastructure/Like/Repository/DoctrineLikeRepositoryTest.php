@@ -140,4 +140,42 @@ final class DoctrineLikeRepositoryTest extends KernelTestCase
 
         $this->assertNull($repo->findByOwnerAndItem($this->ownerId($owner), $item->getId()));
     }
+
+    public function testFindByOwnerIdReturnsOnlyOwnLikesOldestFirst(): void
+    {
+        $owner = $this->createUser();
+        $firstItem = $this->createItem($owner);
+        $secondItem = $this->createItem($owner);
+        $other = $this->createUser();
+        $this->like($owner, $firstItem);
+        $this->like($owner, $secondItem);
+        $this->like($other, $firstItem);
+        $this->em->flush();
+
+        $repo = self::getContainer()->get(LikeRepositoryInterface::class);
+        $found = $repo->findByOwnerId($this->ownerId($owner));
+
+        $this->assertCount(2, $found);
+        $this->assertSame($firstItem->getId()->toString(), $found[0]->getItem()->getId()->toString());
+        $this->assertSame($secondItem->getId()->toString(), $found[1]->getItem()->getId()->toString());
+    }
+
+    public function testFindByOwnerIdPaginates(): void
+    {
+        $owner = $this->createUser();
+        $firstItem = $this->createItem($owner);
+        $secondItem = $this->createItem($owner);
+        $thirdItem = $this->createItem($owner);
+        $this->like($owner, $firstItem);
+        $this->like($owner, $secondItem);
+        $this->like($owner, $thirdItem);
+        $this->em->flush();
+
+        $repo = self::getContainer()->get(LikeRepositoryInterface::class);
+        $page = $repo->findByOwnerId($this->ownerId($owner), limit: 2, offset: 1);
+
+        $this->assertCount(2, $page);
+        $this->assertSame($secondItem->getId()->toString(), $page[0]->getItem()->getId()->toString());
+        $this->assertSame($thirdItem->getId()->toString(), $page[1]->getItem()->getId()->toString());
+    }
 }
