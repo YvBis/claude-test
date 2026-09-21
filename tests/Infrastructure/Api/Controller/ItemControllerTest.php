@@ -173,7 +173,7 @@ final class ItemControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(404);
     }
 
-    public function testCreateWithInvalidSlotReturns400(): void
+    public function testCreateWithInvalidSlotReturns422(): void
     {
         $collectionId = $this->createCollection();
 
@@ -182,12 +182,12 @@ final class ItemControllerTest extends WebTestCase
             'slots' => [['type' => 'date', 'slot' => 1, 'value' => 'not-a-date']],
         ], \JSON_THROW_ON_ERROR));
 
-        $this->assertResponseStatusCodeSame(400);
+        $this->assertResponseStatusCodeSame(422);
         $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
-        $this->assertSame('Bad Request', $data['error']);
+        $this->assertSame('Unprocessable Entity', $data['error']);
     }
 
-    public function testCreateWithValidationErrorReturns400(): void
+    public function testCreateWithValidationErrorReturns422(): void
     {
         $collectionId = $this->createCollection();
 
@@ -195,7 +195,7 @@ final class ItemControllerTest extends WebTestCase
             'name' => '',
         ], \JSON_THROW_ON_ERROR));
 
-        $this->assertResponseStatusCodeSame(400);
+        $this->assertResponseStatusCodeSame(422);
         $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
         $this->assertSame('Validation failed', $data['error']);
     }
@@ -307,6 +307,8 @@ final class ItemControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(400);
         $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
         $this->assertSame('Bad Request', $data['error']);
+        $this->assertSame('Invalid query parameters', $data['message']);
+        $this->assertNotEmpty($data['details']);
     }
 
     public function testListByCollectionWithNegativeOffsetReturns400(): void
@@ -323,6 +325,8 @@ final class ItemControllerTest extends WebTestCase
         $this->client->request('GET', '/api/items/not-a-uuid', [], [], $this->authHeaders());
 
         $this->assertResponseStatusCodeSame(404);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame(['error' => 'Not Found', 'message' => 'Item not found'], $data);
     }
 
     public function testGetReturns200(): void
@@ -416,17 +420,20 @@ final class ItemControllerTest extends WebTestCase
         $this->assertCount(0, $data['slots']);
     }
 
-    public function testUpdateEmptyBodyReturns400(): void
+    public function testUpdateEmptyBodyReturns422(): void
     {
         $collectionId = $this->createCollection();
         $itemId = $this->createItem($collectionId);
 
         $this->client->request('PATCH', '/api/items/'.$itemId, [], [], $this->authHeaders(), \json_encode([], \JSON_THROW_ON_ERROR));
 
-        $this->assertResponseStatusCodeSame(400);
+        $this->assertResponseStatusCodeSame(422);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Unprocessable Entity', $data['error']);
+        $this->assertSame('At least one field must be provided for update', $data['message']);
     }
 
-    public function testUpdateInvalidSlotReturns400(): void
+    public function testUpdateInvalidSlotReturns422(): void
     {
         $collectionId = $this->createCollection();
         $itemId = $this->createItem($collectionId);
@@ -435,7 +442,30 @@ final class ItemControllerTest extends WebTestCase
             'slots' => [['type' => 'number', 'slot' => 1, 'value' => 'not-a-number']],
         ], \JSON_THROW_ON_ERROR));
 
+        $this->assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateWithMalformedBodyReturns400(): void
+    {
+        $collectionId = $this->createCollection();
+
+        $this->client->request('POST', '/api/collections/'.$collectionId.'/items', [], [], $this->authHeaders(), '{not-json');
+
         $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Bad Request', $data['error']);
+    }
+
+    public function testUpdateWithMalformedBodyReturns400(): void
+    {
+        $collectionId = $this->createCollection();
+        $itemId = $this->createItem($collectionId);
+
+        $this->client->request('PATCH', '/api/items/'.$itemId, [], [], $this->authHeaders(), '{not-json');
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Bad Request', $data['error']);
     }
 
     public function testUpdateForeignReturns403(): void
@@ -456,6 +486,22 @@ final class ItemControllerTest extends WebTestCase
         $this->client->request('PATCH', '/api/items/018f0a1b-2c3d-4e5f-6789-0123456789ab', [], [], $this->authHeaders(), \json_encode([
             'name' => 'Ghost',
         ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(404);
+    }
+
+    public function testUpdateWithMalformedIdReturns404(): void
+    {
+        $this->client->request('PATCH', '/api/items/not-a-uuid', [], [], $this->authHeaders(), \json_encode([
+            'name' => 'Ghost',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(404);
+    }
+
+    public function testDeleteWithMalformedIdReturns404(): void
+    {
+        $this->client->request('DELETE', '/api/items/not-a-uuid', [], [], $this->authHeaders());
 
         $this->assertResponseStatusCodeSame(404);
     }

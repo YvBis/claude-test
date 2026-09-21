@@ -61,40 +61,41 @@ final class CommentController extends AbstractApiController
             new OA\Response(response: 400, description: 'Bad request (malformed body)'),
             new OA\Response(response: 401, description: 'Unauthorized'),
             new OA\Response(response: 404, description: 'Item not found'),
-            new OA\Response(response: 422, description: 'Invalid comment content'),
+            new OA\Response(
+                response: 422,
+                description: 'Invalid comment content',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(property: 'error', type: 'string', example: 'Unprocessable Entity'),
+                        new OA\Property(property: 'message', type: 'string', example: 'Invalid content'),
+                        new OA\Property(property: 'details', type: 'array', items: new OA\Items(type: 'string'), example: ['Comment content cannot be empty']),
+                    ]
+                )
+            ),
         ],
     )]
     public function create(string $itemId, Request $request, ItemService $itemService, CommentService $commentService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         $item = $this->findItemOrNull($itemId, $itemService);
 
         if (!$item instanceof Item) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => \sprintf('Item with id "%s" not found', $itemId),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Item not found');
         }
 
         try {
             $content = $this->parseContent($request);
             $comment = $commentService->create($user, $item, $content);
         } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => $exception->getMessage(),
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->badRequest('Malformed request body');
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Unprocessable Entity',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->unprocessable('Invalid content', [$invalidArgumentException->getMessage()]);
         }
 
         return new JsonResponse($commentService->toDTO($comment)->toArray(), Response::HTTP_CREATED);
@@ -125,29 +126,22 @@ final class CommentController extends AbstractApiController
     )]
     public function listByItem(string $itemId, Request $request, ItemService $itemService, CommentService $commentService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         $item = $this->findItemOrNull($itemId, $itemService);
 
         if (!$item instanceof Item) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => \sprintf('Item with id "%s" not found', $itemId),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Item not found');
         }
 
         try {
             [$limit, $offset] = $this->parsePagination($request);
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->badRequest('Invalid query parameters', [$invalidArgumentException->getMessage()]);
         }
 
         $comments = $commentService->listByItem($item->getId(), $limit, $offset);
@@ -178,20 +172,16 @@ final class CommentController extends AbstractApiController
     )]
     public function listOwn(Request $request, CommentService $commentService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             [$limit, $offset] = $this->parsePagination($request);
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->badRequest('Invalid query parameters', [$invalidArgumentException->getMessage()]);
         }
 
         $comments = $commentService->listByOwner(
@@ -232,46 +222,44 @@ final class CommentController extends AbstractApiController
             new OA\Response(response: 401, description: 'Unauthorized'),
             new OA\Response(response: 403, description: 'Forbidden'),
             new OA\Response(response: 404, description: 'Comment not found'),
-            new OA\Response(response: 422, description: 'Invalid comment content'),
+            new OA\Response(
+                response: 422,
+                description: 'Invalid comment content',
+                content: new OA\JsonContent(
+                    type: 'object',
+                    properties: [
+                        new OA\Property(property: 'error', type: 'string', example: 'Unprocessable Entity'),
+                        new OA\Property(property: 'message', type: 'string', example: 'Invalid content'),
+                        new OA\Property(property: 'details', type: 'array', items: new OA\Items(type: 'string'), example: ['Comment content cannot be empty']),
+                    ]
+                )
+            ),
         ],
     )]
     public function update(string $id, Request $request, CommentService $commentService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         $comment = $this->findCommentOrNull($id, $commentService);
 
         if (!$comment instanceof Comment) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => \sprintf('Comment with id "%s" not found', $id),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Comment not found');
         }
 
         if (!$this->isGranted(SocialContentVoter::SOCIAL_EDIT, $comment)) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to edit this comment',
-            ], Response::HTTP_FORBIDDEN);
+            return $this->forbidden('Forbidden');
         }
 
         try {
             $commentService->changeContent($comment, $this->parseContent($request));
         } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => $exception->getMessage(),
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->badRequest('Malformed request body');
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Unprocessable Entity',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->unprocessable('Invalid content', [$invalidArgumentException->getMessage()]);
         }
 
         return new JsonResponse($commentService->toDTO($comment)->toArray(), Response::HTTP_OK);
@@ -296,27 +284,20 @@ final class CommentController extends AbstractApiController
     )]
     public function delete(string $id, CommentService $commentService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         $comment = $this->findCommentOrNull($id, $commentService);
 
         if (!$comment instanceof Comment) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => \sprintf('Comment with id "%s" not found', $id),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Comment not found');
         }
 
         if (!$this->isGranted(SocialContentVoter::SOCIAL_DELETE, $comment)) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to delete this comment',
-            ], Response::HTTP_FORBIDDEN);
+            return $this->forbidden('Forbidden');
         }
 
         $commentService->delete($comment);
@@ -339,25 +320,21 @@ final class CommentController extends AbstractApiController
             new OA\Response(response: 204, description: 'Comment deleted successfully (no content)'),
             new OA\Response(response: 401, description: 'Unauthorized'),
             new OA\Response(response: 403, description: 'Forbidden'),
-            new OA\Response(response: 404, description: 'Comment not found in this item'),
+            new OA\Response(response: 404, description: 'Comment not found'),
         ],
     )]
     public function deleteInItem(string $itemId, string $id, CommentService $commentService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         $comment = $this->findCommentOrNull($id, $commentService);
 
         if (!$comment instanceof Comment) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => \sprintf('Comment with id "%s" not found', $id),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Comment not found');
         }
 
         // Path consistency: the comment must belong to the item named in the
@@ -366,17 +343,11 @@ final class CommentController extends AbstractApiController
         // and a malformed itemId then simply fails to match (404) instead of
         // throwing from the ItemId value object.
         if (0 !== \strcasecmp($comment->getItem()->getId()->toString(), $itemId)) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => \sprintf('Comment with id "%s" not found in item "%s"', $id, $itemId),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Comment not found');
         }
 
         if (!$this->isGranted(SocialContentVoter::SOCIAL_DELETE, $comment)) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to delete this comment',
-            ], Response::HTTP_FORBIDDEN);
+            return $this->forbidden('Forbidden');
         }
 
         $commentService->delete($comment);

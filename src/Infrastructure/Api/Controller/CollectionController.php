@@ -16,6 +16,8 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\Exception\NotEncodableValueException;
+use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -60,8 +62,9 @@ final class CollectionController extends AbstractApiController
                     required: ['id', 'name', 'theme', 'owner_id', 'created_at', 'updated_at']
                 )
             ),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
             new OA\Response(
-                response: 400,
+                response: 422,
                 description: 'Validation error',
                 content: new OA\JsonContent(
                     type: 'object',
@@ -90,23 +93,24 @@ final class CollectionController extends AbstractApiController
         SerializerInterface $serializer,
         ValidatorInterface $validator
     ): JsonResponse {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             $dto = $this->deserializeAndValidate($request->getContent(), CreateCollectionDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
+        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+            return $this->badRequest('Malformed request body');
         }
 
         try {
             $collection = $collectionService->create($dto, $user);
         } catch (\Throwable $throwable) {
-            return new JsonResponse(['error' => 'Internal Server Error'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->internalError();
         }
 
         return new JsonResponse(
@@ -167,7 +171,7 @@ final class CollectionController extends AbstractApiController
                     type: 'object',
                     properties: [
                         new OA\Property(property: 'error', type: 'string', example: 'Not Found'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Collection with id "018f0a1b-2c3d-4e5f-6789-0123456789ab" not found'),
+                        new OA\Property(property: 'message', type: 'string', example: 'Collection not found'),
                     ]
                 )
             ),
@@ -175,25 +179,18 @@ final class CollectionController extends AbstractApiController
     )]
     public function get(string $id, CollectionService $collectionService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             $collection = $collectionService->getById($id);
         } catch (CollectionNotFoundException $collectionNotFoundException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $collectionNotFoundException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Collection not found');
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Collection not found');
         }
 
         return new JsonResponse(
@@ -262,15 +259,15 @@ final class CollectionController extends AbstractApiController
                     ]
                 )
             ),
+            new OA\Response(response: 400, description: 'Bad request (invalid owner id)'),
         ]
     )]
     public function list(Request $request, CollectionService $collectionService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         $limit = (int) ($request->query->get('limit') ?? 50);
@@ -281,7 +278,7 @@ final class CollectionController extends AbstractApiController
             try {
                 $ownerId = OwnerId::fromString($owner);
             } catch (\InvalidArgumentException) {
-                return new JsonResponse(['error' => 'Invalid owner id'], Response::HTTP_BAD_REQUEST);
+                return $this->badRequest('Invalid query parameters', ['Invalid owner id']);
             }
 
             $collections = $collectionService->listByOwnerId($ownerId, $limit, $offset);
@@ -340,8 +337,9 @@ final class CollectionController extends AbstractApiController
                     required: ['id', 'name', 'theme', 'owner_id', 'created_at', 'updated_at']
                 )
             ),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
             new OA\Response(
-                response: 400,
+                response: 422,
                 description: 'Validation error',
                 content: new OA\JsonContent(
                     type: 'object',
@@ -369,7 +367,7 @@ final class CollectionController extends AbstractApiController
                     type: 'object',
                     properties: [
                         new OA\Property(property: 'error', type: 'string', example: 'Forbidden'),
-                        new OA\Property(property: 'message', type: 'string', example: 'You do not have permission to update this collection'),
+                        new OA\Property(property: 'message', type: 'string', example: 'Forbidden'),
                     ]
                 )
             ),
@@ -380,7 +378,7 @@ final class CollectionController extends AbstractApiController
                     type: 'object',
                     properties: [
                         new OA\Property(property: 'error', type: 'string', example: 'Not Found'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Collection with id "018f0a1b-2c3d-4e5f-6789-0123456789ab" not found'),
+                        new OA\Property(property: 'message', type: 'string', example: 'Collection not found'),
                     ]
                 )
             ),
@@ -388,47 +386,41 @@ final class CollectionController extends AbstractApiController
     )]
     public function update(string $id, Request $request, CollectionService $collectionService, SerializerInterface $serializer, ValidatorInterface $validator): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             $dto = $this->deserializeAndValidate($request->getContent(), UpdateCollectionDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
+        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+            return $this->badRequest('Malformed request body');
         }
 
         try {
             $collection = $collectionService->getById($id);
         } catch (CollectionNotFoundException $collectionNotFoundException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $collectionNotFoundException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Collection not found');
+        } catch (\InvalidArgumentException $invalidArgumentException) {
+            return $this->notFound('Collection not found');
         }
 
         // Authorization: only owner can update
         if ($collection->getOwner()->getId()->toString() !== $user->getId()->toString()) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to update this collection',
-            ], Response::HTTP_FORBIDDEN);
+            return $this->forbidden('Forbidden');
         }
 
         if (!$dto->hasChanges()) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => 'At least one field must be provided for update',
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->unprocessable('At least one field must be provided for update');
         }
 
         try {
             $updatedCollection = $collectionService->update($dto, $collection);
         } catch (\Throwable $throwable) {
-            return new JsonResponse(['error' => 'Internal Server Error'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->internalError();
         }
 
         return new JsonResponse(
@@ -475,7 +467,7 @@ final class CollectionController extends AbstractApiController
                     type: 'object',
                     properties: [
                         new OA\Property(property: 'error', type: 'string', example: 'Forbidden'),
-                        new OA\Property(property: 'message', type: 'string', example: 'You do not have permission to delete this collection'),
+                        new OA\Property(property: 'message', type: 'string', example: 'Forbidden'),
                     ]
                 )
             ),
@@ -486,7 +478,7 @@ final class CollectionController extends AbstractApiController
                     type: 'object',
                     properties: [
                         new OA\Property(property: 'error', type: 'string', example: 'Not Found'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Collection with id "018f0a1b-2c3d-4e5f-6789-0123456789ab" not found'),
+                        new OA\Property(property: 'message', type: 'string', example: 'Collection not found'),
                     ]
                 )
             ),
@@ -494,34 +486,29 @@ final class CollectionController extends AbstractApiController
     )]
     public function delete(string $id, CollectionService $collectionService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             $collection = $collectionService->getById($id);
         } catch (CollectionNotFoundException $collectionNotFoundException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $collectionNotFoundException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Collection not found');
+        } catch (\InvalidArgumentException $invalidArgumentException) {
+            return $this->notFound('Collection not found');
         }
 
         // Authorization: only owner can delete
         if ($collection->getOwner()->getId()->toString() !== $user->getId()->toString()) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to delete this collection',
-            ], Response::HTTP_FORBIDDEN);
+            return $this->forbidden('Forbidden');
         }
 
         try {
             $collectionService->delete($collection);
         } catch (\Throwable $throwable) {
-            return new JsonResponse(['error' => 'Internal Server Error'], Response::HTTP_INTERNAL_SERVER_ERROR);
+            return $this->internalError();
         }
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);

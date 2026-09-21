@@ -13,6 +13,8 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\Exception\NotEncodableValueException;
+use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -55,8 +57,9 @@ final class RegistrationController extends AbstractApiController
                     required: ['id', 'name', 'email', 'role', 'is_active', 'created_at', 'updated_at']
                 )
             ),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
             new OA\Response(
-                response: 400,
+                response: 422,
                 description: 'Validation error',
                 content: new OA\JsonContent(
                     type: 'object',
@@ -73,7 +76,7 @@ final class RegistrationController extends AbstractApiController
                     type: 'object',
                     properties: [
                         new OA\Property(property: 'error', type: 'string', example: 'Conflict'),
-                        new OA\Property(property: 'message', type: 'string', example: 'User with email "john@example.com" already exists'),
+                        new OA\Property(property: 'message', type: 'string', example: 'User already exists'),
                     ]
                 )
             ),
@@ -89,15 +92,14 @@ final class RegistrationController extends AbstractApiController
             $dto = $this->deserializeAndValidate($request->getContent(), RegisterUserDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
+        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+            return $this->badRequest('Malformed request body');
         }
 
         try {
             $user = $registrationService->register($dto);
         } catch (UserAlreadyExistsException $userAlreadyExistsException) {
-            return new JsonResponse([
-                'error' => 'Conflict',
-                'message' => $userAlreadyExistsException->getMessage(),
-            ], Response::HTTP_CONFLICT);
+            return $this->conflict('User already exists');
         }
 
         return new JsonResponse([

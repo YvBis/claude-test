@@ -279,7 +279,7 @@ final class CommentControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(403);
         $this->assertSame(
-            ['error' => 'Forbidden', 'message' => 'You do not have permission to edit this comment'],
+            ['error' => 'Forbidden', 'message' => 'Forbidden'],
             \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
         );
     }
@@ -363,7 +363,7 @@ final class CommentControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(403);
         $this->assertSame(
-            ['error' => 'Forbidden', 'message' => 'You do not have permission to delete this comment'],
+            ['error' => 'Forbidden', 'message' => 'Forbidden'],
             \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
         );
     }
@@ -445,7 +445,7 @@ final class CommentControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(403);
         $this->assertSame(
-            ['error' => 'Forbidden', 'message' => 'You do not have permission to delete this comment'],
+            ['error' => 'Forbidden', 'message' => 'Forbidden'],
             \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
         );
     }
@@ -462,7 +462,7 @@ final class CommentControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(404);
         $this->assertSame(
-            ['error' => 'Not Found', 'message' => \sprintf('Comment with id "%s" not found in item "%s"', $commentId, $otherItemId)],
+            ['error' => 'Not Found', 'message' => 'Comment not found'],
             \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
         );
 
@@ -481,7 +481,7 @@ final class CommentControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(404);
         $this->assertSame(
-            ['error' => 'Not Found', 'message' => 'Comment with id "018f0a1b-2c3d-4e5f-6789-0123456789ab" not found'],
+            ['error' => 'Not Found', 'message' => 'Comment not found'],
             \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
         );
     }
@@ -495,7 +495,7 @@ final class CommentControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(404);
         $this->assertSame(
-            ['error' => 'Not Found', 'message' => 'Comment with id "not-a-uuid" not found'],
+            ['error' => 'Not Found', 'message' => 'Comment not found'],
             \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
         );
     }
@@ -510,7 +510,7 @@ final class CommentControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(404);
         $this->assertSame(
-            ['error' => 'Not Found', 'message' => \sprintf('Comment with id "%s" not found in item "%s"', $commentId, '018f0a1b-2c3d-4e5f-6789-0123456789ab')],
+            ['error' => 'Not Found', 'message' => 'Comment not found'],
             \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
         );
     }
@@ -532,7 +532,7 @@ final class CommentControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(404);
         $this->assertSame(
-            ['error' => 'Not Found', 'message' => \sprintf('Comment with id "%s" not found in item "%s"', $commentId, 'not-a-uuid')],
+            ['error' => 'Not Found', 'message' => 'Comment not found'],
             \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
         );
     }

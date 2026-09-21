@@ -126,14 +126,14 @@ final class CollectionControllerTest extends WebTestCase
         $this->assertSame($this->userId, $response['owner_id']);
     }
 
-    public function testCreateReturns400WhenInvalid(): void
+    public function testCreateReturns422WhenInvalid(): void
     {
         $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
             'name' => 'No',
             'theme' => 'unknown-theme',
         ], \JSON_THROW_ON_ERROR));
 
-        $this->assertResponseStatusCodeSame(400);
+        $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
         $this->assertSame('Validation failed', $response['error']);
         $this->assertNotEmpty($response['details']);
@@ -147,6 +147,21 @@ final class CollectionControllerTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR));
 
         $this->assertResponseStatusCodeSame(401);
+    }
+
+    public function testListWithoutTokenReturns401WithControllerEnvelope(): void
+    {
+        // GET /api/collections is PUBLIC_ACCESS at the firewall, so the request
+        // reaches the controller and the shared guard answers 401 with the
+        // {error, message?} envelope (protected paths are rejected earlier by
+        // the JWT entry point and answer with its own {code, message} body).
+        $this->client->request('GET', '/api/collections');
+
+        $this->assertResponseStatusCodeSame(401);
+        $this->assertSame(
+            ['error' => 'Unauthorized'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
+        );
     }
 
     public function testListReturns200AndArray(): void
@@ -210,7 +225,7 @@ final class CollectionControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(400);
         $this->assertJsonStringEqualsJsonString(
-            '{"error":"Invalid owner id"}',
+            '{"error":"Bad Request","message":"Invalid query parameters","details":["Invalid owner id"]}',
             $this->client->getResponse()->getContent()
         );
     }
@@ -293,7 +308,7 @@ final class CollectionControllerTest extends WebTestCase
         $this->assertSame('books', $response['theme']);
     }
 
-    public function testUpdateReturns400WhenNoChanges(): void
+    public function testUpdateReturns422WhenNoChanges(): void
     {
         $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
             'name' => 'Empty PATCH',
@@ -305,7 +320,10 @@ final class CollectionControllerTest extends WebTestCase
 
         $this->client->request('PATCH', '/api/collections/'.$id, [], [], $this->authHeaders(), '{}');
 
-        $this->assertResponseStatusCodeSame(400);
+        $this->assertResponseStatusCodeSame(422);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Unprocessable Entity', $data['error']);
+        $this->assertSame('At least one field must be provided for update', $data['message']);
     }
 
     public function testDeleteReturns204(): void
@@ -322,6 +340,47 @@ final class CollectionControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(204);
 
         $this->client->request('GET', '/api/collections/'.$id, [], [], $this->authHeaders());
+        $this->assertResponseStatusCodeSame(404);
+    }
+
+    public function testCreateWithMalformedBodyReturns400(): void
+    {
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), '{not-json');
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Bad Request', $data['error']);
+    }
+
+    public function testUpdateWithMalformedBodyReturns400(): void
+    {
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+            'name' => 'Malformed body target',
+            'theme' => 'books',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(201);
+        $id = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)['id'];
+
+        $this->client->request('PATCH', '/api/collections/'.$id, [], [], $this->authHeaders(), '{not-json');
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Bad Request', $data['error']);
+    }
+
+    public function testUpdateWithMalformedIdReturns404(): void
+    {
+        $this->client->request('PATCH', '/api/collections/not-a-uuid', [], [], $this->authHeaders(), \json_encode([
+            'name' => 'Ghost update',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(404);
+    }
+
+    public function testDeleteWithMalformedIdReturns404(): void
+    {
+        $this->client->request('DELETE', '/api/collections/not-a-uuid', [], [], $this->authHeaders());
+
         $this->assertResponseStatusCodeSame(404);
     }
 }

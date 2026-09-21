@@ -14,6 +14,8 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\Exception\NotEncodableValueException;
+use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -65,8 +67,9 @@ final class LoginController extends AbstractApiController
                     required: ['access_token', 'token_type', 'expires_in', 'user']
                 )
             ),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
             new OA\Response(
-                response: 400,
+                response: 422,
                 description: 'Validation error',
                 content: new OA\JsonContent(
                     type: 'object',
@@ -110,20 +113,16 @@ final class LoginController extends AbstractApiController
             $dto = $this->deserializeAndValidate($request->getContent(), LoginUserDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
+        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+            return $this->badRequest('Malformed request body');
         }
 
         try {
             $result = $authenticationService->authenticate($dto);
         } catch (InvalidCredentialsException) {
-            return new JsonResponse([
-                'error' => 'Unauthorized',
-                'message' => 'Invalid credentials',
-            ], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized('Invalid credentials');
         } catch (UserDeactivatedException) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'User account is deactivated',
-            ], Response::HTTP_FORBIDDEN);
+            return $this->forbidden('User account is deactivated');
         }
 
         return new JsonResponse([

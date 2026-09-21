@@ -57,7 +57,7 @@ class RegistrationControllerTest extends WebTestCase
             "password": "securePassword123"
         }');
 
-        $this->assertResponseStatusCodeSame(400);
+        $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
         $this->assertSame('Validation failed', $response['error']);
         $this->assertContains('Name cannot be empty', $response['details']);
@@ -72,7 +72,7 @@ class RegistrationControllerTest extends WebTestCase
             "password": "securePassword123"
         }');
 
-        $this->assertResponseStatusCodeSame(400);
+        $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
         $this->assertSame('Validation failed', $response['error']);
         $this->assertContains('Invalid email format', $response['details']);
@@ -86,10 +86,19 @@ class RegistrationControllerTest extends WebTestCase
             "password": "short"
         }');
 
-        $this->assertResponseStatusCodeSame(400);
+        $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
         $this->assertSame('Validation failed', $response['error']);
         $this->assertContains('Password must be at least 8 characters', $response['details']);
+    }
+
+    public function testRegisterWithMalformedBodyReturns400(): void
+    {
+        $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], '{not-json');
+
+        $this->assertResponseStatusCodeSame(400);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Bad Request', $response['error']);
     }
 
     public function testRegisterReturns409WhenEmailExists(): void
@@ -110,7 +119,8 @@ class RegistrationControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(409);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
         $this->assertSame('Conflict', $response['error']);
-        $this->assertStringContainsString('john@example.com', $response['message']);
+        $this->assertSame('User already exists', $response['message']);
+        $this->assertStringNotContainsString('john@example.com', $response['message']);
     }
 
     public function testRegisterTrimsNameAndLowercasesEmail(): void

@@ -41,17 +41,15 @@ final class TagController extends AbstractApiController
     public function list(Request $request, TagService $tagService): JsonResponse
     {
         $user = $this->getUser();
+
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             [$limit, $offset] = $this->parsePagination($request);
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->badRequest('Invalid query parameters', [$invalidArgumentException->getMessage()]);
         }
 
         $search = $request->query->get('search');

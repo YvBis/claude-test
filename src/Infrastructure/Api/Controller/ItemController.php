@@ -21,6 +21,8 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Serializer\Exception\NotEncodableValueException;
+use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -53,25 +55,18 @@ final class ItemController extends AbstractApiController
     )]
     public function listByCollection(string $collectionId, Request $request, CollectionService $collectionService, ItemService $itemService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             $collection = $collectionService->getById($collectionId);
         } catch (CollectionNotFoundException $collectionNotFoundException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $collectionNotFoundException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Collection not found');
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Collection not found');
         }
 
         [$name, $tagNames] = $this->parseFilters($request);
@@ -80,10 +75,7 @@ final class ItemController extends AbstractApiController
             [$limit, $offset] = $this->parsePagination($request);
             $items = $itemService->listByCollection($collection->getId(), $limit, $offset, $name, $tagNames);
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->badRequest('Invalid query parameters', [$invalidArgumentException->getMessage()]);
         }
 
         return new JsonResponse($this->toArrayPayload($itemService->toDTOList($items)), Response::HTTP_OK);
@@ -114,11 +106,10 @@ final class ItemController extends AbstractApiController
     )]
     public function listOwn(Request $request, ItemService $itemService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         [$name, $tagNames] = $this->parseFilters($request);
@@ -133,10 +124,7 @@ final class ItemController extends AbstractApiController
                 $tagNames,
             );
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->badRequest('Invalid query parameters', [$invalidArgumentException->getMessage()]);
         }
 
         return new JsonResponse($this->toArrayPayload($itemService->toDTOList($items)), Response::HTTP_OK);
@@ -168,25 +156,18 @@ final class ItemController extends AbstractApiController
         LikeService $likeService,
         CommentService $commentService,
     ): JsonResponse {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             $item = $itemService->getById($id);
         } catch (ItemNotFoundException $itemNotFoundException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $itemNotFoundException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Item not found');
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Item not found');
         }
 
         $detail = ItemDetailDTO::fromItem(
@@ -235,7 +216,8 @@ final class ItemController extends AbstractApiController
         tags: ['Items'],
         responses: [
             new OA\Response(response: 201, description: 'Item created', content: new OA\JsonContent(ref: '#/components/schemas/Item')),
-            new OA\Response(response: 400, description: 'Validation error or invalid slot value'),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
+            new OA\Response(response: 422, description: 'Validation error or invalid slot value'),
             new OA\Response(response: 401, description: 'Unauthorized'),
             new OA\Response(response: 403, description: 'Forbidden'),
             new OA\Response(response: 404, description: 'Collection not found'),
@@ -249,47 +231,36 @@ final class ItemController extends AbstractApiController
         SerializerInterface $serializer,
         ValidatorInterface $validator,
     ): JsonResponse {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             $dto = $this->deserializeAndValidate($request->getContent(), CreateItemDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
+        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+            return $this->badRequest('Malformed request body');
         }
 
         try {
             $collection = $collectionService->getById($collectionId);
         } catch (CollectionNotFoundException $collectionNotFoundException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $collectionNotFoundException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Collection not found');
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Collection not found');
         }
 
         if (!$this->canManage($user, $collection->getOwner())) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to create items in this collection',
-            ], Response::HTTP_FORBIDDEN);
+            return $this->forbidden('Forbidden');
         }
 
         try {
             $item = $itemService->create($dto, $collection);
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->unprocessable('Invalid content', [$invalidArgumentException->getMessage()]);
         }
 
         return new JsonResponse($itemService->toDTO($item)->toArray(), Response::HTTP_CREATED);
@@ -318,7 +289,8 @@ final class ItemController extends AbstractApiController
         tags: ['Items'],
         responses: [
             new OA\Response(response: 200, description: 'Item updated', content: new OA\JsonContent(ref: '#/components/schemas/Item')),
-            new OA\Response(response: 400, description: 'Empty body or invalid slot value'),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
+            new OA\Response(response: 422, description: 'Empty body or invalid slot value'),
             new OA\Response(response: 401, description: 'Unauthorized'),
             new OA\Response(response: 403, description: 'Forbidden'),
             new OA\Response(response: 404, description: 'Item not found'),
@@ -331,54 +303,40 @@ final class ItemController extends AbstractApiController
         SerializerInterface $serializer,
         ValidatorInterface $validator,
     ): JsonResponse {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             $dto = $this->deserializeAndValidate($request->getContent(), UpdateItemDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
+        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+            return $this->badRequest('Malformed request body');
         }
 
         try {
             $item = $itemService->getById($id);
         } catch (ItemNotFoundException $itemNotFoundException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $itemNotFoundException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Item not found');
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Item not found');
         }
 
         if (!$this->canManage($user, $item->getCollection()->getOwner())) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to update this item',
-            ], Response::HTTP_FORBIDDEN);
+            return $this->forbidden('Forbidden');
         }
 
         if (!$dto->hasChanges()) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => 'At least one field must be provided for update',
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->unprocessable('At least one field must be provided for update');
         }
 
         try {
             $updatedItem = $itemService->update($dto, $item);
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->unprocessable('Invalid content', [$invalidArgumentException->getMessage()]);
         }
 
         return new JsonResponse($itemService->toDTO($updatedItem)->toArray(), Response::HTTP_OK);
@@ -403,32 +361,22 @@ final class ItemController extends AbstractApiController
     )]
     public function delete(string $id, ItemService $itemService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             $item = $itemService->getById($id);
         } catch (ItemNotFoundException $itemNotFoundException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $itemNotFoundException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Item not found');
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Item not found');
         }
 
         if (!$this->canManage($user, $item->getCollection()->getOwner())) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to delete this item',
-            ], Response::HTTP_FORBIDDEN);
+            return $this->forbidden('Forbidden');
         }
 
         $itemService->delete($item);
