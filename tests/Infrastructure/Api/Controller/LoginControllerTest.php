@@ -116,7 +116,7 @@ class LoginControllerTest extends WebTestCase
             "password": "securePassword123"
         }');
 
-        $this->assertResponseStatusCodeSame(400);
+        $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
         $this->assertSame('Validation failed', $response['error']);
         // Check actual validation message from serializer/validator
@@ -130,7 +130,7 @@ class LoginControllerTest extends WebTestCase
             "password": "securePassword123"
         }');
 
-        $this->assertResponseStatusCodeSame(400);
+        $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
         $this->assertSame('Validation failed', $response['error']);
         // Check that details contains validation errors
@@ -145,11 +145,20 @@ class LoginControllerTest extends WebTestCase
             "password": "short"
         }');
 
-        $this->assertResponseStatusCodeSame(400);
+        $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
         $this->assertSame('Validation failed', $response['error']);
         $this->assertArrayHasKey('details', $response);
         $this->assertIsArray($response['details']);
+    }
+
+    public function testLoginWithMalformedBodyReturns400(): void
+    {
+        $this->client->request('POST', '/api/login', [], [], ['CONTENT_TYPE' => 'application/json'], '{not-json');
+
+        $this->assertResponseStatusCodeSame(400);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Bad Request', $response['error']);
     }
 
     public function testLoginTrimsAndLowercasesEmail(): void

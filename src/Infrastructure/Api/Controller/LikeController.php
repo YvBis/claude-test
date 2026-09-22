@@ -47,20 +47,16 @@ final class LikeController extends AbstractApiController
     )]
     public function create(string $itemId, ItemService $itemService, LikeService $likeService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         $item = $this->findItemOrNull($itemId, $itemService);
 
         if (!$item instanceof Item) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => \sprintf('Item with id "%s" not found', $itemId),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Item not found');
         }
 
         $likeService->like($user, $item);
@@ -86,20 +82,16 @@ final class LikeController extends AbstractApiController
     )]
     public function deleteOwn(string $itemId, ItemService $itemService, LikeService $likeService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         $item = $this->findItemOrNull($itemId, $itemService);
 
         if (!$item instanceof Item) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => \sprintf('Item with id "%s" not found', $itemId),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Item not found');
         }
 
         $likeService->unlike($user, $item);
@@ -132,29 +124,22 @@ final class LikeController extends AbstractApiController
     )]
     public function listByItem(string $itemId, Request $request, ItemService $itemService, LikeService $likeService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         $item = $this->findItemOrNull($itemId, $itemService);
 
         if (!$item instanceof Item) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => \sprintf('Item with id "%s" not found', $itemId),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Item not found');
         }
 
         try {
             [$limit, $offset] = $this->parsePagination($request);
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->badRequest('Invalid query parameters', [$invalidArgumentException->getMessage()]);
         }
 
         $likes = $likeService->listByItem($item->getId(), $limit, $offset);
@@ -185,20 +170,16 @@ final class LikeController extends AbstractApiController
     )]
     public function listOwn(Request $request, LikeService $likeService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         try {
             [$limit, $offset] = $this->parsePagination($request);
         } catch (\InvalidArgumentException $invalidArgumentException) {
-            return new JsonResponse([
-                'error' => 'Bad Request',
-                'message' => $invalidArgumentException->getMessage(),
-            ], Response::HTTP_BAD_REQUEST);
+            return $this->badRequest('Invalid query parameters', [$invalidArgumentException->getMessage()]);
         }
 
         $likes = $likeService->listByOwner(
@@ -229,27 +210,20 @@ final class LikeController extends AbstractApiController
     )]
     public function delete(string $id, LikeService $likeService): JsonResponse
     {
-        /** @var User $user */
         $user = $this->getUser();
 
         if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+            return $this->unauthorized();
         }
 
         $like = $this->findLikeOrNull($id, $likeService);
 
         if (!$like instanceof Like) {
-            return new JsonResponse([
-                'error' => 'Not Found',
-                'message' => \sprintf('Like with id "%s" not found', $id),
-            ], Response::HTTP_NOT_FOUND);
+            return $this->notFound('Like not found');
         }
 
         if (!$this->isGranted(SocialContentVoter::SOCIAL_DELETE, $like)) {
-            return new JsonResponse([
-                'error' => 'Forbidden',
-                'message' => 'You do not have permission to delete this like',
-            ], Response::HTTP_FORBIDDEN);
+            return $this->forbidden('Forbidden');
         }
 
         $likeService->removeLike($like);

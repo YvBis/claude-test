@@ -56,16 +56,84 @@ abstract class AbstractApiController extends BaseAbstractController
     }
 
     /**
-     * Create a standardized validation error response.
+     * Build a standardized error envelope.
+     *
+     * `message` is omitted when null, preserving the 401/500 contract which
+     * answers with the error label only. `details` carries the per-field list
+     * for validation errors.
+     *
+     * @param array<int, string>|null $details
+     */
+    protected function errorResponse(int $status, string $error, ?string $message = null, ?array $details = null): JsonResponse
+    {
+        /** @var array<string, mixed> $payload */
+        $payload = ['error' => $error];
+
+        if (null !== $message) {
+            $payload['message'] = $message;
+        }
+
+        if (null !== $details) {
+            $payload['details'] = $details;
+        }
+
+        return new JsonResponse($payload, $status);
+    }
+
+    protected function unauthorized(?string $message = null): JsonResponse
+    {
+        return $this->errorResponse(Response::HTTP_UNAUTHORIZED, 'Unauthorized', $message);
+    }
+
+    protected function forbidden(string $message): JsonResponse
+    {
+        return $this->errorResponse(Response::HTTP_FORBIDDEN, 'Forbidden', $message);
+    }
+
+    protected function notFound(string $message): JsonResponse
+    {
+        return $this->errorResponse(Response::HTTP_NOT_FOUND, 'Not Found', $message);
+    }
+
+    /**
+     * Client-input errors carry a stable, generic `message`; the specifics of
+     * why the input was rejected go under `details`, so the public contract
+     * never depends on internal exception wording.
+     *
+     * @param array<int, string>|null $details
+     */
+    protected function badRequest(string $message, ?array $details = null): JsonResponse
+    {
+        return $this->errorResponse(Response::HTTP_BAD_REQUEST, 'Bad Request', $message, $details);
+    }
+
+    /**
+     * @param array<int, string>|null $details
+     */
+    protected function unprocessable(string $message, ?array $details = null): JsonResponse
+    {
+        return $this->errorResponse(Response::HTTP_UNPROCESSABLE_ENTITY, 'Unprocessable Entity', $message, $details);
+    }
+
+    protected function conflict(string $message): JsonResponse
+    {
+        return $this->errorResponse(Response::HTTP_CONFLICT, 'Conflict', $message);
+    }
+
+    protected function internalError(): JsonResponse
+    {
+        return $this->errorResponse(Response::HTTP_INTERNAL_SERVER_ERROR, 'Internal Server Error');
+    }
+
+    /**
+     * Create a standardized validation error response: 422 with the list of
+     * per-field messages under `details`.
      *
      * @param string[] $errors
      */
     protected function createValidationErrorResponse(array $errors): JsonResponse
     {
-        return new JsonResponse([
-            'error' => 'Validation failed',
-            'details' => $errors,
-        ], Response::HTTP_BAD_REQUEST);
+        return $this->errorResponse(Response::HTTP_UNPROCESSABLE_ENTITY, 'Validation failed', null, $errors);
     }
 
     /**

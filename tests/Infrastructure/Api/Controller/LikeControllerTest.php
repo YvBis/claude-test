@@ -242,7 +242,7 @@ final class LikeControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(403);
         $this->assertSame(
-            ['error' => 'Forbidden', 'message' => 'You do not have permission to delete this like'],
+            ['error' => 'Forbidden', 'message' => 'Forbidden'],
             \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
         );
     }
