@@ -199,7 +199,7 @@ GitHub Actions
 ├── Rector (dry-run)
 ├── PHPUnit (tests + coverage gate ≥ 80%, каждая ветка и main)
 ├── Composer Audit (security, hard gate)
-├── Symfony Diagnostics (`symfony-lsp check`, source-only) — пилот, non-blocking: GitHub-аннотации, мерж не блокирует (задача 5.11; блокирующий и runtime-режим — 5.13/5.14)
+├── Symfony Diagnostics (`symfony-lsp check`) — пилот, non-blocking: два прогона (source baseline + runtime `--environment=test`), GitHub-аннотации, мерж не блокирует (задача 5.13; блокирующим делает 5.14)
 └── AI Code Review — OpenRabbit, summary + inline comments (PR only, non-draft):
     OpenRouter free pool (`openrouter/free`, секрет `LLM_API_KEY`) — основной, при падении — NVIDIA NIM (`openai/gpt-oss-20b`, https://integrate.api.nvidia.com/v1, секрет `NVIDIA_API_KEY`)
 ```

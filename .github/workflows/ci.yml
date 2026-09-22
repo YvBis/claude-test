@@ -73,12 +73,15 @@ jobs:
   symfony-diagnostics:
     name: Symfony Diagnostics (symfony-lsp)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     # Pilot phase: the checker publishes GitHub annotations only and must not
     # block merges. Roadmap 5.14 turns it into a blocking gate.
     continue-on-error: true
     env:
       SYMFONY_LSP_VERSION: '0.21.0'
+      # Binary and checker index share one cached directory, so a cache hit skips
+      # the release download (the archive is still checksum-verified before use).
+      SYMFONY_LSP_BIN_DIR: var/symfony-lsp/bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,16 +89,28 @@ jobs:
       - name: Setup CI environment
         uses: ./.github/actions/setup-ci
 
-      - name: Cache symfony-lsp index
+      - name: Cache symfony-lsp index and binary
         uses: actions/cache@v4
         with:
           path: var/symfony-lsp
-          key: symfony-lsp-${{ runner.os }}-${{ env.SYMFONY_LSP_VERSION }}-${{ hashFiles('composer.lock') }}
+          # The key covers both the checker index (which depends on the
+          # application's dependencies) and the cached release archive.
+          # restore-keys still reuses the archive when only the config hash
+          # changes, so a composer.lock bump re-analyses the index without
+          # re-downloading the release.
+          key: symfony-lsp-${{ runner.os }}-${{ env.SYMFONY_LSP_VERSION }}-${{ hashFiles('.symfony-lsp.json', 'composer.lock') }}
           restore-keys: |
             symfony-lsp-${{ runner.os }}-${{ env.SYMFONY_LSP_VERSION }}-
 
-      - name: Run Symfony Language Tools checker (source-only)
-        run: bash scripts/symfony-lsp-check.sh --source-only --format=github
+      # --environment=test is required: the checker defaults to "dev" and ignores
+      # .env, and the dev cache adapter is Redis, which would need a service on
+      # the runner. The test environment (what the copied .env.test selects)
+      # boots without a database, cache backend or message transport.
+      - name: Run Symfony Language Tools checker (source analysis)
+        run: bash scripts/symfony-lsp-check.sh --source-only --environment=test --format=github
+
+      - name: Run Symfony Language Tools checker (runtime analysis)
+        run: bash scripts/symfony-lsp-check.sh --environment=test --format=github
 
   unit-tests:
     name: Unit Tests

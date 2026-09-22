@@ -124,14 +124,22 @@ Symfony-aware диагностика (маршруты, DI-контейнер, T
 checker [`symfony-lsp`](https://github.com/symfony/language-tools) (`symfony/language-tools`):
 ```bash
 docker compose exec app composer ci:symfony-lsp                    # runtime-анализ (запускает приложение)
-docker compose exec app composer ci:symfony-lsp -- --source-only   # статический анализ, как в CI
+docker compose exec app composer ci:symfony-lsp -- --source-only   # статический анализ (без запуска приложения)
 ```
 
-> В CI checker работает в **пилотном** режиме: `--source-only` (приложение не запускается), публикует
-> аннотации и не блокирует мерж (`continue-on-error: true` в `.github/workflows/ci.yml`). Скрипт
-> `scripts/symfony-lsp-check.sh` ставит закреплённую версию с проверкой SHA256 в `var/bin/`; версия
-> переопределяется переменной `SYMFONY_LSP_VERSION`. На момент запуска пилота активных находок нет;
-> найденная deprecated-настройка заведена задачей `5.12` в `Roadmap.md`.
+> В CI checker прогоняется **дважды**: сначала `--source-only` (статический baseline), затем runtime-анализ
+> с `--environment=test` (приложение действительно запускается: маршруты, DI-контейнер, Doctrine-метаданные).
+> Окружение задаётся явно, потому что checker по умолчанию берёт `dev` и не читает `.env`, а в `dev`
+> `cache.app` — Redis-адаптер, и job'у потребовался бы сервис; в `test` приложение поднимается без БД,
+> кэша и транспорта. Job остаётся **пилотным**: публикует аннотации и не блокирует мерж
+> (`continue-on-error: true` в `.github/workflows/ci.yml`; блокирующим его делает задача `5.14`).
+> Скрипт `scripts/symfony-lsp-check.sh` ставит закреплённую версию с проверкой SHA256; архив и список
+> контрольных сумм кэшируются в `var/bin/` (в CI каталог переопределён на `var/symfony-lsp/bin`, чтобы
+> попасть в общий кэш вместе с индексом checker'а), и на кэш-хите архив всё равно проверяется перед
+> распаковкой, а бинарник всегда извлекается из проверенного архива (инвариант — «хеш проверен перед
+> запуском», а не «скачиваем каждый раз»). Версия переопределяется переменной `SYMFONY_LSP_VERSION`,
+> каталог — `SYMFONY_LSP_BIN_DIR`. Найденная ранее deprecated-настройка закрыта задачей `5.12`;
+> на 2026-09-22 — 0 диагностик в обоих режимах (source-only и runtime).
 
 ## Smoke tests
 
