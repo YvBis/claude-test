@@ -31,6 +31,7 @@
 ### CI
 - Провайдеры AI-ревью поменяны местами: OpenRouter free — основной, NVIDIA NIM — фолбэк; время ревью сократилось с ~13–15 мин до ~1 мин.
 - `symfony-diagnostics`: `symfony-lsp check` в режиме source-only (пилот, non-blocking, GitHub-аннотации).
+- `symfony-diagnostics` (5.13): job прогоняет checker **дважды** — source baseline и runtime-анализ с явным `--environment=test` (checker по умолчанию берёт `dev` и не читает `.env`; в `dev` кэш — Redis, в `test` приложение поднимается без БД/кэша/транспорта). Скачивание релиза получило retry с backoff и таймауты, а архив и `SHA256SUMS` кэшируются в `var/symfony-lsp/bin` с обязательной SHA256-проверкой на кэш-хите. Пилот остаётся non-blocking (блокирующим делает 5.14).
 
 ### Тесты
 - +154 теста с Этапа 4 (615 tests суммарно; coverage gate ≥80% зелёный).

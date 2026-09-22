@@ -11,9 +11,10 @@ use PHPUnit\Framework\TestCase;
  *
  * The checker itself is an external binary, so these tests protect the
  * integration contract that a silent edit could break: the composer entry
- * point, the pinned version with checksum verification, the non-blocking
- * pilot CI job and the project configuration that keeps runtime analysis
- * from failing on the generated config/reference.php file.
+ * point, the pinned version with checksum verification, the download-retry
+ * policy, the non-blocking pilot CI job (source baseline plus runtime analysis)
+ * and the project configuration that keeps runtime analysis from failing on the
+ * generated config/reference.php file.
  */
 final class SymfonyLspConfigTest extends TestCase
 {
@@ -41,16 +42,30 @@ final class SymfonyLspConfigTest extends TestCase
         );
     }
 
-    public function testCiJobRunsCheckerInSourceOnlyNonBlockingPilot(): void
+    public function testCiJobRunsSourceAndRuntimeChecksAsNonBlockingPilot(): void
     {
         $workflow = (string) \file_get_contents($this->projectRoot.'/.github/workflows/ci.yml');
         $job = $this->jobBlock($workflow, 'symfony-diagnostics');
 
-        self::assertStringContainsString('scripts/symfony-lsp-check.sh', $job);
+        self::assertSame(
+            2,
+            \substr_count($job, 'scripts/symfony-lsp-check.sh'),
+            'CI must run the checker twice: the source baseline and the runtime analysis.',
+        );
         self::assertStringContainsString(
             '--source-only',
             $job,
-            'CI must run the checker with --source-only: the pilot gate must not execute the application.',
+            'The source baseline must keep running: runtime analysis is not proven to be a superset of it.',
+        );
+        self::assertMatchesRegularExpression(
+            '/scripts\/symfony-lsp-check\.sh --environment=test --format=github/',
+            $job,
+            'One invocation must omit --source-only, i.e. boot the application and analyse routes, container and metadata.',
+        );
+        self::assertStringContainsString(
+            '--source-only --environment=test',
+            $job,
+            'The source baseline must pin --environment=test too.',
         );
         self::assertStringContainsString(
             'continue-on-error: true',
@@ -61,6 +76,11 @@ final class SymfonyLspConfigTest extends TestCase
             'SYMFONY_LSP_VERSION',
             $job,
             'The job must pin the checker version: the index cache key must not serve foreign-version trees.',
+        );
+        self::assertStringContainsString(
+            'SYMFONY_LSP_BIN_DIR',
+            $job,
+            'The binary must live inside the cached directory, otherwise every run re-downloads the release.',
         );
         self::assertStringNotContainsString(
             'symfony-diagnostics',
@@ -84,6 +104,42 @@ final class SymfonyLspConfigTest extends TestCase
             $script,
             'Downloads must be verified against the release checksum before execution.',
         );
+        self::assertGreaterThanOrEqual(
+            3,
+            \substr_count($script, 'verify_archive'),
+            'The cached archive must be checksum-verified before extraction, exactly like a fresh download.',
+        );
+        self::assertStringContainsString(
+            'SHA256SUMS.${VERSION}',
+            $script,
+            'The checksum list must be per-version, so a bump can never verify an archive against a foreign list.',
+        );
+        self::assertStringNotContainsString(
+            'if [ ! -x "${BIN}" ]',
+            $script,
+            'The binary must always be extracted from an archive verified in this run: a cache-restored binary was never checksum-verified.',
+        );
+    }
+
+    public function testRunnerScriptRetriesTransientDownloadFailures(): void
+    {
+        $script = (string) \file_get_contents($this->projectRoot.'/scripts/symfony-lsp-check.sh');
+
+        self::assertStringContainsString(
+            '--retry-all-errors',
+            $script,
+            'A single transient 504 while fetching the release must not fail the job: downloads need retries.',
+        );
+        self::assertStringContainsString(
+            '--connect-timeout',
+            $script,
+            'Retries bound the number of attempts, not the duration of a stalled connection.',
+        );
+        self::assertStringContainsString(
+            '--max-time',
+            $script,
+            'A stalled download must be cut off instead of eating the whole job budget.',
+        );
     }
 
     public function testProjectConfigExcludesGeneratedReferenceFile(): void
@@ -102,6 +158,33 @@ final class SymfonyLspConfigTest extends TestCase
             'Runtime analysis exits with status 12 when the generated config/reference.php changes mid-check; '
             .'the file must stay excluded.',
         );
+    }
+
+    public function testRunnerScriptFailsLoudlyWithoutNetworkAndCachedChecksums(): void
+    {
+        $binDir = \sys_get_temp_dir().'/symfony-lsp-'.\bin2hex(\random_bytes(6));
+
+        $command = \sprintf(
+            'SYMFONY_LSP_BASE_URL=http://127.0.0.1:1 SYMFONY_LSP_BIN_DIR=%s SYMFONY_LSP_VERSION=9.9.9 bash %s --source-only 2>&1',
+            \escapeshellarg($binDir),
+            \escapeshellarg($this->projectRoot.'/scripts/symfony-lsp-check.sh'),
+        );
+
+        \exec($command, $output, $exitCode);
+
+        self::assertSame(
+            11,
+            $exitCode,
+            'With no reachable release host and no cached checksum list the runner must fail loudly instead of continuing.',
+        );
+        self::assertStringContainsString('cannot obtain SHA256SUMS', \implode("\n", $output));
+        self::assertFileDoesNotExist(
+            $binDir.'/symfony-lsp',
+            'Nothing may be installed or executed when the checksum list cannot be obtained.',
+        );
+
+        @\unlink($binDir.'/SHA256SUMS.9.9.9');
+        @\rmdir($binDir);
     }
 
     /**
