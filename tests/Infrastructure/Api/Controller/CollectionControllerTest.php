@@ -230,6 +230,104 @@ final class CollectionControllerTest extends WebTestCase
         );
     }
 
+    public function testListWithInvalidLimitReturns400(): void
+    {
+        $this->client->request('GET', '/api/collections?limit=abc', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Bad Request', $response['error']);
+        $this->assertSame('Invalid query parameters', $response['message']);
+        $this->assertNotEmpty($response['details']);
+    }
+
+    public function testListWithInvalidOffsetReturns400(): void
+    {
+        $this->client->request('GET', '/api/collections?offset=abc', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Bad Request', $response['error']);
+        $this->assertSame('Invalid query parameters', $response['message']);
+    }
+
+    public function testListWithZeroLimitReturns400(): void
+    {
+        // (int) '0' used to pass straight through as LIMIT 0 and answer 200 with
+        // an empty list; the shared helper enforces MIN_LIMIT = 1.
+        $this->client->request('GET', '/api/collections?limit=0', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    public function testListWithLimitAboveMaximumReturns400(): void
+    {
+        $this->client->request('GET', '/api/collections?limit=101', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    public function testListWithNegativeOffsetReturns400(): void
+    {
+        $this->client->request('GET', '/api/collections?offset=-1', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    public function testListWithNegativeLimitReturns400(): void
+    {
+        $this->client->request('GET', '/api/collections?limit=-5', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    public function testListWithMaximumLimitReturns200(): void
+    {
+        $this->client->request('GET', '/api/collections?limit=100', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(200);
+        $this->assertIsArray(\json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR));
+    }
+
+    public function testListPaginates(): void
+    {
+        foreach (['Page 1', 'Page 2', 'Page 3'] as $name) {
+            $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+                'name' => $name,
+                'theme' => 'books',
+            ], \JSON_THROW_ON_ERROR));
+            $this->assertResponseStatusCodeSame(201);
+        }
+
+        $this->client->request('GET', '/api/collections?limit=2', [], [], $this->authHeaders());
+        $this->assertResponseStatusCodeSame(200);
+        $firstPage = \array_column(\json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR), 'name');
+        $this->assertCount(2, $firstPage);
+
+        $this->client->request('GET', '/api/collections?limit=2&offset=2', [], [], $this->authHeaders());
+        $this->assertResponseStatusCodeSame(200);
+        $secondPage = \array_column(\json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR), 'name');
+        $this->assertCount(1, $secondPage);
+
+        // The offset must really skip the first page and the two pages must
+        // together cover every collection, whatever the repository ordering is.
+        $this->assertEmpty(\array_intersect($firstPage, $secondPage));
+        $this->assertCount(3, \array_unique(\array_merge($firstPage, $secondPage)));
+    }
+
+    public function testListWithInvalidLimitAndOwnerReportsPaginationFirst(): void
+    {
+        // Pagination is parsed before the owner id, so a request that is wrong
+        // in both ways answers with the pagination reason.
+        $this->client->request('GET', '/api/collections?limit=abc&owner=not-a-uuid', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Invalid query parameters', $response['message']);
+        $this->assertStringContainsString('limit', (string) $response['details'][0]);
+        $this->assertStringNotContainsString('owner', \implode(' ', $response['details']));
+    }
+
     public function testGetReturns200AndData(): void
     {
         $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([

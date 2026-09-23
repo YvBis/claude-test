@@ -210,13 +210,13 @@ final class CollectionController extends AbstractApiController
                 name: 'limit',
                 in: 'query',
                 required: false,
-                schema: new OA\Schema(type: 'integer', default: 50)
+                schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)
             ),
             new OA\Parameter(
                 name: 'offset',
                 in: 'query',
                 required: false,
-                schema: new OA\Schema(type: 'integer', default: 0)
+                schema: new OA\Schema(type: 'integer', default: self::DEFAULT_OFFSET, minimum: self::DEFAULT_OFFSET)
             ),
             new OA\Parameter(
                 name: 'owner',
@@ -259,7 +259,7 @@ final class CollectionController extends AbstractApiController
                     ]
                 )
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid owner id)'),
+            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset/owner id)'),
         ]
     )]
     public function list(Request $request, CollectionService $collectionService): JsonResponse
@@ -270,8 +270,12 @@ final class CollectionController extends AbstractApiController
             return $this->unauthorized();
         }
 
-        $limit = (int) ($request->query->get('limit') ?? 50);
-        $offset = (int) ($request->query->get('offset') ?? 0);
+        try {
+            [$limit, $offset] = $this->parsePagination($request);
+        } catch (\InvalidArgumentException $invalidArgumentException) {
+            return $this->badRequest('Invalid query parameters', [$invalidArgumentException->getMessage()]);
+        }
+
         $owner = $request->query->get('owner');
 
         if (null !== $owner && \is_string($owner)) {

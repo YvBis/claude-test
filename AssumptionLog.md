@@ -1,5 +1,15 @@
 # Assumption Log
 
+## 2026-09-23 — fwd-20: валидация пагинации в `CollectionController::list`
+
+**Что было.** `CollectionController::list` парсил `limit`/`offset` сырым кастом: `$limit = (int) ($request->query->get('limit') ?? 50);`. Отсюда `?limit=abc` → `(int)'abc'` = 0 → `LIMIT 0` и **200 с пустым списком** вместо `400`; `?limit=0` проходил как есть; `?limit=101` уходил в репозиторий без потолка (`MAX_LIMIT` не применялся); `?limit=-5` доходил отрицательным. Это был последний неохраняемый край: `parsePagination` уже использовался в 7 местах (`TagController:50`, `LikeController:140,180`, `ItemController:75,118`, `CommentController:142,182`), а грепом по `query->get(` подтверждено, что сырых числовых разборов в `src/` больше нет (остальные хиты — строковые `search`/`name`).
+
+**Что сделано.** Касты заменены на `parsePagination` в `try/catch` → `badRequest('Invalid query parameters', [$e->getMessage()])`, по образцу `ItemController::listOwn:117-128` и **до** разбора `owner`. Приоритет зафиксирован явно: запрос, неверный и по пагинации, и по `owner`, отвечает причиной пагинации (тест `testListWithInvalidLimitAndOwnerReportsPaginationFirst`). OA-параметры переведены с литералов `50`/`0` на константы `self::DEFAULT_LIMIT`/`self::DEFAULT_OFFSET` с `minimum`/`maximum`, описание 400 расширено, `public/api/openapi.json` перегенерирован (одна строка минифицированного файла).
+
+**Смена семантики.** `?limit=0` и `?limit>100` теперь `400` (контракт `limit ∈ [1, 100]`, `offset ≥ 0`, дефолты 50/0 — как у остальных списков). Внешних клиентов у API нет, изменение бесплатное; зафиксировано в CHANGELOG («Изменения поведения»).
+
+**Проверки.** `composer ci:all` — **698 tests / 1974 assertions**, exit 0 (+9 тестов); `composer openapi:generate` → `openapi:validate` OK; `config/reference.php` отреверчен (дрейф от `bin/console`). Побочно: после переключения ветки php-cs-fixer пометил `tests/Infrastructure/Ci/SymfonyLspConfigTest.php` whole-file диффом — CRLF-фантом (autocrlf=true, индекс LF); нормализовано 9 файлов, реальный диф остался только в трёх (контроллер, тест, openapi). Класс закрывается задачей 5.21.
+
 ## 2026-09-23 — Task 5.17: parity-probe (runtime ⊇ source-only), снятие `--source-only` из CI
 
 **Зачем.** Job `symfony-diagnostics` гонял checker дважды (`--source-only` + runtime), и guard-тест требовал наличия обоих прогонов, пока не доказано, что runtime является надмножеством статического (architect-review 5.13).
