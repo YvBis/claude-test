@@ -8,6 +8,13 @@ permissions:
   contents: read
   pull-requests: write
 
+# Review only the newest head of a pull request. A newer push cancelling the
+# in-flight run is intentional: a queued run keeps the commit it was triggered
+# with (on pull_request events github.sha is the synthetic merge commit of that
+# moment), so it would report on outdated code, and every run spends the
+# OpenRouter free pool, which is capped at 50 requests/day. A cancelled run
+# therefore means "no verdict yet"; a verdict is lost only when the job times out
+# or the LLM fails, which is what the timeouts below are sized for.
 concurrency:
   group: ai-review-${{ github.ref }}
   cancel-in-progress: true
@@ -17,12 +24,16 @@ jobs:
     name: OpenRabbit Review
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
       - name: Run AI Code Review (OpenRouter free)
         id: openrouter
+        # 12 + 15 minutes, leaving three of the 30-minute job budget for checkout
+        # and overhead: a hung primary fails its step early so the fallback keeps
+        # a full window, and a hang can no longer eat the whole budget.
+        timeout-minutes: 12
         continue-on-error: true
         uses: aryanbrite/openrabbit@v0.8.7
         with:
@@ -33,8 +44,12 @@ jobs:
           review_mode: both
           tone_mode: balanced
 
+      # OpenRabbit has no native NVIDIA provider: its Groq client speaks the same
+      # OpenAI-compatible protocol, so "llm_provider: groq" is the transport for
+      # the NVIDIA NIM endpoint and model below.
       - name: Run AI Code Review (NVIDIA NIM fallback)
         if: steps.openrouter.outcome == 'failure'
+        timeout-minutes: 15
         uses: aryanbrite/openrabbit@v0.8.7
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
