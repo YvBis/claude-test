@@ -214,6 +214,10 @@ jobs:
       - name: Run composer audit
         run: composer audit --locked
 
+  # Aggregates the blocking jobs only: symfony-diagnostics is deliberately left
+  # out of needs (it is the non-blocking pilot, task 5.14). A new job must be
+  # added here AND to the STATUS string below, otherwise it escapes this gate and
+  # the required "CI Summary" check silently stops covering it (task 5.18).
   ci-summary:
     name: CI Summary
     runs-on: ubuntu-latest
