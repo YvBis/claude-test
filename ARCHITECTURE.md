@@ -200,6 +200,7 @@ GitHub Actions
 ├── PHPUnit (tests + coverage gate ≥ 80%, каждая ветка и main)
 ├── Composer Audit (security, hard gate)
 ├── Symfony Diagnostics (`symfony-lsp check`) — пилот, non-blocking: один runtime-прогон с `--environment=test` (source-only снят в 5.17 — parity-зонд показал, что он не даёт диагностик), GitHub-аннотации, мерж не блокирует (задачи 5.13/5.17; блокирующим делает 5.14)
+├── Required status checks on `main` (5.18): `OpenRabbit Review` + `CI Summary` (summary агрегирует три блокирующих job'а; `symfony-diagnostics` вне него осознанно — 5.14), `enforce_admins: true` — мерж без зелёного ревью технически невозможен; новый job надо вручную добавить в `needs:` и `STATUS`, иначе он вне гейта
 └── AI Code Review — OpenRabbit, summary + inline comments (PR only, non-draft; таймаут 30 мин, `cancel-in-progress: true` — ревьюится только последний head, `cancelled` = вердикта нет):
     OpenRouter free pool (`openrouter/free`, секрет `LLM_API_KEY`) — основной, при падении — NVIDIA NIM (`openai/gpt-oss-20b`, https://integrate.api.nvidia.com/v1, секрет `NVIDIA_API_KEY`)
 ```

@@ -1,5 +1,26 @@
 # Assumption Log
 
+## 2026-09-23 — Task 5.18: branch protection для `main` (настройка GitHub, не код)
+
+**Зачем.** Правило `CLAUDE.md` 6.1 («PR одобрен только при трёх вердиктах») было процедурным, а job ревью не входит в `ci-summary` — механически «вердикт есть» не проверялось. Владелец выдал ключу `gh` админ-права, настройка применена через API.
+
+**Применено** (`PUT /repos/YvBis/claude-test/branches/main/protection`):
+- `required_status_checks.contexts` = `OpenRabbit Review` + `CI Summary`, `strict: false`;
+- `enforce_admins: true` — иначе для единственного мержера (админа) правило декоративно;
+- `required_pull_request_reviews.required_approving_review_count` = 0 (PR обязателен, человеческие approval'ы не требуются — ревью у проекта машинное);
+- `allow_force_pushes: false`, `allow_deletions: false`;
+- `required_linear_history: false` (сквош и так даёт линейную историю, лишних ограничений не добавляем), `required_conversation_resolution: false` (обсуждения бота блокировали бы мерж — при желании включается отдельной задачей).
+
+**Почему `CI Summary`, а не все шесть чеков — и где предел.** Summary агрегирует **три** job'а из своего `needs:` (`static-analysis`, `unit-tests`, `dependency-audit`, `ci.yml:220`); `symfony-diagnostics` в него не входит **осознанно** — это non-blocking пилот (5.14). Поэтому «новый job автоматически попадает под защиту» **неверно**: новый job надо вручную добавить и в `needs:`, и в строку `STATUS` (`ci.yml:225`), иначе он окажется вне гейта и защита тихо ослабеет. Выбор `CI Summary` всё равно оправдан: результаты собраны в одном месте, а не размазаны по настройкам GitHub.
+
+**Проверка.** PR #83 под защитой: `gh pr view 83 --json mergeStateStatus` → `CLEAN` (это поле GraphQL-интерфейса `gh`; в REST то же состояние называется `mergeable_state`), required-контексты зелёные.
+
+**Границы защиты.** `OpenRabbit Review` запускается на `opened`/`synchronize`/`ready_for_review`; при **reopen без нового push** прогон не стартует (перевод из draft в ready триггерит `ready_for_review`, то есть прогон запускает), и обязательный чек остаётся pending — мерж заблокирован, пока не будет push. Отменённый (`cancel-in-progress`) или упавший по таймауту прогон вердикта не даёт и тоже блокирует мерж — это и есть требуемое «нет вердикта = не одобрено».
+
+**Обход.** Механизм обхода — `DELETE /repos/YvBis/claude-test/branches/main/protection` (только админ), след остаётся лишь в API-логе. Это осознанно: `enforce_admins: true` закрывает процедурное правило, а не запирает владельца.
+
+**Заметка.** В репозитории есть неактивный ruleset «Default» (`enforcement: disabled`, правила `deletion, non_fast_forward, pull_request`) — с классической защитой не конфликтует; при переходе на rulesets его можно включить и удалить классическую.
+
 ## 2026-09-23 — fwd-10: закрыт как устаревший (дубля `DATABASE_URL` больше нет)
 
 **Разбор.** Строка `fwd-10` (заведена 2026-09-16 по architect-review PR #59) утверждала, что `.env` содержит дубль-ключ `DATABASE_URL="postgresql://…"` (uncommented recipe-блок, last-wins), ломающий «single source of truth» и сбивающий хостовой `bin/console`. Проверка показала, что **дефекта больше нет**: `.env` не трекается (`git log -- .env` пуст), в нём **один** `DATABASE_URL` (MySQL, `@db:3306/taskflow`); `git grep postgresql://` даёт совпадение только в тексте самой строки `fwd-10`; `.env.example` и `.env.test` тоже содержат по одному MySQL-URL. Постгресовый recipe-блок исчез при переписывании `.env` в эпоху 5.x (разбирательство с APCu). Риск для репозитория нулевой — в трекаемых файлах постгресового блока не осталось; оговорка: `.env` не трекается, поэтому обновление Flex-рецепта теоретически может снова дописать в него постгресовую строку — это локальный файл, ревью не проходит и вреда репозиторию не несёт. Строка закрыта **без правок кода**.
