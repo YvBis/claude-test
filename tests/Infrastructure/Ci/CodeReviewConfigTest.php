@@ -12,26 +12,49 @@ use Symfony\Component\Yaml\Yaml;
  *
  * The review itself is an external action, so these tests protect the contract
  * that a silent edit could break: the triggers that decide which heads get a
- * verdict, both provider steps with their timeouts and the fallback condition,
- * the draft skip, and the concurrency policy that decides when a missing verdict
- * is expected (a newer push cancels the run) and when it is a real loss (the job
- * or a provider step timed out).
+ * verdict, both provider steps with their model, endpoint, key and timeouts, the
+ * fallback condition, the draft skip, and the concurrency policy that decides
+ * when a missing verdict is expected (a newer push cancels the run) and when it
+ * is a real loss (the job or a provider step timed out).
  *
  * The workflow is parsed as YAML rather than pattern-matched, so reformatting or
- * key reordering cannot break the guard, and a missing key fails loudly.
+ * key reordering cannot break the guard, and a missing key fails as a clean
+ * assertion instead of a PHP warning plus null. Provider steps are looked up by
+ * name rather than by position, so adding an unrelated step does not break the
+ * guard on a count.
+ *
+ * Why the primary model is pinned as a literal instead of a "free tier" pattern:
+ * OpenRouter rotates between free models *inside the provider* (AssumptionLog.md:680),
+ * so the value in this file stays `openrouter/free`. Accepting any `:free` suffix
+ * would let a silent swap to an unreviewed model pass - exactly what this pin
+ * exists to prevent. The primary step must also not carry an explicit
+ * `llm_api_url`: the action default is the OpenRouter endpoint, and an explicit
+ * URL - even one equal to that default - makes the endpoint part of this file and
+ * therefore something this guard has to pin. The `llm_api_key` expressions are
+ * pinned for the same reason: a silent switch to a paid key must fail loudly.
+ *
+ * Probed regressions (the workflow was edited transiently and restored
+ * byte-for-byte; each edit failed the guard for the right reason): a paid literal
+ * as the primary model, a foreign endpoint for the fallback, the job budget
+ * raised to 45, the fallback step renamed, and an explicit `llm_api_url` added to
+ * the primary step.
  */
 final class CodeReviewConfigTest extends TestCase
 {
+    private const string PRIMARY_STEP = 'Run AI Code Review (OpenRouter free)';
+    private const string FALLBACK_STEP = 'Run AI Code Review (NVIDIA NIM fallback)';
+
     public function testReviewJobKeepsItsVerdictContract(): void
     {
         $job = $this->reviewJob();
 
-        self::assertIsInt($job['timeout-minutes'], 'The review job must bound its runtime.');
-        self::assertGreaterThanOrEqual(
+        self::assertArrayHasKey('timeout-minutes', $job);
+        self::assertSame(
             30,
             $job['timeout-minutes'],
-            'The free-tier LLM needs headroom: a job killed by the timeout produces no verdict at all.',
+            'The job budget is pinned: a drifted budget silently loses the verdict when the free-tier LLM is slow.',
         );
+        self::assertArrayHasKey('if', $job);
         self::assertSame(
             'github.event.pull_request.draft == false',
             $job['if'],
@@ -41,26 +64,49 @@ final class CodeReviewConfigTest extends TestCase
 
     public function testBothProvidersAreWiredWithTimeoutsThatFitTheJobBudget(): void
     {
+        $job = $this->reviewJob();
         $steps = $this->reviewSteps();
-        self::assertCount(3, $steps, 'The job runs checkout plus two review providers.');
+        self::assertGreaterThanOrEqual(
+            2,
+            \count($steps),
+            'The job must keep at least the two review providers; steps are looked up by name below, not by position.',
+        );
 
-        $primary = $steps[1];
-        $fallback = $steps[2];
+        $primary = $this->stepByName(self::PRIMARY_STEP);
+        $fallback = $this->stepByName(self::FALLBACK_STEP);
 
+        self::assertArrayHasKey('uses', $primary);
         self::assertSame('aryanbrite/openrabbit@v0.8.7', $primary['uses']);
-        self::assertSame('openrouter', $primary['with']['llm_provider']);
+        self::assertArrayHasKey('id', $primary);
         self::assertSame(
             'openrouter',
             $primary['id'],
             'The fallback references this step id: renaming it silently disables the fallback.',
         );
+        self::assertArrayHasKey('continue-on-error', $primary);
         self::assertTrue(
             $primary['continue-on-error'],
             'The primary step must not abort the job: the fallback is triggered by its failure outcome.',
         );
 
+        $primaryWith = $this->withBlock($primary);
+        self::assertSame('openrouter', $primaryWith['llm_provider']);
+        self::assertSame(
+            'openrouter/free',
+            $primaryWith['llm_model'],
+            'Pin the free-pool identifier: OpenRouter rotates models inside the provider, and any other id means an unreviewed (possibly paid) escalation.',
+        );
+        self::assertArrayNotHasKey(
+            'llm_api_url',
+            $primaryWith,
+            'The primary relies on the action default endpoint; an explicit URL - even one equal to that default - must be pinned here instead.',
+        );
+        self::assertSame('${{ secrets.LLM_API_KEY }}', $primaryWith['llm_api_key']);
+        self::assertSame('both', $primaryWith['review_mode']);
+
+        self::assertArrayHasKey('uses', $fallback);
         self::assertSame('aryanbrite/openrabbit@v0.8.7', $fallback['uses']);
-        self::assertSame('groq', $fallback['with']['llm_provider']);
+        self::assertArrayHasKey('if', $fallback);
         self::assertSame(
             "steps.openrouter.outcome == 'failure'",
             $fallback['if'],
@@ -72,12 +118,46 @@ final class CodeReviewConfigTest extends TestCase
             'Tolerating a fallback failure would let both providers fail into a green job with no verdict at all.',
         );
 
-        self::assertIsInt($primary['timeout-minutes']);
-        self::assertIsInt($fallback['timeout-minutes']);
+        $fallbackWith = $this->withBlock($fallback);
+        self::assertSame(
+            'groq',
+            $fallbackWith['llm_provider'],
+            'OpenRabbit has no native NVIDIA provider: the Groq client is only the OpenAI-compatible transport.',
+        );
+        self::assertArrayHasKey(
+            'llm_api_url',
+            $fallbackWith,
+            'The fallback is the only step that names an endpoint explicitly: keep that asymmetry deliberate.',
+        );
+        self::assertSame(
+            'https://integrate.api.nvidia.com/v1',
+            $fallbackWith['llm_api_url'],
+            'The fallback endpoint is pinned: pointing it elsewhere silently switches providers.',
+        );
+        self::assertSame('openai/gpt-oss-20b', $fallbackWith['llm_model']);
+        self::assertSame('${{ secrets.NVIDIA_API_KEY }}', $fallbackWith['llm_api_key']);
+        self::assertSame('both', $fallbackWith['review_mode']);
+
+        self::assertArrayHasKey('timeout-minutes', $primary);
+        self::assertArrayHasKey('timeout-minutes', $fallback);
+        self::assertSame(12, $primary['timeout-minutes']);
+        self::assertSame(15, $fallback['timeout-minutes']);
         self::assertLessThan(
-            $this->reviewJob()['timeout-minutes'],
+            $job['timeout-minutes'],
             $primary['timeout-minutes'] + $fallback['timeout-minutes'],
             'Per-provider timeouts must leave room inside the job bound for checkout, otherwise a slow run loses the fallback.',
+        );
+    }
+
+    public function testWorkflowKeepsLeastPrivilegePermissions(): void
+    {
+        $permissions = $this->workflow()['permissions'];
+
+        self::assertSame(
+            ['contents' => 'read', 'pull-requests' => 'write'],
+            $permissions,
+            'The review reads the code and writes its comment - nothing more. A silent widening '
+            .'(e.g. id-token: write) or a narrowing that would break commenting must fail here.',
         );
     }
 
@@ -145,5 +225,39 @@ final class CodeReviewConfigTest extends TestCase
         $steps = $this->reviewJob()['steps'];
 
         return $steps;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function stepByName(string $name): array
+    {
+        foreach ($this->reviewSteps() as $step) {
+            if (($step['name'] ?? null) === $name) {
+                return $step;
+            }
+        }
+
+        self::fail(\sprintf('Step "%s" was not found in the review job.', $name));
+    }
+
+    /**
+     * @param array<string, mixed> $step
+     *
+     * @return array<string, mixed>
+     */
+    private function withBlock(array $step): array
+    {
+        self::assertArrayHasKey('with', $step);
+        self::assertIsArray($step['with']);
+
+        /** @var array<string, mixed> $with */
+        $with = $step['with'];
+
+        foreach (['llm_provider', 'llm_model', 'llm_api_key', 'review_mode'] as $key) {
+            self::assertArrayHasKey($key, $with, \sprintf('The review step must declare "%s".', $key));
+        }
+
+        return $with;
     }
 }
