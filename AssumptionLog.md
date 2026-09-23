@@ -1,5 +1,25 @@
 # Assumption Log
 
+## 2026-09-23 — Task 5.15: выравнивание Symfony и патч-бампы
+
+**Что сделано.** Точечный `composer update <17 пакетов> -w` в контейнере: `symfony/redis-messenger` 7.3.10 → **7.4.19** (цель — единственный пакет, отстававший на минор), 14 Symfony-компонентов → 7.4.17–7.4.19 (не всё до 7.4.19: `symfony/config`, `dependency-injection`, `event-dispatcher`, `type-info` остались на 7.4.17), `symfony/phpunit-bridge` 8.1.1 → 8.1.6, `ramsey/uuid` 4.9.3 → 4.9.4, `php-cs-fixer` 3.95.13 → 3.95.27. `composer.json` править не понадобилось: `^7.0` + `extra.symfony.require: 7.*` уже допускали 7.3 → 7.4. Артефакт — только `composer.lock`; `symfony.lock` не сдвинулся (рецепты не менялись).
+
+**Транзитивный дрейф — не нулевой (по ревью).** Флаг `-w` подтянул больше, чем явный список: `symfony/routing` 7.4.13 → 7.4.18, `symfony/string` 7.4.13 → 7.4.19, `symfony/type-info` 7.4.9 → 7.4.17, `symfony/config`/`dependency-injection`/`event-dispatcher` → 7.4.17, `symfony/polyfill-*` 1.37–1.38 → 1.41/1.42, `masterminds/html5` 2.10.1 → 2.11.0 и **`brick/math` 0.18.0 → 1.0.0 — мажор**, потребованный расширенным констрейнтом `ramsey/uuid` 4.9.4 (`^0.8 || ^1.0`). Плюс в lock попали метаданные `require-dev` самого `brick/math` (`phpstan/phpstan` 2.x и др.) — это **не** наш бамп: собственный phpstan остался 1.12. Вывод на будущее: явный список ограничивает дрейф, но не отменяет его — фиксировать транзитивные мажоры в доках явно.
+
+**Что осознанно не тронуто.** Мажоры: `phpunit` 11.5 → 12.5, `rector` 1.2.10 (пин) → 2.6, `phpstan` 1.12 → 2.2 + 3 расширения, `lexik/jwt` 2.21 → 3.2, `nelmio/api-doc` 4.38 → 5.12. Миноры не-Symfony вынесены в задачу **5.23** по ревью senior'а: `doctrine/orm` 3.6.7 → 3.7.2 и остальные — риск изменения поведения выше, чем у патча, и проверять их надо отдельным прогоном.
+
+**Находка ревью: депрекейшены были слепыми.** `phpunit.xml.dist:54` держит `SYMFONY_DEPRECATIONS_HELPER=disabled=1` — бампы Symfony/Doctrine прошли бы «тихо», даже если что-то стало deprecated. Добавлен шаг `SYMFONY_DEPRECATIONS_HELPER=weak php bin/phpunit --no-coverage` → **чисто**, ни одной депрекейшен-записи. Слепота остаётся штатной политикой проекта; лечится вызовом с `weak`, а не правкой конфига.
+
+**Проверки.** `composer validate` — valid; `composer audit --locked` — advisories нет; `composer ci:all` — 689 tests / 1931 assertions, exit 0; `coverage:gate` — 97.74% строк (гейт ≥80%); `symfony-lsp check --environment=test` (runtime) — **0 diagnostics, complete** (архив скачался с SHA256-проверкой — живое подтверждение скрипта из 5.13); `lint:container --env=test` — OK; `doctrine:schema:validate --env=test` — схема синхронна маппингу; `messenger:consume async` (dev) — `Consuming messages from transport "async"` (Redis-транспорт из `redis-messenger` 7.4.19 поднимается; в приложении Messenger не используется — в `src/` нет ни `dispatch()`, ни `AsMessageHandler`, routing закомментирован; это **только бут**, публикации и round-trip через Redis не проверялись, потребителей нет).
+
+**Ручной HTTP-smoke (25/25).** Прогон в контейнере: `/health`, `/api/doc`, регистрация, логин, теги, 401 без токена, CRUD коллекций и айтемов, комментарии включая удаление вложенного из 5.8, лайки, logout. Уточнены два факта контракта API: (1) **`POST /api/register` токен не возвращает** — только пользователя; `access_token` отдаёт `POST /api/login`; (2) коллекция требует `theme` из фиксированного списка (`books|games|movies|drinks`), иначе 422.
+
+**CRLF-фантомы после переключения ветки.** PHP-CS-Fixer пометил 18 файлов «fixable» — рабочая копия была в CRLF (`autocrlf=true`), индекс в LF. Лечение: нормализовать 42 файла (только там, где `git ls-files --eol` даёт `i/lf w/crlf`) в LF; после этого `git status` показывает 42 «M» из-за смены mtime, но `git diff --numstat` пуст (git применяет clean-фильтр) — в коммит ушёл только `composer.lock`. Класс закрывается задачей 5.21.
+
+**Инфраструктурный факт.** `var/` — отдельный анонимный volume в контейнере, поэтому файлы, положенные в `E:\code\claude-test\var\`, внутри контейнера не видны; скрипт смоука копировался через `docker compose cp` в `/tmp`.
+
+**Артефакты.** `PRD/5.15-symfony-version-alignment.md`, `CHANGELOG.md` (раздел «Зависимости»), `Roadmap.md` (5.15 → done, +5.23), этот лог. Историю не переписывал: запись 2026-09-17 с «Symfony 7.4.14» остаётся датированным наблюдением.
+
 ## 2026-09-17 — Task 5.6: unit-тесты домена Like (ядро Этапа 5 завершено)
 
 **Task 5.6 — tests-only.** Добавлены `tests/Domain/Like/ValueObject/LikeIdTest.php` (9 тестов, 78 строк) и `tests/Domain/Like/Entity/LikeTest.php` (5 тестов, 97 строк) — паритет с `CommentIdTest`/`CommentTest`. Дифф не затрагивает `src/` (проверено `git diff --name-only`). 175 строк тестов формально превышают ветку «≤150 source», поэтому подзадача уложена по альтернативной ветке «≤2ч» (код написан по готовым зеркалам).
