@@ -15,10 +15,17 @@
 #   scripts/symfony-lsp-check.sh [check options...]
 #
 # Defaults to a runtime check (boots the application to read routes, services,
-# container and other metadata). CI runs both modes, pinning the environment
-# explicitly because the checker defaults to "dev" and ignores .env:
-#   scripts/symfony-lsp-check.sh --source-only --environment=test --format=github
+# container and other metadata). CI runs the runtime mode only, pinning the
+# environment explicitly because the checker defaults to "dev" and ignores .env:
 #   scripts/symfony-lsp-check.sh --environment=test --format=github
+#
+# --source-only remains available for runs where the application cannot or should
+# not be booted (partial checkouts, quick local iteration), but it is
+# deliberately not part of CI: the parity probe from task 5.17 showed that with
+# symfony-lsp 0.21.x it reports no diagnostics at all on this project (every code
+# the checker offers resolves references against the runtime index), while the
+# runtime pass reported four of the six injected defects. Re-run the probe on a
+# checker bump (task 5.26). See PRD/5.17-parity-probe.md.
 #
 # Environment:
 #   SYMFONY_LSP_VERSION   release to install (default: 0.21.0)

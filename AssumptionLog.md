@@ -1,5 +1,19 @@
 # Assumption Log
 
+## 2026-09-23 — Task 5.17: parity-probe (runtime ⊇ source-only), снятие `--source-only` из CI
+
+**Зачем.** Job `symfony-diagnostics` гонял checker дважды (`--source-only` + runtime), и guard-тест требовал наличия обоих прогонов, пока не доказано, что runtime является надмножеством статического (architect-review 5.13).
+
+**Что измеряли.** Справка checker'а 0.21.0: `--source-only` = «Disable runtime indexing and application execution»; `--list-codes` даёт 30 кодов, и все они про разрешение ссылок (`config.*`, `service.not_found`, `parameter.not_found`, `route.not_found`, `route.missing_parameters`, `template.not_found`, `translation.*`, `twig_*`, `messenger.*`, `security.*`, `form.unknown_option`, `console.*`, `env.*`). Зонд инжектировал в ветку задачи 6 boot-safe дефектов (P1 route без аргумента плейсхолдера, P2 рендер несуществующего шаблона, P3 `abstract`-сервис с `@app.probe_missing_service`, P4 `abstract`-сервис с `%app.probe_missing_parameter%`, P5 возвращённый deprecated-ключ `lexik_jwt_authentication.encoder.crypto_engine` из 5.12, P6 шаблон со ссылкой `path('app_probe_route_does_not_exist')`), затем оба режима прогнаны с `--format=json --environment=test` в контейнере.
+
+**Результат.** Runtime (дважды, второй раз — после `rm -rf var/symfony-lsp`, N=2) нашёл **4** диагностики: `config.deprecated_key` (lexik), `parameter.not_found` (services.yaml), `template.not_found` (контроллер), `route.not_found` (шаблон); `complete: true`, `blocking: 3`. `--source-only` — **0** диагностик и на тёплом индексе, и на удалённом: `analysis.mode: source-only`, `runtime.state: disabled`, `source.state: ready`, `complete: true` — то есть прогон исправен и пуст. Ни одной source-only-only находки нет, правило «executable-code» не понадобилось.
+
+**Не диагностируются ни одним режимом:** P1 `route.missing_parameters` и P3 `service.not_found` на абстрактном сервисе. Причина не разведена: возможны и слепое пятно инструмента, и артефакт фикстуры/ожидания (`route.missing_parameters` может относиться к месту генерации ссылки, а не к определению маршрута; `abstract: true` сервисы компилятор удаляет, хотя P4 той же формы сработал). Формулировка «ограничение инструмента» — гипотеза, а не факт; целевая проверка вынесена в 5.26.
+
+**Расхождение с историей.** В 5.11 первая находка (`config.deprecated_key`) отнесена к source-only пилоту, но по этому замеру source-only её не находит (в 5.12 она подтверждена именно runtime-режимом). Историю не переписывал, расхождение зафиксировано.
+
+**Решение.** `--source-only` снят из `ci.yml` (один runtime-шаг с `--environment=test`); скрипт сохраняет режим для недоверенного кода, usage-комментарий обновлён; guard-тест переписан на «ровно один вызов, `--source-only` отсутствует, `--environment=test` закреплён, non-blocking, не в `ci-summary`». README и ARCHITECTURE обновлены (режим CI = runtime). Инжектированные дефекты были транзиентными — в коммит ушли только `ci.yml`, guard-тест, usage-комментарий скрипта и доки.
+
 ## 2026-09-23 — Task 5.15: выравнивание Symfony и патч-бампы
 
 **Что сделано.** Точечный `composer update <17 пакетов> -w` в контейнере: `symfony/redis-messenger` 7.3.10 → **7.4.19** (цель — единственный пакет, отстававший на минор), 14 Symfony-компонентов → 7.4.17–7.4.19 (не всё до 7.4.19: `symfony/config`, `dependency-injection`, `event-dispatcher`, `type-info` остались на 7.4.17), `symfony/phpunit-bridge` 8.1.1 → 8.1.6, `ramsey/uuid` 4.9.3 → 4.9.4, `php-cs-fixer` 3.95.13 → 3.95.27. `composer.json` править не понадобилось: `^7.0` + `extra.symfony.require: 7.*` уже допускали 7.3 → 7.4. Артефакт — только `composer.lock`; `symfony.lock` не сдвинулся (рецепты не менялись).

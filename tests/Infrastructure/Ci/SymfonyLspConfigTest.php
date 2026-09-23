@@ -12,9 +12,9 @@ use PHPUnit\Framework\TestCase;
  * The checker itself is an external binary, so these tests protect the
  * integration contract that a silent edit could break: the composer entry
  * point, the pinned version with checksum verification, the download-retry
- * policy, the non-blocking pilot CI job (source baseline plus runtime analysis)
- * and the project configuration that keeps runtime analysis from failing on the
- * generated config/reference.php file.
+ * policy, the non-blocking pilot CI job (runtime analysis only since the 5.17
+ * parity probe) and the project configuration that keeps runtime analysis from
+ * failing on the generated config/reference.php file.
  */
 final class SymfonyLspConfigTest extends TestCase
 {
@@ -42,30 +42,26 @@ final class SymfonyLspConfigTest extends TestCase
         );
     }
 
-    public function testCiJobRunsSourceAndRuntimeChecksAsNonBlockingPilot(): void
+    public function testCiJobRunsRuntimeCheckAsNonBlockingPilot(): void
     {
         $workflow = (string) \file_get_contents($this->projectRoot.'/.github/workflows/ci.yml');
         $job = $this->jobBlock($workflow, 'symfony-diagnostics');
 
         self::assertSame(
-            2,
-            \substr_count($job, 'scripts/symfony-lsp-check.sh'),
-            'CI must run the checker twice: the source baseline and the runtime analysis.',
+            1,
+            \preg_match_all('/^\s*run:.*scripts\/symfony-lsp-check\.sh/m', $job),
+            'CI must run the checker once: the 5.17 parity probe showed the source-only pass reports nothing on symfony-lsp 0.21.x.',
         );
-        self::assertStringContainsString(
-            '--source-only',
+        self::assertDoesNotMatchRegularExpression(
+            '/^\s*run:.*--source-only/m',
             $job,
-            'The source baseline must keep running: runtime analysis is not proven to be a superset of it.',
+            'No executed command may pass --source-only with symfony-lsp 0.21.x: the 5.17 probe showed it reports no diagnostics at all on this project. '
+            .'A checker bump must re-run the probe (task 5.26) before this can change - see PRD/5.17-parity-probe.md.',
         );
         self::assertMatchesRegularExpression(
             '/scripts\/symfony-lsp-check\.sh --environment=test --format=github/',
             $job,
-            'One invocation must omit --source-only, i.e. boot the application and analyse routes, container and metadata.',
-        );
-        self::assertStringContainsString(
-            '--source-only --environment=test',
-            $job,
-            'The source baseline must pin --environment=test too.',
+            'The single invocation must pin --environment=test: the checker defaults to "dev" and ignores .env, and dev needs a Redis service.',
         );
         self::assertStringContainsString(
             'continue-on-error: true',

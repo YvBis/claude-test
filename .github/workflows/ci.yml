@@ -106,9 +106,18 @@ jobs:
       # .env, and the dev cache adapter is Redis, which would need a service on
       # the runner. The test environment (what the copied .env.test selects)
       # boots without a database, cache backend or message transport.
-      - name: Run Symfony Language Tools checker (source analysis)
-        run: bash scripts/symfony-lsp-check.sh --source-only --environment=test --format=github
-
+      #
+      # A second --source-only pass was dropped in task 5.17. The parity probe
+      # (PRD/5.17-parity-probe.md) injected six boot-safe defects across route,
+      # template, service, parameter and bundle-config classes: the runtime pass
+      # reported four of them, while --source-only reported none at all (a
+      # healthy run - complete: true, analysis.mode: source-only) on both a warm
+      # and a deleted index. Every diagnostic code the checker offers resolves
+      # references against the runtime index, so on this project and fixture,
+      # with symfony-lsp 0.21.x, the runtime pass was the only one that reported
+      # anything. Two of the six
+      # defects were missed by both modes - a checker bump should re-run the
+      # probe (task 5.26).
       - name: Run Symfony Language Tools checker (runtime analysis)
         run: bash scripts/symfony-lsp-check.sh --environment=test --format=github
 
