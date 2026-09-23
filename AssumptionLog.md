@@ -20,7 +20,22 @@
 **Обход.** Механизм обхода — `DELETE /repos/YvBis/claude-test/branches/main/protection` (только админ), след остаётся лишь в API-логе. Это осознанно: `enforce_admins: true` закрывает процедурное правило, а не запирает владельца.
 
 **Заметка.** В репозитории есть неактивный ruleset «Default» (`enforcement: disabled`, правила `deletion, non_fast_forward, pull_request`) — с классической защитой не конфликтует; при переходе на rulesets его можно включить и удалить классическую.
+## 2026-09-23 — Task 5.24: депрекейшены в CI (bridge no-op → нативный PHPUnit)
 
+**Находка.** Схема из 5.15 (`SYMFONY_DEPRECATIONS_HELPER=weak php bin/phpunit`) в этом проекте — **тихий no-op**: `symfony/phpunit-bridge` не регистрирует обработчик депрекейшенов на PHPUnit 11. `vendor/symfony/phpunit-bridge/bootstrap.php:16-18` делает `if (class_exists(PHPUnit\Metadata\Metadata::class)) { return; }` — PHPUnit 11 всегда подпадает под условие, поэтому `DeprecationErrorHandler::register()` (строка 41) недостижим, и это единственный вызов; `SymfonyExtension` регистрирует clock/DNS-моки и `DebugClassLoader`, но не обработчик; расширения bridge в `phpunit.xml.dist` нет вовсе. Значит «слабый прогон депрекейшенов» в 5.15 ничего не проверял.
+
+**Зонд.** Транзиентный тест с `trigger_error('…', E_USER_DEPRECATED)` (удалён до коммита) прогнан в контейнере:
+- без флагов — `EXIT=0`, депрекейшен не показан;
+- `--display-deprecations` — печатает `1 test triggered 1 deprecation: …/DeprecationProbeTest.php:17`;
+- `--fail-on-deprecation` — `EXIT=1` (гейт работает);
+- с `SYMFONY_DEPRECATIONS_HELPER=weak` — ничего не меняется.
+Отдельная заминка: первый прогон использовал `@trigger_error(...)`, и PHPUnit его **не увидел** (оператор подавления) — зонд дал ложное «чисто», пока `@` не убрали.
+
+**Сделано.** В job `unit-tests` добавлен advisory-шаг `php bin/phpunit --no-coverage --display-deprecations` (`continue-on-error: true`; `--no-coverage`, потому что гейт покрытия уже прошёл, а бюджет job'а — 15 мин). Guard-тест `DeprecationConfigTest`: шаг есть, non-blocking, нативный флаг, без покрытия, ни один `run:` не полагается на `SYMFONY_DEPRECATIONS_HELPER`; `disabled=1` в `phpunit.xml.dist` сохранён осознанно. Из `.env.test` убран мёртвый `SYMFONY_DEPRECATIONS_HELPER=999999` (наследие миграции PHPUnit 9→11).
+
+**Дальше.** Жёсткий гейт `--fail-on-deprecation` вписан в 5.25: после чистой базовой линии шаг должен падать, а не только печатать. **Базовая линия на 2026-09-23:** полный прогон `--display-deprecations` — `OK (701 tests, 1997 assertions)`, 0 депрекейшенов, то есть гейт можно включать сразу.
+
+**Видимость.** Шаг не просто печатает: он кладёт вывод в step-summary и при находках публикует `::warning::`-аннотацию на PR — иначе advisory-шаг с `continue-on-error` в `ci-summary` (который смотрит только `failure|cancelled`) выглядел бы вечно-зелёным и «пожелтел бы в пустоту».
 ## 2026-09-23 — fwd-10: закрыт как устаревший (дубля `DATABASE_URL` больше нет)
 
 **Разбор.** Строка `fwd-10` (заведена 2026-09-16 по architect-review PR #59) утверждала, что `.env` содержит дубль-ключ `DATABASE_URL="postgresql://…"` (uncommented recipe-блок, last-wins), ломающий «single source of truth» и сбивающий хостовой `bin/console`. Проверка показала, что **дефекта больше нет**: `.env` не трекается (`git log -- .env` пуст), в нём **один** `DATABASE_URL` (MySQL, `@db:3306/taskflow`); `git grep postgresql://` даёт совпадение только в тексте самой строки `fwd-10`; `.env.example` и `.env.test` тоже содержат по одному MySQL-URL. Постгресовый recipe-блок исчез при переписывании `.env` в эпоху 5.x (разбирательство с APCu). Риск для репозитория нулевой — в трекаемых файлах постгресового блока не осталось; оговорка: `.env` не трекается, поэтому обновление Flex-рецепта теоретически может снова дописать в него постгресовую строку — это локальный файл, ревью не проходит и вреда репозиторию не несёт. Строка закрыта **без правок кода**.
@@ -71,7 +86,7 @@
 
 **Инфраструктурный факт.** `var/` — отдельный анонимный volume в контейнере, поэтому файлы, положенные в `E:\code\claude-test\var\`, внутри контейнера не видны; скрипт смоука копировался через `docker compose cp` в `/tmp`.
 
-**Артефакты.** `PRD/5.15-symfony-version-alignment.md`, `CHANGELOG.md` (раздел «Зависимости»), `Roadmap.md` (5.15 → done, +5.23), этот лог. Историю не переписывал: запись 2026-09-17 с «Symfony 7.4.14» остаётся датированным наблюдением.
+**Артефакты.** `PRD/5.15-symfony-version-alignment.md`, `CHANGELOG.md` (раздел «Зависимости»), `Roadmap.md` (5.15 → done, +5.23), этот лог. Историю не переписывал: запись 2026-09-17 с «Symfony 7.4.14» остаётся датированным наблюдением. **2026-09-23 — поправка (задача 5.24):** «слабый прогон депрекейшенов» из этой записи был **no-op** — `SYMFONY_DEPRECATIONS_HELPER` здесь не действует, потому что `symfony/phpunit-bridge` не регистрирует обработчик на PHPUnit 11 (`vendor/symfony/phpunit-bridge/bootstrap.php:16-18` early-return). Реальная проверка депрекейшенов — нативный `--display-deprecations` (5.24; см. запись 2026-09-23 в начале лога).
 
 ## 2026-09-17 — Task 5.6: unit-тесты домена Like (ядро Этапа 5 завершено)
 
