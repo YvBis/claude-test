@@ -92,7 +92,7 @@
         "phpcs:check": "php-cs-fixer fix --ansi --allow-risky=yes --dry-run --diff",
         "rector:dry-run": "rector process src --dry-run --ansi",
         "rector:fix": "rector process src --ansi",
-        "phpunit": "XDEBUG_MODE=coverage phpunit",
+        "phpunit": "XDEBUG_MODE=coverage phpunit --display-deprecations",
         "phpunit:no-coverage": "phpunit --no-coverage",
         "test": "@phpunit:no-coverage",
         "coverage:check": "XDEBUG_MODE=coverage phpunit --coverage-clover=var/coverage/clover.xml --coverage-html=var/coverage/html --coverage-php=var/coverage/coverage.php --log-junit=var/coverage/junit.xml",

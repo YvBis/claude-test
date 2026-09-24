@@ -179,13 +179,13 @@ jobs:
         env:
           DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
 
-      - name: Run PHPUnit tests with coverage enforcement
-        run: composer coverage:gate
-        env:
-          DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
-          XDEBUG_MODE: coverage
-          COVERAGE_MIN: ${{ env.COVERAGE_MIN }}
-
+      # One PHPUnit run does both jobs. The suite costs about the same with and
+      # without coverage collection (measured on the runner: 272 s under
+      # XDEBUG_MODE=coverage, 269 s under --no-coverage), so the second pass
+      # bought no signal for another 4.5 minutes of the job budget. Task 5.30
+      # merged the two steps and moved --display-deprecations into the `phpunit`
+      # composer script this step runs.
+      #
       # Deprecations are surfaced, not enforced. The bridge env var is useless
       # here: phpunit.xml.dist keeps SYMFONY_DEPRECATIONS_HELPER=disabled=1 and
       # symfony/phpunit-bridge never registers its handler under PHPUnit 11 (its
@@ -195,20 +195,27 @@ jobs:
       # --display-deprecations prints test + line, --fail-on-deprecation exits 1.
       # Task 5.25 turns this into a hard gate once the baseline is clean.
       #
-      # continue-on-error handles the Actions level; `|| true` keeps the shell
-      # block going so the grep and the summary still run when PHPUnit exits
-      # non-zero. Note: @trigger_error() suppresses the notice, so PHPUnit cannot
-      # see deprecations raised that way - do not use the suppression operator.
-      - name: Run PHPUnit with deprecation reporting (non-blocking)
+      # pipefail keeps PHPUnit's exit code authoritative through the tee, and the
+      # status is captured so the summary is still written when the gate fails:
+      # a real test failure must fail the job, because this step is the gate.
+      # Only the deprecation line warns. Note: @trigger_error() suppresses the
+      # notice, so PHPUnit cannot see deprecations raised that way - do not use
+      # the suppression operator.
+      - name: Run PHPUnit with coverage enforcement and deprecation reporting
         run: |
-          php bin/phpunit --no-coverage --display-deprecations 2>&1 | tee var/deprecations.txt || true
-          if grep -qE 'triggered [0-9]+ deprecation' var/deprecations.txt; then
+          set -o pipefail
+          mkdir -p var
+          status=0
+          composer coverage:gate 2>&1 | tee var/phpunit-ci.log || status=$?
+          if grep -qE 'triggered [0-9]+ deprecation' var/phpunit-ci.log; then
             echo "::warning::PHPUnit reported deprecations - see the job log. The baseline must stay clean before task 5.25 turns this into a hard gate."
           fi
-          cat var/deprecations.txt >> "$GITHUB_STEP_SUMMARY" || true
-        continue-on-error: true
+          cat var/phpunit-ci.log >> "$GITHUB_STEP_SUMMARY" || true
+          exit "$status"
         env:
           DATABASE_URL: mysql://test:test@127.0.0.1:3306/taskflow_test?serverVersion=8.0
+          XDEBUG_MODE: coverage
+          COVERAGE_MIN: ${{ env.COVERAGE_MIN }}
 
   dependency-audit:
     name: Dependency Audit
