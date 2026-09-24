@@ -24,13 +24,15 @@ jobs:
     name: OpenRabbit Review
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
-    timeout-minutes: 30
+    # Worst path: 12 + 15 + 2 + 3 = 32, leaving ~2.5 min for checkout and
+    # runner start (task 5.29).
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
       - name: Run AI Code Review (OpenRouter free)
         id: openrouter
-        # 12 + 15 minutes, leaving three of the 30-minute job budget for checkout
+        # 12 + 15 minutes, leaving three of the 35-minute job budget for checkout
         # and overhead: a hung primary fails its step early so the fallback keeps
         # a full window, and a hang can no longer eat the whole budget.
         timeout-minutes: 12
@@ -56,6 +58,17 @@ jobs:
       - name: Check whether the primary provider published a verdict
         id: primary_verdict
         if: steps.openrouter.outcome == 'success'
+        # This step calls the GitHub API with retries, so it gets its own bound
+        # (task 5.29): a hung API call must fail the step instead of eating the
+        # job budget.
+        timeout-minutes: 2
+        # Tolerated like the primary: the step bound kills bash before the
+        # script's EXIT trap runs, so without this a hung probe would fail the
+        # required check even after the fallback publishes a verdict - defeating
+        # the rescue. The probe is observability for the fallback condition, not
+        # a verdict gate; a failed probe leaves the output empty, which the
+        # fallback condition already treats as "run".
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # 3x5s: the reviews list is eventually consistent right after the action
@@ -136,6 +149,14 @@ jobs:
       # review body carries the verdict line (accepted trade-off, PRD 5.28).
       - name: Verify a verdict was published for this head
         if: always()
+        # This step calls the GitHub API with retries, so like the probe step it
+        # gets its own bound (task 5.29). Unlike the probe, a bound firing here
+        # fails the required check within 3 minutes instead of letting the job
+        # budget kill the job first: a detector that cannot verify must block
+        # merges loudly rather than drop the warning silently. The step's own
+        # advisory guarantee (always exit 0) is intentionally broken by the
+        # bound - that is the point.
+        timeout-minutes: 3
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Pinned rather than left to the script defaults: the worst-path budget

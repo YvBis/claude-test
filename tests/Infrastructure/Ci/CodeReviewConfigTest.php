@@ -55,7 +55,10 @@ use Symfony\Component\Yaml\Yaml;
  * byte-for-byte; each edit failed the guard for the right reason): a paid literal
  * as the primary model, a foreign endpoint for the fallback, the job budget
  * raised to 45, the fallback step renamed, and an explicit `llm_api_url` added to
- * the primary step.
+ * the primary step. Since task 5.29 the budget assertion also reads the probe and
+ * detector step timeouts and pins the slack itself: removing either bound,
+ * inflating a retry delay, or raising the job budget without rebalancing all four
+ * quantities fails the guard.
  */
 final class CodeReviewConfigTest extends TestCase
 {
@@ -70,9 +73,11 @@ final class CodeReviewConfigTest extends TestCase
 
         self::assertArrayHasKey('timeout-minutes', $job);
         self::assertSame(
-            30,
+            35,
             $job['timeout-minutes'],
-            'The job budget is pinned: a drifted budget silently loses the verdict when the free-tier LLM is slow.',
+            'The job budget is pinned: a drifted budget silently loses the verdict when the free-tier LLM is slow. '
+            .'Raised 30 -> 35 in task 5.29 together with explicit bounds for the two API-calling steps '
+            .'(worst path 12 + 15 + 2 + 3 = 32).',
         );
         self::assertArrayHasKey('if', $job);
         self::assertSame(
@@ -94,6 +99,8 @@ final class CodeReviewConfigTest extends TestCase
 
         $primary = $this->stepByName(self::PRIMARY_STEP);
         $fallback = $this->stepByName(self::FALLBACK_STEP);
+        $probe = $this->stepByName(self::PROBE_STEP);
+        $detector = $this->stepByName(self::VERDICT_STEP);
 
         self::assertArrayHasKey('uses', $primary);
         self::assertSame('aryanbrite/openrabbit@v0.8.7', $primary['uses']);
@@ -157,16 +164,65 @@ final class CodeReviewConfigTest extends TestCase
         self::assertSame(12, $primary['timeout-minutes']);
         self::assertSame(15, $fallback['timeout-minutes']);
 
-        // The whole worst path must fit, not just the two providers: the probe and
-        // the final detector run after them, and a job killed by its own budget
-        // runs neither - losing the warning exactly where a verdict is most likely
-        // missing. Both check steps pin their retry values, which are read here so
-        // this arithmetic cannot drift away from the workflow.
-        $checkSeconds = $this->retryBudgetSeconds(self::PROBE_STEP) + $this->retryBudgetSeconds(self::VERDICT_STEP);
+        // Both steps that call the GitHub API carry their own bounds since
+        // task 5.29: without a step timeout a hung `gh api` call (not a failed
+        // one) would consume the rest of the job budget and kill the job before
+        // the `always()` detector runs - losing the warning exactly where a
+        // verdict is most likely missing. 2 minutes covers the probe's 15 s of
+        // sleeps plus three paginated reads, 3 covers the detector's 50 s of
+        // sleeps plus reads and the warning PATCH/POST: 105 s of margin on the
+        // probe, 130 s on the detector.
+        self::assertArrayHasKey('timeout-minutes', $probe);
+        self::assertSame(
+            2,
+            $probe['timeout-minutes'],
+            'The probe needs its own bound: without it a hung reviews-list read eats the job budget instead of failing the step.',
+        );
+        self::assertArrayHasKey('timeout-minutes', $detector);
+        self::assertSame(
+            3,
+            $detector['timeout-minutes'],
+            'The detector needs its own bound: without it a hung check eats the job budget it was added to protect.',
+        );
+
+        // The retry sleeps live *inside* the step bounds (a step timeout kills
+        // the whole step, sleeps included), so the bound of each check step must
+        // cover its own retries: otherwise the bound, not the retry loop, decides
+        // how many attempts actually run. Both values are read here so the sizing
+        // cannot drift away from the workflow.
+        $probeSleeps = $this->retryBudgetSeconds(self::PROBE_STEP);
+        $detectorSleeps = $this->retryBudgetSeconds(self::VERDICT_STEP);
+        self::assertLessThan(
+            $probe['timeout-minutes'] * 60,
+            $probeSleeps,
+            'The probe bound must cover its own retry sleeps with room for the API reads.',
+        );
+        self::assertLessThan(
+            $detector['timeout-minutes'] * 60,
+            $detectorSleeps,
+            'The detector bound must cover its own retry sleeps with room for the reads and the warning write.',
+        );
+
+        // The whole worst path must fit: each step is bounded by its own timeout
+        // (a job killed by its own budget runs no `always()` step - losing the
+        // warning exactly where a verdict is most likely missing), so the worst
+        // path is the sum of the four bounds. A bare `< job budget` assertion
+        // lets the slack erode silently: raising a step bound still passes while
+        // the detector loses its margin. The slack itself is therefore pinned -
+        // task 5.29 exists to close that exact gap.
+        $worstPathMinutes = $primary['timeout-minutes']
+            + $fallback['timeout-minutes']
+            + $probe['timeout-minutes']
+            + $detector['timeout-minutes'];
         self::assertLessThan(
             $job['timeout-minutes'],
-            $primary['timeout-minutes'] + $fallback['timeout-minutes'] + $checkSeconds / 60,
+            $worstPathMinutes,
             'Primary + probe + fallback + detector must fit inside the job budget, with room left for checkout.',
+        );
+        self::assertGreaterThanOrEqual(
+            2,
+            $job['timeout-minutes'] - $worstPathMinutes,
+            'The worst path must keep at least 2 minutes of slack for checkout and runner start.',
         );
     }
 
@@ -194,11 +250,17 @@ final class CodeReviewConfigTest extends TestCase
             $probe['run'],
             'The probe is the machine-readable mode of the same script: a second "verdict" definition would drift.',
         );
-        self::assertArrayNotHasKey(
+        self::assertArrayHasKey(
             'continue-on-error',
             $probe,
-            'The probe writes the output the fallback reads, so a silent edit must not be able to disable it; '
-            .'its always-exit-0 contract lives in the script trap, like the detector step.',
+            'The probe feeds the fallback condition, so its failure must be tolerated: the step bound kills '
+            .'bash before the script EXIT trap runs, and without this a hung probe would fail the required check '
+            .'even after the fallback publishes a verdict - defeating the rescue. A failed probe leaves the output '
+            .'empty, which the fallback condition already treats as "run".',
+        );
+        self::assertTrue(
+            $probe['continue-on-error'],
+            'The probe is observability for the fallback, not a verdict gate.',
         );
 
         self::assertArrayHasKey('if', $fallback);

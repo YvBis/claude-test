@@ -70,6 +70,7 @@
 - `TagDTO` перенесён в bounded-context Tag (4.7).
 
 ### CI/инфраструктура
+- AI review (5.29): пошаговые границы probe 2 / detector 3 мин (зависший `gh api` больше не съедает бюджет), бюджет job'а 30 → 35 мин (худший путь 32, запас ~2.5 мин); guard пинит все четыре величины и запас ≥ 2.
 - AI review: Groq (мёртвые лимиты) → **NVIDIA NIM primary** (`gpt-oss-20b`) + OpenRouter free fallback.
 - Coverage gate: консольный summary + clover, PHP-гейт `scripts/coverage-gate.php` (≥80%).
 - `composer audit` — настоящий gate (убрано `|| true`); phpcpd удалён; symfony/cache 7.3→7.4.18 (CVE).
