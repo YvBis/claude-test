@@ -10,13 +10,6 @@ services:
       - ./:/var/www/html
       - /var/www/html/var
     working_dir: /var/www/html
-    environment:
-      - DATABASE_URL=mysql://taskflow:taskflow_pass@db:3306/taskflow?serverVersion=8.0
-      - REDIS_URL=redis://redis:6379
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - MEILISEARCH_URL=http://meilisearch:7700
-      - MEILISEARCH_MASTER_KEY=masterKey123
     depends_on:
       db:
         condition: service_healthy
