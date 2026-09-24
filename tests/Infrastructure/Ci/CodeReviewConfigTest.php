@@ -31,6 +31,16 @@ use Symfony\Component\Yaml\Yaml;
  * a missing verdict must bite, and a hard failure would block a merge forever on
  * a wording change in a third-party action (task 5.19A).
  *
+ * Since task 5.28 the fallback provider is keyed on publication rather than on
+ * the primary's exit code: a probe step runs the same detector in `--probe` mode
+ * and the fallback fires unless the probe reports `published`. The probe's step
+ * id, its `if`, its retry values and the output name in the condition are pinned
+ * here - the retry values because the job budget assertion below reads them, and
+ * the output name because the script writes it. The comparison is fail-open on
+ * purpose: `missing`, `unverified` and an unwritten output all run the fallback,
+ * since the action exits 0 having published nothing (PR #84, PR #87) and a lost
+ * verdict is worse than an extra NVIDIA NIM call.
+ *
  * Why the primary model is pinned as a literal instead of a "free tier" pattern:
  * OpenRouter rotates between free models *inside the provider* (AssumptionLog.md:680),
  * so the value in this file stays `openrouter/free`. Accepting any `:free` suffix
@@ -52,6 +62,7 @@ final class CodeReviewConfigTest extends TestCase
     private const string PRIMARY_STEP = 'Run AI Code Review (OpenRouter free)';
     private const string FALLBACK_STEP = 'Run AI Code Review (NVIDIA NIM fallback)';
     private const string VERDICT_STEP = 'Verify a verdict was published for this head';
+    private const string PROBE_STEP = 'Check whether the primary provider published a verdict';
 
     public function testReviewJobKeepsItsVerdictContract(): void
     {
@@ -115,12 +126,6 @@ final class CodeReviewConfigTest extends TestCase
 
         self::assertArrayHasKey('uses', $fallback);
         self::assertSame('aryanbrite/openrabbit@v0.8.7', $fallback['uses']);
-        self::assertArrayHasKey('if', $fallback);
-        self::assertSame(
-            "steps.openrouter.outcome == 'failure'",
-            $fallback['if'],
-            'The fallback must run only when the primary failed — a cancelled run is "no verdict yet", not a failure.',
-        );
         self::assertArrayNotHasKey(
             'continue-on-error',
             $fallback,
@@ -151,10 +156,58 @@ final class CodeReviewConfigTest extends TestCase
         self::assertArrayHasKey('timeout-minutes', $fallback);
         self::assertSame(12, $primary['timeout-minutes']);
         self::assertSame(15, $fallback['timeout-minutes']);
+
+        // The whole worst path must fit, not just the two providers: the probe and
+        // the final detector run after them, and a job killed by its own budget
+        // runs neither - losing the warning exactly where a verdict is most likely
+        // missing. Both check steps pin their retry values, which are read here so
+        // this arithmetic cannot drift away from the workflow.
+        $checkSeconds = $this->retryBudgetSeconds(self::PROBE_STEP) + $this->retryBudgetSeconds(self::VERDICT_STEP);
         self::assertLessThan(
             $job['timeout-minutes'],
-            $primary['timeout-minutes'] + $fallback['timeout-minutes'],
-            'Per-provider timeouts must leave room inside the job bound for checkout, otherwise a slow run loses the fallback.',
+            $primary['timeout-minutes'] + $fallback['timeout-minutes'] + $checkSeconds / 60,
+            'Primary + probe + fallback + detector must fit inside the job budget, with room left for checkout.',
+        );
+    }
+
+    public function testFallbackFiresWhenThePrimaryPublishedNoVerdict(): void
+    {
+        $probe = $this->stepByName(self::PROBE_STEP);
+        $fallback = $this->stepByName(self::FALLBACK_STEP);
+
+        self::assertArrayHasKey('id', $probe);
+        self::assertSame(
+            'primary_verdict',
+            $probe['id'],
+            'The fallback condition references this step id: renaming it turns the condition into a silent no-op.',
+        );
+        self::assertArrayHasKey('if', $probe);
+        self::assertSame(
+            "steps.openrouter.outcome == 'success'",
+            $probe['if'],
+            'A failed primary published nothing, so probing it would only burn retries the fallback needs.',
+        );
+        self::assertArrayHasKey('run', $probe);
+        self::assertIsString($probe['run']);
+        self::assertStringContainsString(
+            'scripts/verify-review-verdict.sh --probe',
+            $probe['run'],
+            'The probe is the machine-readable mode of the same script: a second "verdict" definition would drift.',
+        );
+        self::assertArrayNotHasKey(
+            'continue-on-error',
+            $probe,
+            'The probe writes the output the fallback reads, so a silent edit must not be able to disable it; '
+            .'its always-exit-0 contract lives in the script trap, like the detector step.',
+        );
+
+        self::assertArrayHasKey('if', $fallback);
+        self::assertSame(
+            "steps.openrouter.outcome == 'failure' || steps.primary_verdict.outputs.verdict != 'published'",
+            $fallback['if'],
+            'The fallback must be keyed on publication, not on the exit code: the action exits 0 having published '
+            .'nothing (PR #84, PR #87), and an exit-code condition leaves those pull requests without a verdict. '
+            .'The comparison is fail-open on purpose - `missing`, `unverified` and an unwritten output all run it.',
         );
     }
 
@@ -251,6 +304,33 @@ final class CodeReviewConfigTest extends TestCase
             'A newer push must cancel the in-flight review: a queued run keeps its trigger-time commit '
             .'and spends the daily OpenRouter free quota on an outdated head.',
         );
+    }
+
+    /**
+     * Worst-case seconds a check step spends in its API retry loop.
+     *
+     * The values are pinned in the workflow rather than read from the script
+     * defaults, so the job budget assertion cannot silently drift away from what
+     * the runner will actually allow.
+     */
+    private function retryBudgetSeconds(string $stepName): int
+    {
+        $step = $this->stepByName($stepName);
+        self::assertArrayHasKey('env', $step, \sprintf('Step "%s" must declare its retry env.', $stepName));
+        self::assertIsArray($step['env']);
+
+        /** @var array<string, string> $env */
+        $env = $step['env'];
+
+        foreach (['VERDICT_ATTEMPTS', 'VERDICT_DELAY'] as $key) {
+            self::assertArrayHasKey(
+                $key,
+                $env,
+                \sprintf('Step "%s" must pin "%s": the job budget assertion reads it.', $stepName, $key),
+            );
+        }
+
+        return (int) $env['VERDICT_ATTEMPTS'] * (int) $env['VERDICT_DELAY'];
     }
 
     /**

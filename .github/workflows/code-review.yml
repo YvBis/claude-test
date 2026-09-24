@@ -44,11 +44,52 @@ jobs:
           review_mode: both
           tone_mode: balanced
 
+      # A green primary step does not mean a verdict exists: the action can exit 0
+      # having published nothing (observed on PR #84, and on three consecutive runs
+      # of PR #87 against one run that did publish a real verdict). This step asks
+      # the only question that matters - is there a verdict for this head? - and
+      # the fallback below is keyed on its answer rather than on the exit code.
+      #
+      # It is skipped when the primary already failed, because there is nothing to
+      # publish in that case: an empty `steps.primary_verdict.outputs.verdict` makes
+      # the fallback condition true on its own, so no retries are wasted.
+      - name: Check whether the primary provider published a verdict
+        id: primary_verdict
+        if: steps.openrouter.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 3x5s: the reviews list is eventually consistent right after the action
+          # publishes, but this probe sits between two provider calls, so its wait
+          # is part of the job budget asserted in CodeReviewConfigTest.
+          VERDICT_ATTEMPTS: '3'
+          VERDICT_DELAY: '5'
+        run: |
+          bash scripts/verify-review-verdict.sh --probe \
+            "${{ github.event.pull_request.number }}" \
+            "${{ github.event.pull_request.head.sha }}" \
+            "${{ github.repository }}"
+
       # OpenRabbit has no native NVIDIA provider: its Groq client speaks the same
       # OpenAI-compatible protocol, so "llm_provider: groq" is the transport for
       # the NVIDIA NIM endpoint and model below.
+      #
+      # The condition is a fail-open test, not a failure test: it runs the fallback
+      # whenever a verdict is not *known* to exist - `missing`, `unverified` (the
+      # API was unreadable), or an output that never got written. That costs one
+      # NVIDIA NIM call on most pull requests, which is the accepted price for not
+      # losing the verdict; the OpenRouter free pool is not spent on a retry.
+      #
+      # `missing` and `unverified` are treated alike here on purpose: both mean
+      # "run the fallback". The probe keeps them apart for the log and for any
+      # future gating, not because this condition distinguishes them.
+      #
+      # The first disjunct is redundant today - a failed primary skips the probe,
+      # and a skipped step's output is empty, which the second disjunct already
+      # catches - but it is kept so the failure path does not depend on that
+      # output semantics, and so an edit cannot quietly reduce this condition back
+      # to exit-code keying. CodeReviewConfigTest pins the whole string.
       - name: Run AI Code Review (NVIDIA NIM fallback)
-        if: steps.openrouter.outcome == 'failure'
+        if: steps.openrouter.outcome == 'failure' || steps.primary_verdict.outputs.verdict != 'published'
         timeout-minutes: 15
         uses: aryanbrite/openrabbit@v0.8.7
         with:
@@ -82,10 +123,25 @@ jobs:
       # runs no further steps - neither `always()` nor `!cancelled()` can change
       # that, so a cancelled or timed-out run is invisible here and is handled by
       # the companion workflow from task 5.19B.
+      #
+      # By the time this runs, both providers have had their chance: it reports a
+      # missing verdict only when neither the primary nor the fallback published
+      # one (task 5.28 keyed the fallback on publication instead of on the exit
+      # code, which is what let PR #87 merge-queue with no verdict at all).
+      #
+      # If both providers ran, the pull request carries two bot reviews - the
+      # primary's boilerplate one and the fallback's verdict. The most recent
+      # review is the authoritative one; the older boilerplate is left in place
+      # rather than deleted, and this step counts the head as published when any
+      # review body carries the verdict line (accepted trade-off, PRD 5.28).
       - name: Verify a verdict was published for this head
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pinned rather than left to the script defaults: the worst-path budget
+          # assertion in CodeReviewConfigTest reads these numbers.
+          VERDICT_ATTEMPTS: '5'
+          VERDICT_DELAY: '10'
         run: |
           bash scripts/verify-review-verdict.sh \
             "${{ github.event.pull_request.number }}" \
