@@ -1,5 +1,31 @@
-# Shell scripts are executed as-is, so a CRLF checkout breaks them: on Windows
-# worktrees "set -euo pipefail" arrives as "pipefail\r", which bash rejects as an
-# invalid option name and the script dies before doing any work. Keep them LF in
-# every checkout so the same bytes run locally and in CI.
+# Normalize every text file to LF in the repository and in every checkout.
+# The same bytes then reach php-cs-fixer (which reads raw bytes and would
+# otherwise report whole-file diffs), tests that match on "\n", and the shell.
+# The attribute wins over a contributor's local core.autocrlf, so nobody has to
+# normalize the worktree by hand.
+* text=auto eol=lf
+
+# text=auto guesses binary-ness from content; these rules make it explicit so a
+# file added later cannot be normalized by accident.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.mp4 binary
+
+# Covered by the wildcard rule above (the later rule wins, and the value is the
+# same), but kept on its own line deliberately: shell scripts are executed as-is,
+# so a CRLF checkout breaks them: on Windows worktrees "set -euo pipefail"
+# arrives as "pipefail\r", which bash rejects as an invalid option name and the
+# script dies before doing any work. Keep them LF in every checkout so the same
+# bytes run locally and in CI.
 *.sh text eol=lf

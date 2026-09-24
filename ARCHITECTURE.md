@@ -208,6 +208,8 @@ GitHub Actions
 
 **Локально:** `docker compose exec app composer ci:all`
 
+**Переводы строк (5.21).** `.gitattributes` объявляет `* text=auto eol=lf`: атрибут сильнее локального `core.autocrlf`, поэтому индекс, рабочая копия на любой ОС и CI видят одни и те же LF-байты — иначе php-cs-fixer помечал whole-file диффы, регекс-тесты на `\n` падали только на Windows, а `*.sh` ломался на `set -euo pipefail\r`. `.editorconfig` дублирует это как подсказку редакторам, `line_ending` в php-cs-fixer — второй эшелон для файлов, попавших мимо git. Ручная нормализация перед `ci:all` больше не требуется.
+
 ## Инфраструктура (Docker)
 
 | Сервис | Порт | Описание |

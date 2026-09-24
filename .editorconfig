@@ -1,0 +1,24 @@
+# Editor hint to match .gitattributes, which is the actual guarantee: git
+# normalizes every checkout to LF, this file keeps editors from fighting it.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Markdown paragraphs in this repo are hard-wrapped, and a trailing double space
+# is a meaningful line break: stripping it would reflow the docs.
+[*.md]
+trim_trailing_whitespace = false
+
+# YAML in this repo is 2-space (compose file, workflows, composite actions);
+# json/neon/twig/nginx/SQL all match the 4-space default above.
+[*.{yaml,yml}]
+indent_size = 2
+
+[*.sh]
+indent_size = 2

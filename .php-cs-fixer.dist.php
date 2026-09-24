@@ -30,6 +30,13 @@ return (new PhpCsFixer\Config())
         'native_function_invocation' => ['include' => ['@all']],
         'modernize_types_casting' => true,
         'lambda_not_used_import' => true,
+        // Second line of defence for line endings: .gitattributes already
+        // normalizes every checkout to LF, but php-cs-fixer reads raw bytes, so
+        // a file that picked up CRLF outside git would otherwise be reported as
+        // a whole-file diff instead of a one-line fix. The fixer normalizes to
+        // LF and takes no options (3.95), and it is risky - the project already
+        // runs with --allow-risky=yes.
+        'line_ending' => true,
     ])
     ->setFinder($finder)
     ->setCacheFile(__DIR__ . '/var/cache/.php-cs-fixer.cache')
