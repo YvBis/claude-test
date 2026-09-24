@@ -23,30 +23,70 @@
 # one.
 #
 # Usage:
-#   scripts/verify-review-verdict.sh <pull-number> <head-sha> <owner/repo>
+#   scripts/verify-review-verdict.sh [--probe] <pull-number> <head-sha> <owner/repo>
+#
+# Modes:
+#   (default)  advisory: reports a missing verdict as a sticky comment plus a
+#              warning annotation, and always exits 0.
+#   --probe    machine-readable: writes `verdict=published|missing|unverified`
+#              to $GITHUB_OUTPUT so a later step can react to it, and writes no
+#              comment. This is what decides whether the fallback provider has to
+#              run: the review action can exit 0 having published nothing, so the
+#              fallback must be keyed on publication, not on the exit code.
 #
 # Environment:
 #   GH_TOKEN          token for the API calls (the workflow passes GITHUB_TOKEN)
+#   GITHUB_OUTPUT     probe mode writes its result here (set by the runner)
 #   VERDICT_ATTEMPTS  API attempts before concluding "not published" (default 5)
 #   VERDICT_DELAY     seconds between attempts (default 10)
 #
 set -euo pipefail
 
+# The mode is read before anything else: a string comparison cannot fail, and
+# the trap below has to know whether it must leave a result behind.
+mode='advisory'
+if [ "${1:-}" = '--probe' ]; then
+    mode='probe'
+    shift
+fi
+
+verdict_emitted='false'
+
+# Writes the probe result exactly once. The output drives a workflow condition,
+# where an empty string is not a neutral value: `verdict != 'published'` would
+# be true and the fallback would run. That fail-open outcome is deliberate, but
+# it has to follow from what the check found rather than from how the script
+# happened to die, so the trap calls this too.
+emit_verdict() {
+    if [ "${mode}" != 'probe' ] || [ "${verdict_emitted}" != 'false' ]; then
+        return 0
+    fi
+
+    verdict_emitted='true'
+    if [ -n "${GITHUB_OUTPUT:-}" ]; then
+        printf 'verdict=%s\n' "${1:-unverified}" >>"${GITHUB_OUTPUT}" || true
+    fi
+    printf 'probe: verdict=%s\n' "${1:-unverified}" || true
+}
+
 # The advisory contract outranks any internal error: this script runs inside a
 # required status check, so an unexpected failure would block every merge. Any
 # non-zero status is therefore reported and swallowed. The trap also covers the
 # `set -e` exits below, which is the point of having it. It is installed before
-# the argument checks so that even a misuse (missing argument) exits 0.
+# the argument checks so that even a misuse (missing argument) exits 0 - in probe
+# mode as `unverified`, the same fail-open branch as an unreadable API.
 on_exit() {
     local status=$?
-    if [ "${status}" -ne 0 ]; then
+    if [ "${mode}" = 'probe' ]; then
+        emit_verdict 'unverified'
+    elif [ "${status}" -ne 0 ]; then
         printf '::warning::The verdict check aborted with status %s; the verdict is unverified.\n' "${status}" || true
     fi
     exit 0
 }
 trap on_exit EXIT
 
-usage='usage: verify-review-verdict.sh <pull-number> <head-sha> <owner/repo>'
+usage='usage: verify-review-verdict.sh [--probe] <pull-number> <head-sha> <owner/repo>'
 pull_number="${1:?${usage}}"
 head_sha="${2:?${usage}}"
 repository="${3:?${usage}}"
@@ -130,6 +170,22 @@ for attempt in $(seq 1 "${attempts}"); do
         sleep "${delay}"
     fi
 done
+
+# Probe mode stops here: the caller decides what a missing verdict means, and
+# the answer is deliberately three-valued. "Could not read" is not "not
+# published" - it is "unknown", and the fallback is allowed to run for an unknown
+# state instead of only for a proven absence.
+if [ "${mode}" = 'probe' ]; then
+    if [ "${api_ok}" != 'true' ]; then
+        emit_verdict 'unverified'
+    elif [ -n "${verdicts}" ]; then
+        emit_verdict 'published'
+    else
+        emit_verdict 'missing'
+    fi
+
+    exit 0
+fi
 
 if [ "${api_ok}" = 'true' ] && [ -n "${verdicts}" ]; then
     count="$(printf '%s\n' "${verdicts}" | wc -l | tr -d ' ')"
