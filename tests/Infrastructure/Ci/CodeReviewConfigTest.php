@@ -23,6 +23,14 @@ use Symfony\Component\Yaml\Yaml;
  * name rather than by position, so adding an unrelated step does not break the
  * guard on a count.
  *
+ * The detector step is pinned as well, and asymmetrically: it must run with
+ * `if: always()` so it is not blind on the failure path, and it must not carry
+ * `continue-on-error`, so a silent edit cannot turn the detector itself into a
+ * no-op. What it does is deliberately advisory - a green job that published no
+ * verdict is recorded, never failed - because the required status check is where
+ * a missing verdict must bite, and a hard failure would block a merge forever on
+ * a wording change in a third-party action (task 5.19A).
+ *
  * Why the primary model is pinned as a literal instead of a "free tier" pattern:
  * OpenRouter rotates between free models *inside the provider* (AssumptionLog.md:680),
  * so the value in this file stays `openrouter/free`. Accepting any `:free` suffix
@@ -43,6 +51,7 @@ final class CodeReviewConfigTest extends TestCase
 {
     private const string PRIMARY_STEP = 'Run AI Code Review (OpenRouter free)';
     private const string FALLBACK_STEP = 'Run AI Code Review (NVIDIA NIM fallback)';
+    private const string VERDICT_STEP = 'Verify a verdict was published for this head';
 
     public function testReviewJobKeepsItsVerdictContract(): void
     {
@@ -149,6 +158,54 @@ final class CodeReviewConfigTest extends TestCase
         );
     }
 
+    public function testVerdictPublicationIsCheckedOnTheFailurePathToo(): void
+    {
+        $step = $this->stepByName(self::VERDICT_STEP);
+
+        self::assertArrayHasKey('if', $step);
+        self::assertSame(
+            'always()',
+            $step['if'],
+            'The detector must also run after a failed provider: with if: success() it would be blind '
+            .'exactly on the path that loses the verdict.',
+        );
+        // Deliberately no `continue-on-error`: the advisory guarantee lives in the
+        // script's own EXIT trap, which turns any non-zero status into a warning.
+        // The step is therefore a real step - a silent `if: false`, a rename or a
+        // deleted script shows up here - while still being unable to fail the job.
+        self::assertArrayNotHasKey(
+            'continue-on-error',
+            $step,
+            'The detector is wired in, not merely tolerated: tolerating its failure would let the check be disabled without the guard noticing.',
+        );
+        self::assertArrayHasKey('run', $step);
+        self::assertIsString($step['run']);
+        self::assertStringContainsString(
+            'scripts/verify-review-verdict.sh',
+            $step['run'],
+            'The detector stays in the repository script, where its advisory contract is reviewable in one place.',
+        );
+        $script = \dirname(__DIR__, 3).'/scripts/verify-review-verdict.sh';
+        self::assertFileExists(
+            $script,
+            'The step runs this script: a rename or deletion must fail the guard instead of silently skipping the check.',
+        );
+
+        // The script's own EXIT trap makes a runtime failure advisory, but a
+        // syntax error never reaches it: bash refuses to run the file, the step
+        // fails, and under branch protection that blocks every merge until
+        // somebody notices. Parsing it here moves that failure into `ci:all`.
+        // `bash` is always present in the test container (all commands run in Docker).
+        $output = [];
+        $status = 0;
+        \exec('bash -n '.\escapeshellarg($script).' 2>&1', $output, $status);
+        self::assertSame(
+            0,
+            $status,
+            "The detector script must parse.\n".\implode("\n", $output),
+        );
+    }
+
     public function testWorkflowKeepsLeastPrivilegePermissions(): void
     {
         $permissions = $this->workflow()['permissions'];
@@ -157,7 +214,9 @@ final class CodeReviewConfigTest extends TestCase
             ['contents' => 'read', 'pull-requests' => 'write'],
             $permissions,
             'The review reads the code and writes its comment - nothing more. A silent widening '
-            .'(e.g. id-token: write) or a narrowing that would break commenting must fail here.',
+            .'(e.g. id-token: write) or a narrowing that would break commenting must fail here. Note that the '
+            .'verdict detector writes through the issues endpoint (POST /issues/{n}/comments), which the '
+            .'`pull-requests: write` scope is expected to cover - the empirical check is the workflow run itself.',
         );
     }
 

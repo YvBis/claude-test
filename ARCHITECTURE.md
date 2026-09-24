@@ -204,6 +204,7 @@ GitHub Actions
 ├── Deprecations (`php bin/phpunit --no-coverage --display-deprecations`) — advisory, non-blocking: нативный механизм PHPUnit 11 (bridge-обработчик на 11 не регистрируется), мерж не блокирует; жёсткий гейт `--fail-on-deprecation` — задача 5.25
 └── AI Code Review — OpenRabbit, summary + inline comments (PR only, non-draft; таймаут 30 мин, `cancel-in-progress: true` — ревьюится только последний head, `cancelled` = вердикта нет):
     OpenRouter free pool (`openrouter/free`, секрет `LLM_API_KEY`) — основной, при падении — NVIDIA NIM (`openai/gpt-oss-20b`, https://integrate.api.nvidia.com/v1, секрет `NVIDIA_API_KEY`)
+    Финальный шаг `Verify a verdict was published for this head` (5.19A) — advisory: проверяет, что review бота существует на текущем head SHA, иначе sticky-комментарий + `::warning::`; job не роняет, потому что `### Verdict` не контракт с третьей стороной, а required-чек, упавший на дрейфе формулировки, не позеленеет никогда (детекция `cancelled`/`timed_out` изнутри job'а невозможна — 5.19B)
 ```
 
 **Локально:** `docker compose exec app composer ci:all`
