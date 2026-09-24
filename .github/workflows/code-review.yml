@@ -59,3 +59,35 @@ jobs:
           llm_model: openai/gpt-oss-20b
           review_mode: both
           tone_mode: balanced
+
+      # A green review check does not prove that a verdict exists. The action can
+      # exit 0 having published nothing - the expected outcome on a fork pull
+      # request, where the LLM secret is unavailable - or having published a
+      # review whose body carries no verdict line, which is what happened on PR
+      # #84. A verdict therefore means: a review by the bot on the current head
+      # SHA whose body contains the "### Verdict" line. Anything else is recorded
+      # on the pull request so that "no verdict" cannot pass for an approval.
+      #
+      # That line is a heuristic, not a contract with the action, so the step is
+      # advisory: it always exits 0 (the script swallows even an unexpected
+      # internal error). The required status check is where a missing verdict must
+      # bite (task 5.18), and failing here would block the merge forever on a
+      # wording change in a third-party action.
+      #
+      # Outcome dictionary (task 5.19A, documented here because GitHub does not
+      # contract it): steps.<id>.outcome is one of success, failure, cancelled or
+      # skipped. A per-step timeout-minutes surfaces as failure, which is why the
+      # fallback above fires on 'failure' alone. The primary cannot report
+      # cancelled or skipped while the job is alive, and a job that is killed
+      # runs no further steps - neither `always()` nor `!cancelled()` can change
+      # that, so a cancelled or timed-out run is invisible here and is handled by
+      # the companion workflow from task 5.19B.
+      - name: Verify a verdict was published for this head
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash scripts/verify-review-verdict.sh \
+            "${{ github.event.pull_request.number }}" \
+            "${{ github.event.pull_request.head.sha }}" \
+            "${{ github.repository }}"
