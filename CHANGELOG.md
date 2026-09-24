@@ -70,6 +70,7 @@
 - `TagDTO` перенесён в bounded-context Tag (4.7).
 
 ### CI/инфраструктура
+- Единый источник env (fwd-26): `environment:`-блок удалён из `docker-compose.yml`, остался только `env_file: .env` — правка `.env` больше не игнорируется молча. `REDIS_URL` и `MEILISEARCH_MASTER_KEY` из блока никем не читались и исчезли; заметка о миграции: машина с минимальным `.env` могла держать их только за счёт блока (ломаться нечему). Попутно: `.env.example` получил `DEFAULT_URI` и `JWT_PASSPHRASE` — без них свежий клон по README не поднимался даже до `/health` (проверено: `GET /health` 200; JWT-путь требует ключей — `README.md` шаг 4); `MEILISEARCH_KEY` убран из `.env.example` и `.env.test` (приложением не читается, Этап 6 вернёт по потребности).
 - AI review (5.29): пошаговые границы probe 2 / detector 3 мин (зависший `gh api` больше не съедает бюджет), бюджет job'а 30 → 35 мин (худший путь 32, запас ~2.5 мин); guard пинит все четыре величины и запас ≥ 2.
 - AI review: Groq (мёртвые лимиты) → **NVIDIA NIM primary** (`gpt-oss-20b`) + OpenRouter free fallback.
 - Coverage gate: консольный summary + clover, PHP-гейт `scripts/coverage-gate.php` (≥80%).

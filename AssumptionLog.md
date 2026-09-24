@@ -1,5 +1,53 @@
 # Assumption Log
 
+## 2026-09-24 — fwd-26: единый источник env для контейнера
+
+**Удалён `environment:`-блок (`docker-compose.yml:13-19`).** Шесть ключей сверены
+по таблице «дубль/читатель» (`REDIS_URL` и `MEILISEARCH_MASTER_KEY` не читаются
+никем, четыре остальных — точные дубли `.env`), блок убран целиком, `env_file`
+теперь единственный источник. CI compose не использует.
+
+**Верификация вместо `config`-дифа.** Диф `docker compose config` до/после
+доказательством не является — значения совпадают, вывод одинаковый. Вместо
+него: структурная проверка (`.services.app.environment` отсутствует через
+`Yaml::parseFile`; `yq` нет ни на хосте, ни в контейнере) + `printenv` внутри
+контейнера после `up -d --force-recreate`: `REDIS_URL`/`MEILISEARCH_MASTER_KEY`
+исчезли, восемь остальных на месте. `ci:all` 705/2083, `cache:pool:clear
+cache.app --env=dev` OK, smoke 25/25.
+
+**Попутные находки (в этом же PR).** `.env.example` не содержал `DEFAULT_URI`
+и `JWT_PASSPHRASE`, которые требуют `routing.yaml:5` и
+`lexik_jwt_authentication.yaml:4` — свежий клон по `README.md:49` не поднимался
+(дефект старше fwd-26: блок этих ключей тоже не давал). Обе строки добавлены,
+свежий `cp .env.example .env` проверен: `GET /health` 200, локальный `.env`
+возвращён из бэкапа. `PRD/1.1-docker-compose.md:24,48` перечислял удалённые
+ключи и обещал «consistent naming» — исправлено. Комментарий `.env.test:3-5`
+переписан по фактическому пути ключей (см. PRD).
+
+**Оговорка.** `.env` не трекается: машина с минимальным `.env` могла держать
+`REDIS_URL`/`MEILISEARCH_MASTER_KEY` только за счёт блока. Оба ключа
+приложением не читаются — ломаться нечему, заметка в CHANGELOG.
+
+**Раунд ревью (три агента, все замечания закрыты до коммита).**
+Применено: stale-ссылки `docker-compose.yml:70` → `:63` (PRD, Roadmap);
+перечень в `PRD/1.1:24` расширен до полных 10 ключей из `printenv`
+(не хватало `APP_ENV`, `MEILISEARCH_KEY`); `JWT_PASSPHRASE` в `.env.example`
+переформулирован под реальный воркфлоу (`lexik:jwt:generate-keypair`,
+команда проверена — существует, есть `--skip-if-exists`); в README добавлен
+шаг генерации ключей между 3 и 4 (свежий клон без `config/jwt/*.pem` поднимался
+только до `/health`, JWT-путь требовал ключей — PRD и CHANGELOG смягчены до
+этой формулировки); `MEILISEARCH_KEY` убран из `.env.example`/`.env.test`
+(читателя нет, Этап 6 вернёт по потребности); мёртвая строка
+`MESSENGER_TRANSPORT_DSN` убрана из `.env.test`.
+Отклонено с причиной: `DEFAULT_URI` плейсхолдером не делаем — `localhost:8000`
+рабочий dev-дефолт, совпадающий с `README` и маппингом портов compose; плейсхолдер
+молча ломал бы генерацию URL.
+Проверено и зафиксировано: `APP_SECRET` не задаёт ни один phpunit-слой
+(`phpunit.xml.dist` его нет, bootstrap извлекает только `DATABASE_URL`) —
+suite зелёный, потому что `%env()%` резолвится лениво, а kernel.secret ничто
+в тестах не трогает (grep по `getSession|kernel.secret|csrf|SessionInterface`
+в `tests/` и `src/` пуст).
+
 ## 2026-09-24 — Task 5.29: бюджет худшего пути ревью-джоба
 
 **Дефект.** У probe- и detector-шагов в `code-review.yml` не было пошагового `timeout-minutes` — ограничивал только бюджет job'а. Зависший `gh api` съедал остаток и убивал job до `always()`-detector'а. Ретраи (3×5 с, 5×10 с) тут ни при чём — риск в неограниченном сетевом вызове.

@@ -55,12 +55,17 @@ TaskFlow — это REST API для управления личными колл
    docker compose up -d
    ```
 
-4. Выполнить миграции базы данных:
+4. Сгенерировать JWT-ключи (один раз; с фразой из `JWT_PASSPHRASE`):
+   ```bash
+   docker compose exec app php bin/console lexik:jwt:generate-keypair --skip-if-exists
+   ```
+
+5. Выполнить миграции базы данных:
    ```bash
    docker compose exec app php bin/console doctrine:migrations:migrate
    ```
 
-5. Приложение будет доступно по адресу: [http://localhost:8000](http://localhost:8000)
+6. Приложение будет доступно по адресу: [http://localhost:8000](http://localhost:8000)
    Документация API: [http://localhost:8000/api/doc](http://localhost:8000/api/doc)
 
 > **Примечание**: Если документация API не открывается, инициализируйте кэш:
