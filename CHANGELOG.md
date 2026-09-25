@@ -78,6 +78,8 @@
 - Coverage gate: консольный summary + clover, PHP-гейт `scripts/coverage-gate.php` (≥80%).
 - `composer audit` — настоящий gate (убрано `|| true`); phpcpd удалён; symfony/cache 7.3→7.4.18 (CVE).
 - Миграции сжаты в одну baseline (4 → 1); php-cs-fixer видит `migrations/`.
+- Защита `main` (5.27): классическая branch protection заменена ruleset `main-protection` (id 18929859): те же два чека, `strict: false`, `~DEFAULT_BRANCH`; новый обход — «Merge with bypass» владельцем только на PR (прямой push в `main` невозможен). Скелет `Default` включать как есть было нельзя: без `required_status_checks` и с пустым `include`.
+- `ci-summary` (5.27): греб `failure\|cancelled` заменён циклом по `toJSON(needs)` — `needs:` теперь единственная точка правки; `skipped` больше не молча-зелёный; отказ `jq` роняет шаг (`|| exit 1`).
 
 ### Тесты
 - 457 → 461 (1048 ассертов), покрытие измеряемых строк (Domain+Application) 99.59%.

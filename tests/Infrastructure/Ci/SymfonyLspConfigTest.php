@@ -85,6 +85,41 @@ final class SymfonyLspConfigTest extends TestCase
         );
     }
 
+    public function testCiSummaryDerivesGateFromNeedsContext(): void
+    {
+        $workflow = (string) \file_get_contents($this->projectRoot.'/.github/workflows/ci.yml');
+        $summary = $this->jobBlock($workflow, 'ci-summary');
+
+        self::assertStringContainsString(
+            'toJSON(needs)',
+            $summary,
+            'ci-summary must derive the gate table from the needs context: needs: is the single edit point, a new job lands in the gate automatically.',
+        );
+        self::assertDoesNotMatchRegularExpression(
+            '/needs\.[a-z-]+\.result/',
+            $summary,
+            'ci-summary must not interpolate individual needs results: a forgotten STATUS entry would let a new job silently escape the gate.',
+        );
+        self::assertStringContainsString(
+            'name: CI Summary',
+            $summary,
+            'The job name is the required-check context in the ruleset: renaming either side breaks the gate silently red.',
+        );
+        self::assertStringContainsString(
+            'if: always()',
+            $summary,
+            'Without if: always() the aggregate skips on upstream failure — the original hazard this gate exists for.',
+        );
+
+        foreach (['static-analysis', 'unit-tests', 'dependency-audit'] as $job) {
+            self::assertDoesNotMatchRegularExpression(
+                '/^    if:/m',
+                $this->jobBlock($workflow, $job),
+                \sprintf('Aggregated job "%s" must be unconditional: a job-level if: would make skipped legitimate, and skipped now fails the gate.', $job),
+            );
+        }
+    }
+
     public function testRunnerScriptPinsVersionAndVerifiesChecksum(): void
     {
         $script = (string) \file_get_contents($this->projectRoot.'/scripts/symfony-lsp-check.sh');

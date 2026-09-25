@@ -1,5 +1,17 @@
 # Assumption Log
 
+## 2026-09-25 — 5.27: `main` с классической защиты на ruleset + `ci-summary` через `toJSON(needs)`
+
+**Скелет `Default` включать как есть было нельзя.** `GET /rulesets/18929859`: `enforcement: disabled`, правила только `deletion, non_fast_forward, pull_request` — `required_status_checks` нет; `conditions.ref_name` = `{include: [], exclude: []}` (пустой include невалиден — API отвечает `Invalid target patterns: ''`). Наивное включение + удаление классики молча сбросило бы оба чека и `enforce_admins`. `GET /rules/branches/main` → `[]` на входе: вся защита была классической.
+
+**Применено** (`PUT /rulesets/18929859`, переименован в `main-protection`): `enforcement: active`, `conditions.ref_name.include: ["~DEFAULT_BRANCH"]`, 4 правила; чеки `OpenRabbit Review` + `CI Summary` с `integration_id: 15368`, `strict_required_status_checks_policy: false`; `pull_request` с `count: 0` и флагами как в классике; `bypass_actors`: `User` 97064979 / `pull_request`. Порядок: `PUT disabled` (ответ повторил `bypass_actors` — форма валидна, `User` принят) → `PUT active` → `GET /rules/branches/main` (4/4, `ruleset_id: 18929859`) → `DELETE /branches/main/protection` (последующий GET — 404). `GET /rules/branches/task/5.27-ruleset-migration` → `[]`. Точка отката — raw JSON классики в `var/protection-before-527.json` (gitignored). `evaluate`-режим недоступен вне Enterprise — поэтапного rollout не существует.
+
+**Bypass — это ослабление, а не усиление** (формулировка из плана исправлена по синьору). Классика с `enforce_admins: true` не давала обхода никому; теперь у владельца есть «Merge with bypass» только на PR. Opt-in ради залипшего OpenRabbit (прецедент PR #94: NIM-фолбэк упал с `UND_ERR_HEADERS_TIMEOUT`, понадобился ручной rerun). `OrganizationAdmin` в личном репо неприменим — только `User` с `actor_id`. Утверждение про «историю ruleset» не заявляется: в личном репо обход виден в таймлайне PR и audit-логе.
+
+**`ci-summary`: две дыры греб-версии, обе закрыты.** (1) `grep -q "failure\|cancelled"` не матчил `skipped` — job докладывал «All jobs passed». (2) Двухточечная хрупкость из комментария `ci.yml:259-262` (`needs:` + строка `STATUS`). Теперь `needs:` — единственная точка правки; любой результат кроме `success` роняет шаг. Ловушка из ревью плана: `done < <(jq ...)` давал бы ноль итераций и ложный зелёный при отказе `jq` — исправлено отдельным `table=$(jq ...) || exit 1`. Guard — новый метод в `SymfonyLspConfigTest` (файл уже владеет утверждениями про `ci-summary`): блок содержит `toJSON(needs)` и не содержит `needs.*.result`. Существующий пин `:83-84` не тронут.
+
+Живая проба BLOCKED→CLEAN — на PR задачи (метод 5.18).
+
 ## 2026-09-25 — 5.23: миноры Doctrine/Twig/DAMA + `\SortDirection` + вердикт по пагинации
 
 **Факты из вендора (не из памяти).** ORM 3.7.x UPGRADE.md («Deprecated using
