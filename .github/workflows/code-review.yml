@@ -134,8 +134,10 @@ jobs:
       # fallback above fires on 'failure' alone. The primary cannot report
       # cancelled or skipped while the job is alive, and a job that is killed
       # runs no further steps - neither `always()` nor `!cancelled()` can change
-      # that, so a cancelled or timed-out run is invisible here and is handled by
-      # the companion workflow from task 5.19B.
+      # that, so a cancelled or timed-out run is invisible here and needs no
+      # separate detector: such a run leaves the required check `OpenRabbit
+      # Review` red, which is where it is handled (5.19B closed 2026-09-25
+      # as obsolete with live evidence).
       #
       # By the time this runs, both providers have had their chance: it reports a
       # missing verdict only when neither the primary nor the fallback published
