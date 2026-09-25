@@ -90,7 +90,7 @@ final class DoctrineTagRepository extends ServiceEntityRepository implements Tag
     public function search(?string $term, int $limit = 50, int $offset = 0): array
     {
         $qb = $this->createQueryBuilder('t')
-            ->orderBy('t.name.value', 'ASC');
+            ->orderBy('t.name.value', \SortDirection::Ascending);
 
         if (null !== $term) {
             $qb->andWhere('t.name.value LIKE :term')
