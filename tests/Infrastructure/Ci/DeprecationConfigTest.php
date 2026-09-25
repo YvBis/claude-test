@@ -28,6 +28,15 @@ use Symfony\Component\Yaml\Yaml;
  * The suite is located by the shape of the command that runs it rather than by
  * the step's name, so renaming a step does not break the guard and a step that
  * merely mentions `var/phpunit-ci.log` is not mistaken for a second run.
+ *
+ * Task 5.31 added a runtime probe for the output format itself
+ * (`scripts/deprecation-format-probe.sh`, run as its own CI step after the
+ * gate): the workflow greps for PHPUnit's own summary line, so a PHPUnit
+ * upgrade that rewords it would blind the warning while the pipeline stays
+ * green. The probe replays both fixtures against the extracted pattern. This
+ * class pins the probe step's wiring; the format check itself lives in the
+ * script because two child PHPUnit boots (~6 s each) were over budget for
+ * every local suite run.
  */
 final class DeprecationConfigTest extends TestCase
 {
@@ -119,6 +128,39 @@ final class DeprecationConfigTest extends TestCase
                 );
             }
         }
+    }
+
+    public function testDeprecationFormatProbeStepRunsTheProbeScript(): void
+    {
+        $probes = \array_values(\array_filter(
+            $this->unitTestsSteps(),
+            static fn (array $step): bool => \str_contains((string) ($step['run'] ?? ''), 'scripts/deprecation-format-probe.sh'),
+        ));
+
+        self::assertCount(
+            1,
+            $probes,
+            'Exactly one step must run the deprecation format probe: without it a PHPUnit upgrade can silently blind the deprecation warning.',
+        );
+
+        self::assertArrayNotHasKey(
+            'continue-on-error',
+            $probes[0],
+            'The probe step is a guard: a format drift must fail the job, not warn past it.',
+        );
+
+        self::assertFileExists(
+            $this->projectRoot().'/scripts/deprecation-format-probe.sh',
+            'The probe step must point at the committed script.',
+        );
+        self::assertFileExists(
+            $this->projectRoot().'/tests/Fixtures/Deprecation/DeprecationTriggerFixture.php',
+            'The probe needs its triggering fixture.',
+        );
+        self::assertFileExists(
+            $this->projectRoot().'/tests/Fixtures/Deprecation/DeprecationCleanFixture.php',
+            'The probe needs its clean fixture.',
+        );
     }
 
     public function testPhpunitConfigKeepsDeprecationsDisabledForTheMainRun(): void

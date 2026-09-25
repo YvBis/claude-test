@@ -217,6 +217,17 @@ jobs:
           XDEBUG_MODE: coverage
           COVERAGE_MIN: ${{ env.COVERAGE_MIN }}
 
+      # Task 5.31: the deprecation warning above greps for PHPUnit's own
+      # output line, so a PHPUnit upgrade that rewords it would blind the
+      # warning while the pipeline stays green. The probe replays both
+      # fixtures against the pattern extracted from that grep and fails the
+      # job loudly on drift. Blocking on purpose: a blind warning is worse
+      # than a red pipeline. Runs as its own step (not inside the suite):
+      # one child PHPUnit boot costs ~6 s, two of them inside every local
+      # run was over budget.
+      - name: Probe deprecation output format
+        run: bash scripts/deprecation-format-probe.sh
+
   dependency-audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
