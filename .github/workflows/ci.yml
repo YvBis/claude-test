@@ -257,22 +257,32 @@ jobs:
         run: composer audit --locked
 
   # Aggregates the blocking jobs only: symfony-diagnostics is deliberately left
-  # out of needs (it is the non-blocking pilot, task 5.14). A new job must be
-  # added here AND to the STATUS string below, otherwise it escapes this gate and
-  # the required "CI Summary" check silently stops covering it (task 5.18).
+  # out of needs (it is the non-blocking pilot, task 5.14). The single edit
+  # point is `needs:` below — the step derives the table from `${{ toJSON(needs) }}`,
+  # so a new job lands in the gate automatically once added to `needs:`
+  # (the old two-place STATUS-string + grep hazard is gone, task 5.27).
   ci-summary:
     name: CI Summary
     runs-on: ubuntu-latest
     needs: [static-analysis, unit-tests, dependency-audit]
     if: always()
+    env:
+      NEEDS_JSON: ${{ toJSON(needs) }}
     steps:
       - name: Determine overall status
         run: |
-          STATUS="${{ needs.static-analysis.result }} ${{ needs.unit-tests.result }} ${{ needs.dependency-audit.result }}"
-          echo "Static Analysis: ${{ needs.static-analysis.result }}"
-          echo "Unit Tests: ${{ needs.unit-tests.result }}"
-          echo "Dependency Audit: ${{ needs.dependency-audit.result }}"
-          if echo "$STATUS" | grep -q "failure\|cancelled"; then
+          # jq failure must fail the job loudly: an unchecked process
+          # substitution would iterate zero times and report a false green,
+          # exactly the silent-hole class this step aggregates against (5.27).
+          # The same holds for an empty table (e.g. an emptied needs: list).
+          table=$(jq -r 'to_entries[] | "\(.key) \(.value.result)"' <<<"$NEEDS_JSON") || exit 1
+          [ -n "$table" ] || exit 1
+          failed=0
+          while read -r job result; do
+            echo "$job: $result"
+            [ "$result" = "success" ] || failed=1
+          done <<<"$table"
+          if [ "$failed" -ne 0 ]; then
             echo "::error::One or more jobs failed"
             exit 1
           fi
