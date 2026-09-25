@@ -60,7 +60,7 @@ final class DoctrineCollectionFieldRepository extends ServiceEntityRepository im
             ->addSelect('owner')
             ->where('f.collection = :collection')
             ->setParameter('collection', $collection)
-            ->orderBy('f.slotIndex', 'ASC')
+            ->orderBy('f.slotIndex', \SortDirection::Ascending)
             ->getQuery()
             ->getResult();
     }

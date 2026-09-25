@@ -54,7 +54,7 @@ final class DoctrineUserRepository extends ServiceEntityRepository implements Us
     public function findAll(): array
     {
         return $this->createQueryBuilder('u')
-            ->orderBy('u.createdAt', 'DESC')
+            ->orderBy('u.createdAt', \SortDirection::Descending)
             ->getQuery()
             ->getResult();
     }

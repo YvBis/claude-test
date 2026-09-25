@@ -57,7 +57,7 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
         $this->applyFilters($queryBuilder, $name, $tagNames);
 
         return $queryBuilder
-            ->orderBy('i.createdAt', 'ASC')
+            ->orderBy('i.createdAt', \SortDirection::Ascending)
             ->setMaxResults($limit)
             ->setFirstResult($offset)
             ->getQuery()
@@ -73,7 +73,7 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
         $this->applyFilters($queryBuilder, $name, $tagNames);
 
         return $queryBuilder
-            ->orderBy('i.createdAt', 'ASC')
+            ->orderBy('i.createdAt', \SortDirection::Ascending)
             ->setMaxResults($limit)
             ->setFirstResult($offset)
             ->getQuery()

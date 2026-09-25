@@ -1,5 +1,56 @@
 # Assumption Log
 
+## 2026-09-25 — 5.23: миноры Doctrine/Twig/DAMA + `\SortDirection` + вердикт по пагинации
+
+**Факты из вендора (не из памяти).** ORM 3.7.x UPGRADE.md («Deprecated using
+strings or null as sort directions»): `QueryBuilder::orderBy()/addOrderBy()`
+требуют `\SortDirection` вместо `'ASC'`/`'DESC'`; на PHP < 8.6 enum даёт
+`symfony/polyfill-php86` (ORM требует его в `require`, констрейнт `^1.37`).
+`Cursor.php:73` — голый `json_encode()` без `JSON_THROW_ON_ERROR`;
+`CursorPaginator.php:166` — `''` трактуется как первая страница;
+`CursorWalker.php:156` — `setParameter($name, $value)` без DBAL-типа;
+`ParameterTypeInferer.php:71` — строка без типа даёт `ParameterType::STRING`.
+ORM 3.7.x `composer.json`: `doctrine/collections ^2.2 || ^3.1` (не обязательно 3.x).
+
+**Что сделано.** Точечный `composer update` шести пакетов (dry-run первым,
+факт совпал): orm → 3.7.2, bundle → 2.19.1, migrations-bundle → 3.7.1,
+DAMA → 8.6.0, twig → 3.29.0, intl-extra → 3.29.0; транзитивных смен версий ноль;
+`symfony/polyfill-php86` v1.41.0 добавлен явно в `require` (прямое использование
+символа в `src/`). 15/15 мест сортировки переведены на `\SortDirection`
+(FQ-стиль по требованию php-cs-fixer `@Symfony`; остатков строковых направлений
+в `src/` — 0, проверено grep). PHPStan 1.12 полифилл-enum понимает — No errors.
+
+**Проверки.** `composer ci:all` — OK (706 tests, 2095 assertions);
+`coverage:gate` — 97.74%; нативный `--display-deprecations` — 0 (сверено глазами,
+exit-гейта нет до 5.25); `lint:container` — OK; `schema:validate --skip-sync` —
+OK;   `smoke515.sh` (`var/`, gitignored — в контейнер через `docker compose cp`) — 25/25; runtime `symfony-lsp` — 0 diagnostics.
+
+**Перекос ORM/DBAL (блокер половины проверки).** Полный `schema:validate`
+(и `schema:update --dump-sql`) падают с `[critical]`: новый код 3.7
+(`GenerateSchemaEventArgs.php:41`) требует DBAL API `Schema::edit()` —
+«requires doctrine/dbal ^4.5». Стабильного DBAL 4.5 нет (только 4.5.x-dev),
+поднять не на что; DBAL 4.4.4 перекос не закроет. Mapping-половина — OK.
+В CI этот чек не входит, PR не блокируется. После выхода DBAL 4.5 stable —
+перепроверить полным `schema:validate`.
+
+**Cursor-пагинация: непригодна (доказательство, не мнение).** Для нашего
+`binary(16)` PK: (а) `encodeToString()` на сырых 16 байтах UUIDv7 даёт `false` →
+`(string) false` → `''` → пустой курсор; клиент шлёт `?cursor=`, пагинатор
+(`:166`) отдаёт первую страницу — бесконечный цикл без единой ошибки
+(первоначальная формулировка «бросит JsonException» неверна: на encode-стороне
+флагов нет, бросает только decode через `InvalidCursor` — но до него дело не
+доходит, т.к. `''` = первая страница); (б) предикат биндится без типа —
+`STRING` вместо `BINARY`. Починка требует hex/base64-слоя и собственного биндинга
+при отсутствии проблемы в репо (`cursor`/`keyset`/`slow` — 0 совпадений в Roadmap
+и AssumptionLog). Новой задачи нет; если контракт добавит total/навигацию —
+брать `OffsetPaginator`+`Window`, не legacy `Paginator` (deprecated, удаление в 4.0).
+
+**Недетерминированная сортировка (находка, не 3.7).** Кортеж `(createdAt, id)`
+есть только у Like/Comment. Item (`DoctrineItemRepository.php:60,76`),
+Collection (`DoctrineCollectionRepository.php:56,69`), Tag
+(`DoctrineTagRepository.php:93`) — без id-тай-брейкера. Меняет SQL → отдельной
+backlog-задачей, не в этом PR.
+
 ## 2026-09-24 — 5.31: зонд формата депрекейшенов отдельным CI-шагом
 
 **Факты из вендора (не из памяти).** `TestSuiteLoader::load`
