@@ -19,8 +19,9 @@
 # third-party action, because that action's body format is not a contract.
 #
 # A cancelled or timed-out run never reaches this script at all, because a job
-# that is killed runs no further steps - detecting those is task 5.19B, not this
-# one.
+# that is killed runs no further steps - only `failure` is observable from here,
+# which the fallback already covers. A killed run leaves the required check red,
+# which is where it is handled.
 #
 # Usage:
 #   scripts/verify-review-verdict.sh [--probe] <pull-number> <head-sha> <owner/repo>
@@ -110,9 +111,7 @@ review_author='github-actions[bot]'
 verdict_marker='### Verdict'
 
 # The marker carries the head SHA, so a stale warning about an older commit is
-# never rewritten into a claim about the current one. Task 5.19B reserves the
-# distinct prefix `opencode-verdict-cancelled` for the cancelled/timed-out
-# detector, so the two never collide.
+# never rewritten into a claim about the current one.
 marker="<!-- opencode-verdict-missing ${head_sha} -->"
 
 summary() {
