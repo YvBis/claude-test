@@ -1685,6 +1685,22 @@ phpstan-базлайна не касается (проверен в `ci:all` —
 пользователя в `UnauthorizedEnvelopeTest` — изоляция через DAMA, тот же паттерн, что в
 `LogoutControllerTest` (DAMA-расширение активно в `phpunit.xml.dist`).
 
+**CI-ревью (OpenRabbit, PR #98).** Чек `OpenRabbit Review` зелёный, вердикт опубликован
+(`### Verdict: needs changes`, бот `github-actions[bot]` на head `c3c9ad8`). Разбор: блокер
+«422-словарь» — вне скоупа PR-2 (это PR-3 по плану мини-этапа); «проверить регистрацию
+подписчика/хелпер» — уже доказано рантайм-пробой и зелёными функциональными тестами;
+«вынести эксперимент из PRD» — вне скоупа (секции S4–S7 из ранних `docs(5A)`-коммитов);
+в ревью есть фактические ошибки (имена событий Lexik, `throw new AccessDeniedHttpException`,
+«новый хелпер `denyAccessUnlessGranted`», путь вендора). Кода из ревью не последовало,
+ответ с доказательствами — комментарием в PR #98. Head не менялся, CI остаётся зелёным.
+`tech-lead-reviewer` — APPROVE, `php-senior-reviewer` — SHIP-WITH-NITS (3 low).
+Приняты: carve-out `/api/doc*` из `ApiExceptionSubscriber` (D6 требовал фреймворкового
+поведения документации) + unit-тест; сохранение `WWW-Authenticate: Bearer` в 401-конверте
+(RFC, поведение Lexik) + assert; комментарий о порядке specific-before-general у
+`AccessDeniedHttpException`; правка «11 блоков» → 10 call sites в S8. Отклонён: явный cleanup
+пользователя в `UnauthorizedEnvelopeTest` — изоляция через DAMA, тот же паттерн, что в
+`LogoutControllerTest` (DAMA-расширение активно в `phpunit.xml.dist`).
+
 **Статус Roadmap/PRD.** `fwd-17`/`fwd-19`/`fwd-21` остаются `todo` до merge (мерж — за
 пользователем); чекбоксы PRD мини-этапа 5A отмечены по факту PR-2 (401, 403 с оговоркой про
 `LoginController:125`, 500).
