@@ -96,12 +96,13 @@ OpenAPI, решение по двум DELETE-поверхностям комме
 
 ## Критерии приёмки
 
-- [ ] Один конверт `401` независимо от точки отказа (entry point и guard дают одинаковое тело).
-- [ ] Ручных 403-блоков в контроллерах нет: `AccessDeniedException` конвертируется listener'ом.
+- [x] Один конверт `401` независимо от точки отказа (entry point и guard дают одинаковое тело). (PR-2: `JwtAuthenticationFailureSubscriber` на 3 событиях Lexik; guard-конверт уже был `{error, message}`)
+- [x] Ручных 403-блоков в контроллерах нет, кроме `LoginController:125` «аккаунт деактивирован» — бизнес-факт, а не отказ доступа (решение S8 шаг 4): `AccessDeniedException` конвертируется listener'ом.
 - [ ] Один словарь лейбла `error` на статус `422` (или split зафиксирован в `ARCHITECTURE.md`).
 - [ ] `details` либо стабильны, либо явно помечены как best-effort в `ARCHITECTURE.md`.
-- [ ] Ни один `500` не остаётся без записи в логе (включая три сайта в `CollectionController`:
-      `POST`/`PATCH`/`DELETE` на коллекциях оставляют след в логе).
+- [x] Ни один `500` не остаётся без записи в логе (включая три сайта в `CollectionController`:
+      `POST`/`PATCH`/`DELETE` на коллекциях оставляют след в логе). (PR-2: локальные `catch`
+      сняты, логирует фреймворк `logKernelException`; доказан smoke в S8-6, автотесты этого не покрывают)
 - [ ] `?limit=abc` и `?limit=0` дают `400`, покрыто тестом.
 - [ ] `?owner[]=x` (не-строка) даёт `400`, а не молчаливую подмену на свои коллекции.
 - [ ] Схемы ошибок в OpenAPI — `$ref` на общие компоненты, без inline-дублей.
@@ -113,3 +114,365 @@ OpenAPI, решение по двум DELETE-поверхностям комме
 ~5.5 ч суммарно: `fwd-20` 0.5 · `fwd-25` 0.5 · `fwd-19` 0.5 · `fwd-17` 1 · `fwd-21` 0.5 + решение · `fwd-22` 0.5 +
 решение · `fwd-24` 0.5 + решение · `fwd-23` 1 · `fwd-18` 0.5 + решение. Дробится на 3–4 PR: (1) `fwd-20`+`fwd-25`,
 (2) `fwd-19`+`fwd-17`+`fwd-21` (общий listener), (3) `fwd-22`+`fwd-24`, (4) `fwd-23`+`fwd-18`.
+
+---
+
+# Эксперимент: даёт ли `symfony-specialist` что-то, чего не даёт чтение `vendor/`
+
+## Зачем
+
+Работа над этим PR (fwd-19 + fwd-17 + fwd-21) — исключительный путь Symfony: `kernel.exception`,
+Security, Lexik. Это внешнее знание, которое не лежит в репозитории. Гипотеза: загрузка
+`symfony-specialist` в основной контекст на этапе планирования улучшает решения.
+
+Ориентир — fwd-25 (закрыт 2026-09-26): 4 круга ревью, 7 блокеров, из них 2 отнесены к внешнему
+знанию (остальные — знание нашего кода, которое скилл не даёт в принципе). Оценка «~1 круг из 4»
+считалась перебором: если два внешних блокера шли параллельно, экономия нулевая. Поэтому
+отчитываться нужно **изменёнными решениями**, а не сэкономленными кругами.
+
+## Метрика: покрытие, а не корректность «до/после»
+
+Метрика «сколько кругов ревью» самообманыва: план пишу я, значит я же произвожу то, что эти круги
+считает, и я же знаю желаемый ответ. Вариант «правильность до и после» тоже негоден — почитав
+`vendor/`, я уже не могу «раззнать» ответ.
+
+Поэтому метрика — **маргинальное покрытие**: за сколько проб базовое чтение вендора даёт ответ,
+и сколько проб сверх этого закрывает скилл. Базовая линия не выдумывается — она честно
+измеряется под таймбоксом.
+
+## Пробы (зафиксированы ДО загрузки скилла)
+
+Шесть вопросов. Ответов в этом файле нет и не будет — ответы пишутся отдельным коммитом после
+фазы чтения вендора, чтобы «до» было зафиксировано до «после».
+
+- **R1.** Какое исключение дойдёт до кастомного `kernel.exception` listener'а в этом проекте:
+  `AccessDeniedException` или `AccessDeniedHttpException`? Что именно это решает в коде конверта?
+- **R2.** Кастомный listener ставится на приоритет `0`, `1` или `-127` — и кто выигрывает, когда
+  и security-`ExceptionListener`, и наш listener уже поставили response? Нужен ли `stopPropagation`
+  или `allowCustomResponseCode`, чтобы наш конверт вообще приклеился?
+- **R3.** `AccessDeniedException` для анонимного пользователя превращается в 401 или в 403 по
+  умолчанию, и где именно это решается?
+- **R4.** При stateless-файрволе `jwt` без своего `entry_point`: пропущенный токен и битый токен —
+  какой путь даёт `JWTAuthenticationFailureResponse`, а какой проваливается в
+  `startAuthentication`? Где повесить единый 401-конверт, не дублируя события Lexik
+  (`JWT_INVALID` / `JWT_NOT_FOUND`)?
+- **R5.** Как catch-all на 500 не должен глотать уже обработанные security-ответы? Как это
+  обнаружить в listener'е?
+- **R6.** В каком порядке наш listener стоит относительно security-`ExceptionListener` (у того
+  приоритет 1), и какой путь JWT-запроса вообще не доходит до `kernel.exception`?
+
+## Процедура
+
+1. **S2 — чтение вендора, таймбокс 15 минут.** По каждой пробе фиксируется: закрыта / источник с
+   `file:line` / осталась открытой. Это и есть базовая линия.
+2. **S3 — коммит «до»** с логом ответов и источников.
+3. **S4 — загрузка `symfony-specialist`**, фиксируется фактический расход токенов.
+4. **S5 — ответы на оставшиеся пробы** с разметкой источника.
+5. **S6 — независимая проверка**: `architect-reviewer` получает лог ответов и сверяет с вендором,
+   не зная, что и откуда взято.
+6. **S7 — замер** в `AssumptionLog.md`.
+
+## Критерий, записанный заранее
+
+Скилл засчитывается, если он закрывает **≥2 пробы, оставшиеся открытыми после фазы чтения
+вендора**, и при этом **ни одну не противоречит**. Противоречение записывается отдельно, даже
+его наличие означает провал.
+
+Не засчитывается ничего из перечисленного: ответы, которые я и так знал; ответы, полученные
+раньше этой фазы (см. «Загрязнение»); пересказ скиллом того, что уже есть в вендоре.
+
+## Загрязнение, о котором сказано заранее
+
+Критику проб дал `php-senior-reviewer` (muse-spark-1.3) **до** их фиксации, и в его разборе были
+указаны конкретные места: `ExceptionListener.php:126` (переписывание throwable),
+`ExceptionListener.php:68` (приоритет 1), `ExceptionListener.php:124-144` (`isFullFledged`),
+`JWTAuthenticator.php:148-167`. Это указатели на строки, а не ответы, но под 15-минутным
+таймбоксом указатель на нужную строку почти равносилен ответу.
+
+Это делает базовую линию сильнее, а не слабее: скиллу придётся добавить что-то **сверх** точных
+указателей. Отрицательный результат в такой постановке весит больше, чем в исходной.
+
+## Ограничения вывода
+
+- **N = 1.** Одна задача, один испытуемый, судья знает, что проверяет. Результат — направленный
+  сигнал, не доказательство.
+- **Выбор задачи нарочно неудачен для скилла.** Работа с envelope — исключительный путь, лучший
+  случай для скилла. Обратное тоже верно: на этой задаче особенно хорошо видно, где скилл
+  бесполезен.
+- **Запись проб грунтует собственный поиск.** Это не лечится.
+- **Нет контроля на «просто почитать вендор подольше».** Частично лечится таймбоксом: 15 минут —
+  это осознанный бюджет, а не 15 минут потому что кончилось терпение.
+- Итог формулируется как «показано на 5A PR-2», без обобщения на другие проекты и задачи.
+
+## S2/S3 — «до»: чтение `vendor/`, таймбокс 15 минут
+
+Затрачено **176 секунд из 900**. Таймбокс не оказался ограничивающим: решающим фактором
+оказались не минуты, а указания `php-senior-reviewer` на конкретные строки. Записано честно,
+потому что это вывод о методе, а не о скилле.
+
+Итог: **4 пробы закрыты, 2 частично, 0 не начато.**
+
+### R1 — закрыта
+
+`ExceptionListener.php:68` — security-listener на приоритете **1**.
+`ExceptionListener.php:126` — `handleAccessDeniedException()` делает
+`$event->setThrowable(new AccessDeniedHttpException($exception->getMessage(), $exception))`.
+
+Значит какое исключение увидит кастомный listener, решает **его собственный приоритет**:
+
+| приоритет кастомного | что увидит |
+|---|---|
+| ≥ 2 (раньше security) | исходный `Security\Core\Exception\AccessDeniedException` |
+| ≤ 0 (позже security) | `HttpKernel\Exception\AccessDeniedHttpException` |
+
+Для конверта: `AccessDeniedHttpException` — это `HttpExceptionInterface` со
+`getStatusCode() === 403`, поэтому 403 достаётся бесплатно, но **только если исключение
+доживёт до `HttpKernel::handleThrowable()`.** Значит приоритет надо зафиксировать и писать
+ровно один класс, а не оба.
+
+### R2 — закрыта
+
+`ErrorListener.php:154-156`: `logKernelException` — приоритет **0**, `onKernelException` — **-128**.
+Проверено самостоятельно, не по наводке.
+
+Порядок на `kernel.exception`: security (**1**) → `logKernelException` (0) → наш listener →
+`ErrorListener::onKernelException` (-128).
+
+Ответ на «нужен ли `stopPropagation`»: **нет**. `ExceptionEvent::setThrowable()`
+(`ExceptionEvent.php:57-60`) только присваивает поле и **не** вызывает `stopPropagation()`.
+Поэтому после security-listener, поставившего response, наш listener всё равно будет вызван.
+Чтобы наш конверт приклеился, он должен ставиться на приоритет **> 0** (то есть раньше
+security) иначе он увидит уже переписанное исключение из R1; либо на любой приоритет, если
+он готов работать с `AccessDeniedHttpException`.
+
+### R3 — закрыта
+
+`ExceptionListener.php:129`: `if (!$this->authenticationTrustResolver->isFullFledged($token))`.
+При анонимном токене `isFullFledged` → false, и security **не отдаёт 403**: уходит в
+`startAuthentication()` с `InsufficientAuthenticationException`. А
+`ExceptionListener.php:176-178` → при отсутствии entry point →
+`throwUnauthorizedException()` → `HttpException(401)`.
+
+**Ответ: анонимный `AccessDeniedException` даёт 401, а не 403.** 403 получается только при
+полноценном токене. Это ровно та причина, по которой «403 на неавторизованный доступ» в
+этом проекте нельзя писать одним правилом.
+
+### R4 — частично
+
+Два пути расходятся, как и предполагалось:
+
+- **Токена нет.** `JWTAuthenticator::supports()` (`:96-98`) → `false` из-за
+  `false !== $this->getTokenExtractor()->extract($request)`, аутентификатор не идёт.
+  Дальше `AccessListener`/`access_control` даёт анонимный токен, срабатывает
+  `ExceptionListener` → `handleAccessDeniedException` → `isFullFledged` false →
+  `startAuthentication()` (`ExceptionListener.php:176-181`).
+- **Токен битый/просроченный.** `supports()` → true, `onAuthenticationFailure()`
+  (`JWTAuthenticator.php:148-160`) строит `JWTAuthenticationFailureResponse` и диспатчит
+  `JWTInvalidEvent` / `JWTExpiredEvent`.
+
+Незакрытый подвопрос: **является ли `JWTAuthenticator` entry point'ом этого файрвола.**
+`entry_point` не найден ни в `config/packages/security.yaml`, ни в `vendor/lexik/`. Если он
+entry point — `start()` (`:84-90`) вернёт `JWTAuthenticationFailureResponse` и разошлёт
+`JWT_NOT_FOUND`. Если нет — `throwUnauthorizedException()` бросит `HttpException(401)`. От
+этого зависит, покрывает ли подписка на `Events::JWT_NOT_FOUND` оба случая. Требует либо
+докопать регистрацию, либо проверить рантаймом.
+
+### R5 — закрыта
+
+`setThrowable()` не останавливает распространение (см. R2), поэтому catch-all на 500 будет
+вызван и после security. Единственная защита — **проверить `$event->getResponse() !== null`
+(наследуется от `RequestEvent`) и выйти**, иначе наш 500-конверт перекроет уже корректный
+401/403 от Lexik и от наших же `unauthorized()`/`forbidden()`.
+
+### R6 — частично
+
+Приоритеты известны (см. R2): security **1**, `ErrorListener::onKernelException` **-128**.
+Незакрытый подвопрос: тот путь, где аутентификатор возвращает готовый `Response`, —
+`onAuthenticationFailure()` возвращает `?Response`, и есть основания полагать, что
+`kernel.exception` при этом **не диспатчится вовсе**. Не подтверждено чтением менеджера
+аутентификаторов, нужен ещё один заход.
+
+---
+
+# S4–S7 — результат
+
+## Что сделал скилл
+
+`symfony-specialist` загружен. Размер — 6.4 КБ `SKILL.md` + 4.9 КБ `references/`
+(оценка «~1645 токенов» в плане относилась только к `SKILL.md`).
+
+**Закрыл 0 из 2 открытых проб.** Проверено, а не заявлено: греп по `references/*.md` по
+`kernel.exception`, `ExceptionListener`, `AccessDenied`, `entry.?point`, `ErrorListener`,
+`priority` — ноль совпадений. Скилл оказался чистым роутером (определить версии → выбрать узкий
+скилл) плюс набором quality-guardrails (`validationFailedStatusCode`, хеширование паролей,
+Messenger, Doctrine), из которого к нашим двум пробам не относится ничего. Направления, которые
+он предложил (`symfony-voters`, `functional-tests`, `secure-code-guardian`), содержат
+ответа на R4/R6 не больше, чем сам роутер.
+
+## Что показала независимая проверка
+
+`architect-reviewer` получил лог ответов без указания на источники и сверил с вендором.
+Результат: **A1, A2, A4 — неверны в выводах, A3 — неверен путь при верном коде статуса.**
+Ни один из четырёх не подтвердился целиком.
+
+Оба решающих факта перепроверены лично, судья прав:
+
+- `RequestEvent::setResponse()` (`vendor/symfony/http-kernel/Event/RequestEvent.php:39-44`) —
+  дословно `/** Sets a response and stops event propagation. */`, в теле `$this->stopPropagation()`.
+- `JWTAuthenticator` (`vendor/lexik/.../JWTAuthenticator.php:40`) —
+  `implements AuthenticationEntryPointInterface`, а
+  `RegisterEntryPointPass.php:53,68` регистрирует его авто-единственным entry point'ом.
+
+**Ошибка была одна и типичная:** я прочитал `ExceptionEvent::setThrowable()` и остановился на
+том, на что меня указали, не прочитав `RequestEvent::setResponse()`. Отсюда выросли сразу три
+неверных вывода. Указание на строку ускорило доступ и обесценило проверку.
+
+## Исправленные ответы (это и есть спецификация fwd-19/17/21)
+
+**Приоритеты на `kernel.exception`:** security `ExceptionListener` — **1**;
+`ErrorListener::logKernelException` — **0**; `ErrorListener::onKernelException` — **-128**
+(`ErrorListener.php:154-156`). Наш listener должен попасть в интервал **(-128, 1)** иначе не
+увидит ничего.
+
+**Модель распространения (перевернуло всё):** `setThrowable()` не останавливает
+распространение, но `setResponse()` — **останавливает** (`RequestEvent.php:44`). Отсюда:
+
+- если security дошёл до успешного `setResponse()`, наш listener **не вызывается вообще**;
+- наш listener вызывается, когда security только **переписал throwable** — то есть в ветках
+  «full-fledged + нет handler + нет errorPage» и «анонимный + entry point бросил».
+
+**Анонимный `AccessDeniedException` даёт 401, но не через `throwUnauthorizedException`.**
+Тот код недостижим при нашем конфиге: `JWTAuthenticator` авто-регистрирован как entry point,
+поэтому `startAuthentication()` доходит до `JWTAuthenticator::start()`
+(`JWTAuthenticator.php:86-94`), который шлёт `Events::JWT_NOT_FOUND` и возвращает
+`JWTAuthenticationFailureResponse(401)`. Плюс `setResponse()` останавливает распространение.
+
+**Три пути отказа Lexik, и 401 надо вешать на события Lexik, а не на `kernel.exception`:**
+
+| случай | путь | `kernel.exception`? |
+|---|---|---|
+| токена нет | `supports()` false → аноним → `ExceptionListener:138` → `start()` → `JWT_NOT_FOUND` → `JWTAuthenticationFailureResponse(401)` | да, но `setResponse` сразу глушит |
+| токен битый | `AuthenticatorManager.php:219-224` ловит исключение, `onAuthenticationFailure()` возвращает `Response` | **нет** |
+| токен просрочен | то же, `JWT_EXPIRED` | **нет** |
+
+Значит единый 401-конверт вешается на `Events::JWT_INVALID`, `JWT_NOT_FOUND`, `JWT_EXPIRED` и
+подменяет `$event->setResponse(...)`. `kernel.exception` для битого токена — не тот
+chokepoint: до него дело не доходит.
+
+**Catch-all на 500 требует двойной проверки**, а не одной:
+
+```php
+if ($event->getResponse() !== null || $event->getThrowable() instanceof HttpExceptionInterface) {
+    return;
+}
+```
+
+`getResponse() !== null` — защита от более раннего listener'а. `HttpExceptionInterface` —
+необходимая часть: в ветке «full-fledged + нет handler» response равен `null`, а throwable равен
+`AccessDeniedHttpException` (403), и без этой проверки наш 500-конверт перебьёт легитимный 403.
+
+## Вердикт по критерию
+
+Критерий был: **≥2 закрытых скиллом пробы и ноль противоречий**. Факт: **0 и 0.**
+
+Правило «загружать `symfony-specialist` в основной контекст» в `AGENTS.md` **не пишется**.
+
+Но результат эксперимента не «скиллы бесполезны», а «этот скилл — роутер, а не база знаний»,
+и одновременно: **моя базовая линия была сильно хуже, чем я записал.** Четыре уверенных
+ответа, из которых ни один не подтвердился целиком, за 176 секунд. Скорость чтения вендора
+оказалась не бесплатной: чтение по указанию даёт уверенность без охвата.
+
+---
+
+# S8 — план реализации PR-2 (fwd-19 + fwd-17 + fwd-21)
+
+Составлен 2026-09-26 чтением вендора, не реализацией. Источник решений — разделы выше
+плюс четыре новых факта этой сессии (п.1–4).
+
+## Новые подтверждённые факты
+
+1. **Ответ нашего listener'а переживает `ErrorListener::onKernelException` (-128) через
+   остановку распространения**, а не через порядок: `RequestEvent::setResponse()`
+   вызывает `stopPropagation()` (`RequestEvent.php:40-45`).
+2. **Логировать 500 в своём listener'е не надо — уже логирует фреймворк.**
+   `ErrorListener::logKernelException` (приоритет **0**, `ErrorListener.php:48-75`) пишет
+   `Uncaught PHP Exception ...` с `['exception' => $throwable]` для всего, что дошло до
+   `kernel.exception`. Наш listener идёт позже. Явный лог там же даст двойную запись.
+   Реальная дыра fwd-21 — только три `catch (\Throwable)` в `CollectionController`,
+   глотающие исключение до `kernel.exception`.
+3. **Logger доступен без monolog.** Сервис `logger` =
+   `Symfony\Component\HttpKernel\Log\Logger` (проверено `debug:container logger`),
+   `Psr\Log\LoggerInterface` резолвится через alias. Зависимости добавлять не нужно.
+4. **Точка подмены 401 — одна на три пути:** `JWTAuthenticator::start()` (`:86-94`)
+   диспатчит `JWTNotFoundEvent` и возвращает `$event->getResponse()`;
+   `onAuthenticationFailure()` (`:148-167`) — `JWTExpiredEvent`/`JWTInvalidEvent`; у всех
+   `JWTFailureEventInterface::setResponse()`. `AuthenticatorManager.php:219-227`
+   возвращает `Response` из `handleAuthenticationFailure` — `kernel.exception` при
+   битом/просроченном токене не диспатчится.
+5. **OpenAPI править не нужно:** в `src/` нет ни одного `property: 'code'` — примеры 401
+   уже описывают `error` + `message`, то есть желаемую форму.
+
+## Решения
+
+- **D1.** Конверт `{error, message?, details?}` — не меняем. `CollectionControllerTest:162`
+  ждёт `['error' => 'Unauthorized']`; fwd-19 сводит Lexik к этой форме, а не наоборот.
+- **D2.** Два компонента в `src/Infrastructure/Api/EventSubscriber/`:
+  `JwtAuthenticationFailureSubscriber` (3 события Lexik) + `ApiExceptionSubscriber`
+  (`kernel.exception`).
+- **D3.** Приоритет `ApiExceptionSubscriber` — **-10**: после security (1) и после
+  `logKernelException` (0), до рендера страницы ошибки (-128).
+- **D4.** Guard catch-all (см. «Исправленные ответы»): `getResponse() !== null` ИЛИ
+  throwable — `HttpExceptionInterface` → выход.
+- **D5.** Тело 500 = `{error: 'Internal Server Error'}`, без `message`. Без
+  дополнительного лога (см. факт 2).
+- **D6.** Listener работает только для путей `^/api` — `/health`, `/api/doc`, `/`
+  сохраняют фреймворковое поведение.
+- **D7.** Сообщение 403 всегда generic `'Forbidden'`, без `getMessage()` исключения
+  (утечка деталей).
+- **D8.** Вместо нового `ResourceVoter` — хелпер в `AbstractApiController`, бросающий
+  `AccessDeniedException`; существующая логика `canManage`/voter сохраняется.
+  Полноценный voter для Item/Collection — отдельная задача Roadmap (записать в
+  AssumptionLog как follow-up).
+- **D9.** `internalError()` после fwd-21 мёртв → удалить вместе с его тестом
+  (`AbstractApiControllerTest:103`).
+
+## Шаги (каждый — red/green, ≤2 ч / ≤150 LOC)
+
+1. `JwtAuthenticationFailureSubscriber` + unit-тест на 3 события: `setResponse(401
+   {error: 'Unauthorized', message: <текст Lexik>})`.
+2. Функциональные тесты 401: нет токена → `{"error":"Unauthorized","message":"JWT Token
+   not found"}`; битая подпись → `Invalid JWT Token`; просроченный → `Expired JWT Token`
+   (конструирование просроченного — через `JWTTokenManagerInterface` с `exp` в прошлом).
+3. `ApiExceptionSubscriber` + unit-тесты: `AccessDeniedHttpException` → 403-конверт;
+   не-`HttpException` → 500-конверт; `getResponse() !== null` → no-op;
+   `HttpExceptionInterface` → no-op; путь не `/api` → no-op.
+4. fwd-17, механика: 10 ручных 403-блоков → `AccessDeniedException`
+   (9 конвертируются: `CollectionController:425,517`; `ItemController:259,331,381`;
+   `CommentController:254,300,350`; `LikeController:226`). `LoginController:125`
+   («аккаунт деактивирован») **остаётся ручным** — бизнес-факт, а не отказ voter'а.
+   Правка тестов, ожидающих 403.
+5. fwd-21: снять три `catch (\Throwable)` в `CollectionController`. Узкие `catch`
+   (`ValidationException`, `NotEncodable*`, `CollectionNotFound`, `InvalidArgument`)
+   остаются.
+6. Регрессия: тест «сервис бросает `\RuntimeException`» на `POST /api/collections` →
+   500-конверт; плюс ручной smoke — вызвать 500 в dev и проверить
+   `docker compose logs app` на `Uncaught PHP Exception` (единственная честная проверка
+   «500 не без следа»).
+7. Артефакты: `ARCHITECTURE.md` (новый компонент + правило приоритетов + конверт),
+   `AssumptionLog.md`, чекбоксы PRD, статус Roadmap.
+
+## Риски
+
+- **Лог-запись не проверяется автотестами:** в `phpunit.xml.dist` нет `APP_DEBUG` →
+  `HttpKernel\Log\Logger::$debug` false → `getLogs()` пуст, `TestLogger` нет.
+  Автотесты доказывают, что исключение не глотается (500-конверт) и что subscriber не
+  логирует повторно; «лог есть» доказывается smoke'ом в dev + чтением
+  `ErrorListener.php:74`.
+- **Гонка приоритетов:** `-10` ни с чем не конфликтует; перед коммитом проверить
+  `debug:event-dispatcher kernel.exception`.
+- **Фреймворковые 4xx вне скоупа:** 404 неизвестного маршрута, 405,
+  `BadRequestHttpException` от `InputBag` — не конвертируем в этом PR (follow-up,
+  возможно к fwd-23).
+
+
+

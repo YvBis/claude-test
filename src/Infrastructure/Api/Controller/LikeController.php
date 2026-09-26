@@ -222,9 +222,7 @@ final class LikeController extends AbstractApiController
             return $this->notFound('Like not found');
         }
 
-        if (!$this->isGranted(SocialContentVoter::SOCIAL_DELETE, $like)) {
-            return $this->forbidden('Forbidden');
-        }
+        $this->denyAccessUnlessGranted(SocialContentVoter::SOCIAL_DELETE, $like);
 
         $likeService->removeLike($like);
 

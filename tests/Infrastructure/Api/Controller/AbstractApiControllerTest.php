@@ -56,11 +56,6 @@ final class AbstractApiControllerTest extends TestCase
                 return $this->conflict($message);
             }
 
-            public function callInternalError(): JsonResponse
-            {
-                return $this->internalError();
-            }
-
             public function callCreateValidationErrorResponse(array $errors): JsonResponse
             {
                 return $this->createValidationErrorResponse($errors);
@@ -93,14 +88,6 @@ final class AbstractApiControllerTest extends TestCase
 
         $this->assertSame(401, $response->getStatusCode());
         $this->assertSame(['error' => 'Unauthorized'], $this->payload($response));
-    }
-
-    public function testInternalErrorOmitsMessage(): void
-    {
-        $response = $this->controller->callInternalError();
-
-        $this->assertSame(500, $response->getStatusCode());
-        $this->assertSame(['error' => 'Internal Server Error'], $this->payload($response));
     }
 
     public function testCreateValidationErrorResponseIs422WithDetailsOnly(): void

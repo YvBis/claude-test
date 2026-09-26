@@ -1579,3 +1579,128 @@ out of scope (mirrors PRD), `CollectionEntity::changeTheme()` remains domain-onl
 
 **Применено по ревью:** (1) guard-тест переписан на **структурный разбор YAML** (`Yaml::parseFile`) вместо регексов — пины триггеров (`pull_request` без `pull_request_target` и без `branches`/`paths`, типы `opened`/`synchronize`/`ready_for_review`), таймаута job'а, пропуска черновиков, `continue-on-error: true` у основного шага и его `id` (фолбэк ссылается на этот id), точного условия фолбэка, отсутствия `continue-on-error` у фолбэка, пиннинга версии и политики concurrency; (2) добавлены **посменные таймауты** (12 мин основному провайдеру, 15 — фолбэку: сумма 27 строго меньше 30-минутного бюджета job'а, то есть зависший основной падает раньше и не съедает окно фолбэка) + ассерт на этот запас; (3) уточнён комментарий в workflow (`github.sha` на `pull_request` — синтетический merge-коммит момента триггера; отменённый прогон тоже расходует запрос к пулу); (4) правило в `CLAUDE.md` 6.1 явно ограничено CI-ревью (три локальных агента не отменяются, а перезапускаются); (5) добавлен `PRD/5.16-code-review-verdicts.md` (по требованию процесса — review-задачи идут с PRD). **Отклонено:** спекулятивно расширять условие фолбэка до `failure || cancelled` (сегодня посменный таймаут помечается `failure`, фолбэк срабатывает; словарь исходов и «вердикт опубликован ≠ job зелёный» вынесены в 5.19, чтобы не усложнять workflow гипотезами). **Заведено в бэклог:** 5.18 (branch protection как обязательный чек), 5.19 (механическая детекция `cancelled`/`timed out`, триггер `reopened`, словарь исходов, «вердикт опубликован»), 5.20 (производительность ревью), 5.21 (полная нормализация `.gitattributes`).
 **Проверено:** `.github/workflows/code-review.yml` парсится Symfony YAML; `CodeReviewConfigTest` 4/4 + `SymfonyLspConfigTest` 6/6 (10 tests, 48 assertions); `composer ci:all` — 689 tests / 1931 assertions, exit 0; `git ls-files --eol "*.sh"` → `attr/text eol=lf`; живая проверка — прогон ревью на PR доходит до вердикта, второй push отменяет первый прогон (ожидаемо).
+
+## 2026-09-26 — эксперимент «skills vs vendor» на 5A PR-2: критерий не выполнен, но главный вывод не про скиллы
+
+**Установка.** Гипотеза: загрузка `symfony-specialist` в основной контекст на этапе планирования
+улучшает решения по внешнему знанию. Шесть проб зафиксированы в `PRD/mini-stage-5A-error-contract.md`
+до загрузки скилла (коммит `47d2e2a`), «до»-состояние — коммит `94b55fe`. Метрика — маргинальное
+покрытие, не «корректность до/после»: почитав вендор, нельзя «раззнать» ответ.
+
+**Базовая линия.** Чтение `vendor/`, таймбокс 15 минут, потрачено 176 секунд. Записано было
+«4 закрыты, 2 частично». Таймбокс не оказался ограничивающим: решающим был не бюджет времени,
+а точные указания `php-senior-reviewer` на строки (`ExceptionListener.php:126`, `:68`,
+`:124-144`, `JWTAuthenticator.php:148-167`).
+
+**Скилл.** `symfony-specialist` — 6.4 КБ `SKILL.md` + 4.9 КБ `references/`. Закрыл **0 из 2**
+открытых проб. Греп по `references/*.md` по `kernel.exception|ExceptionListener|AccessDenied|
+entry.?point|ErrorListener|priority` — ноль совпадений: скилл является роутером (определить
+версии → выбрать узкий скилл) и набором quality-guardrails, к нашим пробам не относящимся.
+Предложенные им направления (`symfony-voters`, `functional-tests`, `secure-code-guardian`)
+ответа на R4/R6 не содержат.
+
+**Проверка независимым судьёй.** `architect-reviewer` получил лог ответов без указания
+источников и сверил с вендором: **A1, A2, A4 — неверны в выводах; A3 — неверен путь при верном
+коде статуса. Ни один из четырёх не подтвердился целиком.** Оба решающих факта перепроверены
+лично и подтвердили судью: `RequestEvent::setResponse()` (`RequestEvent.php:39-44`) — дословно
+«Sets a response and stops event propagation» с `stopPropagation()` в теле; `JWTAuthenticator.php:40`
+`implements AuthenticationEntryPointInterface` плюс `RegisterEntryPointPass.php:53,68` —
+авто-регистрация единственного entry point.
+
+**Корень ошибки — один и типичный.** Прочитал `ExceptionEvent::setThrowable()` и остановился на
+указанной строке, не прочитав `RequestEvent::setResponse()`. Из этого выросли сразу три
+неверных вывода про распространение события. **Чтение по указанию даёт скорость и уверенность
+без охвата** — и выглядит при этом глубоким знанием темы.
+
+**Побочная ценность.** Исправленные ответы — это готовая спецификация fwd-19/fwd-17/fwd-21:
+наш listener должен попасть в интервал приоритетов (-128, 1) иначе не увидит ничего; единый
+401 вешается на события Lexik (`JWT_INVALID`/`JWT_NOT_FOUND`/`JWT_EXPIRED`), а не на
+`kernel.exception` — для битого токена `AuthenticatorManager.php:219-224` возвращает готовый
+`Response` и `kernel.exception` не диспатчится вовсе; catch-all на 500 требует проверки
+`getResponse() !== null` **И** `getThrowable() instanceof HttpExceptionInterface`, иначе в ветке
+«full-fledged + нет handler» наш 500 перебьёт легитимный 403.
+
+**Вердикт по заранее записанному критерию** (≥2 закрытых скиллом пробы и ноль противоречий):
+**0 и 0.** Правило «загружать `symfony-specialist` в основной контекст» в `AGENTS.md` не пишется.
+Но вывод эксперимента не «скиллы бесполезны», а «этот конкретный скилл — роутер, а не база
+знаний», и одновременно: **базовая линия была сильно хуже записанной.** Отрицательный результат
+при этом полезен — он показал границу применимости навыка и, что важнее, дефект собственного
+метода: останавливаться на указанной строке.
+
+## 2026-09-26 — 5A PR-2: единый error-envelope (fwd-19 + fwd-17 + fwd-21)
+
+Ветка `task/5a-error-envelope`, план — S8 `PRD/mini-stage-5A-error-contract.md`. Три вопроса
+прошлой сессии закрыты: **(а) D8 подтверждён** — хелпер `denyUnlessCanManage()` в
+`AbstractApiController` вместо нового `ResourceVoter` (полноценный voter для Item/Collection —
+отдельная задача, см. follow-up); **(б) порядок** — сначала `JwtAuthenticationFailureSubscriber`
+(fwd-19 задаёт каноническую форму конверта D1 и независим от `kernel.exception`), затем
+`ApiExceptionSubscriber`; **(в) просроченный JWT** — ок с уточнением: не через
+`JWTTokenManagerInterface::create()` (у него нет payload), а через конкретный
+`JWTManager::createFromPayload($user, ['exp' => прошлое])` (`JWTManager.php:82-90`, явный `exp`
+переживает кодирование — `DefaultJWSProvider.php:90-91` добавляет `exp` только если его нет).
+
+**Что сделано.** `JwtAuthenticationFailureSubscriber` (3 события Lexik → 401
+`{error: 'Unauthorized', message: <текст Lexik>}`) + unit/functional-тесты;
+`ApiExceptionSubscriber` (`kernel.exception`, приоритет -10) + unit-тесты; 10 ручных 403-блоков
+→ `AccessDeniedException` (`ItemController` — через `denyUnlessCanManage`,
+`CollectionController` — тот же owner-only кондишен без расширения прав админа,
+`Comment/LikeController` — штатный `denyAccessUnlessGranted`; `LoginController:125`
+«аккаунт деактивирован» — бизнес-факт, оставлен ручным осознанно); 3 `catch (\Throwable)` в
+`CollectionController` сняты; мёртвый `internalError()` + его тест удалены (D9); регрессия
+«репозиторий бросает `RuntimeException`» → голый 500-конверт.
+
+**Правила доступа не менялись** (вне скоупа мини-этапа): `CollectionController` проверяет строго
+владельца (без admin-исключения, как было), `ItemController` — `canManage` (owner-or-admin),
+соцконтент — `SocialContentVoter`. Разночтение owner-only vs canManage между коллекциями и
+айтемами зафиксировано, но не трогалось.
+
+**Ловушка `APP_DEBUG=0` в тестах.** `tests/bootstrap.php` форсит `APP_DEBUG=0`, поэтому
+функциональные тесты ездят на non-debug контейнере (`App_KernelTestContainer`) без проверки
+свежести: новый `JwtAuthenticationFailureSubscriber` был зарегистрирован в debug-контейнере
+(`debug:event-dispatcher` его показывал), а рантайм его не видел (0 слушателей, `has()` — no),
+пока `var/cache/test` не был удалён вручную. Контейнер был stale с 2026-09-22. Правило:
+после добавления новых классов в `src/` удалять `var/cache/test` (или гнать с ним тесты)
+перед функциональными прогонами; `cache:clear --env=test` из консоли пересобирает только
+debug-вариант и ловушку не снимает.
+
+**Smoke «500 не без следа» (S8-6).** Ручной диспатч `kernel.exception` с `RuntimeException` на
+dev-ядре: ответ 500 `{error: 'Internal Server Error'}`, в логе — единственная запись
+`[critical] Uncaught PHP Exception RuntimeException: "smoke-500-probe-taskflow-5A"`
+(фреймворк, `logKernelException`); повторного лога от subscriber нет; `onKernelException`
+(-128) не вызывался (распространение остановлено). Автотесты этого не доказывают
+(`phpunit.xml.dist` без `APP_DEBUG` → `HttpKernel\Log\Logger::$debug` false).
+
+**Follow-up (не этот PR):** полноценный `ResourceVoter` для Item/Collection вместо пары
+`canManage`/inline-проверок; конвертация фреймворковых 4xx вне скоупа (404 неизвестного
+маршрута, 405, `BadRequestHttpException` от `InputBag`); LSP-шум `string|false` от
+`getContent()` в тестах и `list<string|Stringable>` в `deserializeAndValidate` — pre-existing,
+phpstan-базлайна не касается (проверен в `ci:all` — чисто).
+
+**Ревью (3 агента, все с явным вердиктом).** `architect-reviewer` — APPROVE,
+`tech-lead-reviewer` — APPROVE, `php-senior-reviewer` — SHIP-WITH-NITS (3 low).
+Приняты: carve-out `/api/doc*` из `ApiExceptionSubscriber` (D6 требовал фреймворкового
+поведения документации) + unit-тест; сохранение `WWW-Authenticate: Bearer` в 401-конверте
+(RFC, поведение Lexik) + assert; комментарий о порядке specific-before-general у
+`AccessDeniedHttpException`; правка «11 блоков» → 10 call sites в S8. Отклонён: явный cleanup
+пользователя в `UnauthorizedEnvelopeTest` — изоляция через DAMA, тот же паттерн, что в
+`LogoutControllerTest` (DAMA-расширение активно в `phpunit.xml.dist`).
+
+**CI-ревью (OpenRabbit, PR #98).** Чек `OpenRabbit Review` зелёный, вердикт опубликован
+(`### Verdict: needs changes`, бот `github-actions[bot]` на head `c3c9ad8`). Разбор: блокер
+«422-словарь» — вне скоупа PR-2 (это PR-3 по плану мини-этапа); «проверить регистрацию
+подписчика/хелпер» — уже доказано рантайм-пробой и зелёными функциональными тестами;
+«вынести эксперимент из PRD» — вне скоупа (секции S4–S7 из ранних `docs(5A)`-коммитов);
+в ревью есть фактические ошибки (имена событий Lexik, `throw new AccessDeniedHttpException`,
+«новый хелпер `denyAccessUnlessGranted`», путь вендора). Кода из ревью не последовало,
+ответ с доказательствами — комментарием в PR #98. Head не менялся, CI остаётся зелёным.
+`tech-lead-reviewer` — APPROVE, `php-senior-reviewer` — SHIP-WITH-NITS (3 low).
+Приняты: carve-out `/api/doc*` из `ApiExceptionSubscriber` (D6 требовал фреймворкового
+поведения документации) + unit-тест; сохранение `WWW-Authenticate: Bearer` в 401-конверте
+(RFC, поведение Lexik) + assert; комментарий о порядке specific-before-general у
+`AccessDeniedHttpException`; правка «11 блоков» → 10 call sites в S8. Отклонён: явный cleanup
+пользователя в `UnauthorizedEnvelopeTest` — изоляция через DAMA, тот же паттерн, что в
+`LogoutControllerTest` (DAMA-расширение активно в `phpunit.xml.dist`).
+
+**Статус Roadmap/PRD.** `fwd-17`/`fwd-19`/`fwd-21` остаются `todo` до merge (мерж — за
+пользователем); чекбоксы PRD мини-этапа 5A отмечены по факту PR-2 (401, 403 с оговоркой про
+`LoginController:125`, 500).

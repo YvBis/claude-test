@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Infrastructure\Api\Controller;
 
+use App\Domain\Collection\Repository\CollectionRepositoryInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
@@ -147,6 +148,36 @@ final class CollectionControllerTest extends WebTestCase
         ], \JSON_THROW_ON_ERROR));
 
         $this->assertResponseStatusCodeSame(401);
+    }
+
+    public function testCreateReturns500EnvelopeWhenServiceFails(): void
+    {
+        // fwd-21: no local catch swallows the failure — the kernel.exception
+        // subscriber renders the bare 500 envelope, and the framework logger
+        // records the throwable (proven by the dev smoke in S8, not here).
+        // CollectionService is final and cannot be doubled, so the failure is
+        // injected one layer down: the repository interface throws, the real
+        // service lets it bubble, and with no local catch left the
+        // kernel.exception subscriber must render the bare 500 envelope.
+        $failingRepository = $this->createMock(CollectionRepositoryInterface::class);
+        $failingRepository->method('save')->willThrowException(new \RuntimeException('DB exploded'));
+
+        // Reboot so the mock is wired before CollectionService is first
+        // resolved; the test container does not rewire shared instances.
+        static::ensureKernelShutdown();
+        $this->client = static::createClient();
+        static::getContainer()->set(CollectionRepositoryInterface::class, $failingRepository);
+
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+            'name' => 'My Books',
+            'theme' => 'books',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(500);
+        $this->assertSame(
+            ['error' => 'Internal Server Error'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR),
+        );
     }
 
     public function testListWithoutTokenReturns401WithControllerEnvelope(): void

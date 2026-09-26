@@ -255,9 +255,7 @@ final class ItemController extends AbstractApiController
             return $this->notFound('Collection not found');
         }
 
-        if (!$this->canManage($user, $collection->getOwner())) {
-            return $this->forbidden('Forbidden');
-        }
+        $this->denyUnlessCanManage($user, $collection->getOwner());
 
         try {
             $item = $itemService->create($dto, $collection);
@@ -327,9 +325,7 @@ final class ItemController extends AbstractApiController
             return $this->notFound('Item not found');
         }
 
-        if (!$this->canManage($user, $item->getCollection()->getOwner())) {
-            return $this->forbidden('Forbidden');
-        }
+        $this->denyUnlessCanManage($user, $item->getCollection()->getOwner());
 
         if (!$dto->hasChanges()) {
             return $this->unprocessable('At least one field must be provided for update');
@@ -377,9 +373,7 @@ final class ItemController extends AbstractApiController
             return $this->notFound('Item not found');
         }
 
-        if (!$this->canManage($user, $item->getCollection()->getOwner())) {
-            return $this->forbidden('Forbidden');
-        }
+        $this->denyUnlessCanManage($user, $item->getCollection()->getOwner());
 
         $itemService->delete($item);
 

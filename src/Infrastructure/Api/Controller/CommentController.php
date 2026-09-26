@@ -250,9 +250,7 @@ final class CommentController extends AbstractApiController
             return $this->notFound('Comment not found');
         }
 
-        if (!$this->isGranted(SocialContentVoter::SOCIAL_EDIT, $comment)) {
-            return $this->forbidden('Forbidden');
-        }
+        $this->denyAccessUnlessGranted(SocialContentVoter::SOCIAL_EDIT, $comment);
 
         try {
             $commentService->changeContent($comment, $this->parseContent($request));
@@ -296,9 +294,7 @@ final class CommentController extends AbstractApiController
             return $this->notFound('Comment not found');
         }
 
-        if (!$this->isGranted(SocialContentVoter::SOCIAL_DELETE, $comment)) {
-            return $this->forbidden('Forbidden');
-        }
+        $this->denyAccessUnlessGranted(SocialContentVoter::SOCIAL_DELETE, $comment);
 
         $commentService->delete($comment);
 
@@ -346,9 +342,7 @@ final class CommentController extends AbstractApiController
             return $this->notFound('Comment not found');
         }
 
-        if (!$this->isGranted(SocialContentVoter::SOCIAL_DELETE, $comment)) {
-            return $this->forbidden('Forbidden');
-        }
+        $this->denyAccessUnlessGranted(SocialContentVoter::SOCIAL_DELETE, $comment);
 
         $commentService->delete($comment);
 

@@ -14,6 +14,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController as BaseAbstract
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -120,11 +121,6 @@ abstract class AbstractApiController extends BaseAbstractController
         return $this->errorResponse(Response::HTTP_CONFLICT, 'Conflict', $message);
     }
 
-    protected function internalError(): JsonResponse
-    {
-        return $this->errorResponse(Response::HTTP_INTERNAL_SERVER_ERROR, 'Internal Server Error');
-    }
-
     /**
      * Create a standardized validation error response: 422 with the list of
      * per-field messages under `details`.
@@ -164,6 +160,20 @@ abstract class AbstractApiController extends BaseAbstractController
     protected function canManage(User $user, User $owner): bool
     {
         return $user->getRole()->isAdmin() || $user->getId()->toString() === $owner->getId()->toString();
+    }
+
+    /**
+     * Owner-or-admin guard for item mutations: throws `AccessDeniedException`
+     * instead of answering 403 inline, so the `kernel.exception` subscriber
+     * renders the single 403 envelope. The rule itself is unchanged.
+     *
+     * @throws AccessDeniedException
+     */
+    protected function denyUnlessCanManage(User $user, User $owner): void
+    {
+        if (!$this->canManage($user, $owner)) {
+            throw new AccessDeniedException('Forbidden');
+        }
     }
 
     /**
