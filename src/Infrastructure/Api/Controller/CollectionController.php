@@ -16,6 +16,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Serializer\Exception\NotEncodableValueException;
 use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 use Symfony\Component\Serializer\SerializerInterface;
@@ -107,11 +108,7 @@ final class CollectionController extends AbstractApiController
             return $this->badRequest('Malformed request body');
         }
 
-        try {
-            $collection = $collectionService->create($dto, $user);
-        } catch (\Throwable $throwable) {
-            return $this->internalError();
-        }
+        $collection = $collectionService->create($dto, $user);
 
         return new JsonResponse(
             $collectionService->toDTO($collection)->toArray(),
@@ -422,18 +419,14 @@ final class CollectionController extends AbstractApiController
 
         // Authorization: only owner can update
         if ($collection->getOwner()->getId()->toString() !== $user->getId()->toString()) {
-            return $this->forbidden('Forbidden');
+            throw new AccessDeniedException('Forbidden');
         }
 
         if (!$dto->hasChanges()) {
             return $this->unprocessable('At least one field must be provided for update');
         }
 
-        try {
-            $updatedCollection = $collectionService->update($dto, $collection);
-        } catch (\Throwable $throwable) {
-            return $this->internalError();
-        }
+        $updatedCollection = $collectionService->update($dto, $collection);
 
         return new JsonResponse(
             $collectionService->toDTO($updatedCollection)->toArray(),
@@ -514,14 +507,10 @@ final class CollectionController extends AbstractApiController
 
         // Authorization: only owner can delete
         if ($collection->getOwner()->getId()->toString() !== $user->getId()->toString()) {
-            return $this->forbidden('Forbidden');
+            throw new AccessDeniedException('Forbidden');
         }
 
-        try {
-            $collectionService->delete($collection);
-        } catch (\Throwable $throwable) {
-            return $this->internalError();
-        }
+        $collectionService->delete($collection);
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }

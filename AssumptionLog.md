@@ -1626,3 +1626,65 @@ entry.?point|ErrorListener|priority` — ноль совпадений: скил
 знаний», и одновременно: **базовая линия была сильно хуже записанной.** Отрицательный результат
 при этом полезен — он показал границу применимости навыка и, что важнее, дефект собственного
 метода: останавливаться на указанной строке.
+
+## 2026-09-26 — 5A PR-2: единый error-envelope (fwd-19 + fwd-17 + fwd-21)
+
+Ветка `task/5a-error-envelope`, план — S8 `PRD/mini-stage-5A-error-contract.md`. Три вопроса
+прошлой сессии закрыты: **(а) D8 подтверждён** — хелпер `denyUnlessCanManage()` в
+`AbstractApiController` вместо нового `ResourceVoter` (полноценный voter для Item/Collection —
+отдельная задача, см. follow-up); **(б) порядок** — сначала `JwtAuthenticationFailureSubscriber`
+(fwd-19 задаёт каноническую форму конверта D1 и независим от `kernel.exception`), затем
+`ApiExceptionSubscriber`; **(в) просроченный JWT** — ок с уточнением: не через
+`JWTTokenManagerInterface::create()` (у него нет payload), а через конкретный
+`JWTManager::createFromPayload($user, ['exp' => прошлое])` (`JWTManager.php:82-90`, явный `exp`
+переживает кодирование — `DefaultJWSProvider.php:90-91` добавляет `exp` только если его нет).
+
+**Что сделано.** `JwtAuthenticationFailureSubscriber` (3 события Lexik → 401
+`{error: 'Unauthorized', message: <текст Lexik>}`) + unit/functional-тесты;
+`ApiExceptionSubscriber` (`kernel.exception`, приоритет -10) + unit-тесты; 10 ручных 403-блоков
+→ `AccessDeniedException` (`ItemController` — через `denyUnlessCanManage`,
+`CollectionController` — тот же owner-only кондишен без расширения прав админа,
+`Comment/LikeController` — штатный `denyAccessUnlessGranted`; `LoginController:125`
+«аккаунт деактивирован» — бизнес-факт, оставлен ручным осознанно); 3 `catch (\Throwable)` в
+`CollectionController` сняты; мёртвый `internalError()` + его тест удалены (D9); регрессия
+«репозиторий бросает `RuntimeException`» → голый 500-конверт.
+
+**Правила доступа не менялись** (вне скоупа мини-этапа): `CollectionController` проверяет строго
+владельца (без admin-исключения, как было), `ItemController` — `canManage` (owner-or-admin),
+соцконтент — `SocialContentVoter`. Разночтение owner-only vs canManage между коллекциями и
+айтемами зафиксировано, но не трогалось.
+
+**Ловушка `APP_DEBUG=0` в тестах.** `tests/bootstrap.php` форсит `APP_DEBUG=0`, поэтому
+функциональные тесты ездят на non-debug контейнере (`App_KernelTestContainer`) без проверки
+свежести: новый `JwtAuthenticationFailureSubscriber` был зарегистрирован в debug-контейнере
+(`debug:event-dispatcher` его показывал), а рантайм его не видел (0 слушателей, `has()` — no),
+пока `var/cache/test` не был удалён вручную. Контейнер был stale с 2026-09-22. Правило:
+после добавления новых классов в `src/` удалять `var/cache/test` (или гнать с ним тесты)
+перед функциональными прогонами; `cache:clear --env=test` из консоли пересобирает только
+debug-вариант и ловушку не снимает.
+
+**Smoke «500 не без следа» (S8-6).** Ручной диспатч `kernel.exception` с `RuntimeException` на
+dev-ядре: ответ 500 `{error: 'Internal Server Error'}`, в логе — единственная запись
+`[critical] Uncaught PHP Exception RuntimeException: "smoke-500-probe-taskflow-5A"`
+(фреймворк, `logKernelException`); повторного лога от subscriber нет; `onKernelException`
+(-128) не вызывался (распространение остановлено). Автотесты этого не доказывают
+(`phpunit.xml.dist` без `APP_DEBUG` → `HttpKernel\Log\Logger::$debug` false).
+
+**Follow-up (не этот PR):** полноценный `ResourceVoter` для Item/Collection вместо пары
+`canManage`/inline-проверок; конвертация фреймворковых 4xx вне скоупа (404 неизвестного
+маршрута, 405, `BadRequestHttpException` от `InputBag`); LSP-шум `string|false` от
+`getContent()` в тестах и `list<string|Stringable>` в `deserializeAndValidate` — pre-existing,
+phpstan-базлайна не касается (проверен в `ci:all` — чисто).
+
+**Ревью (3 агента, все с явным вердиктом).** `architect-reviewer` — APPROVE,
+`tech-lead-reviewer` — APPROVE, `php-senior-reviewer` — SHIP-WITH-NITS (3 low).
+Приняты: carve-out `/api/doc*` из `ApiExceptionSubscriber` (D6 требовал фреймворкового
+поведения документации) + unit-тест; сохранение `WWW-Authenticate: Bearer` в 401-конверте
+(RFC, поведение Lexik) + assert; комментарий о порядке specific-before-general у
+`AccessDeniedHttpException`; правка «11 блоков» → 10 call sites в S8. Отклонён: явный cleanup
+пользователя в `UnauthorizedEnvelopeTest` — изоляция через DAMA, тот же паттерн, что в
+`LogoutControllerTest` (DAMA-расширение активно в `phpunit.xml.dist`).
+
+**Статус Roadmap/PRD.** `fwd-17`/`fwd-19`/`fwd-21` остаются `todo` до merge (мерж — за
+пользователем); чекбоксы PRD мини-этапа 5A отмечены по факту PR-2 (401, 403 с оговоркой про
+`LoginController:125`, 500).

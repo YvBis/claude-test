@@ -96,12 +96,13 @@ OpenAPI, решение по двум DELETE-поверхностям комме
 
 ## Критерии приёмки
 
-- [ ] Один конверт `401` независимо от точки отказа (entry point и guard дают одинаковое тело).
-- [ ] Ручных 403-блоков в контроллерах нет: `AccessDeniedException` конвертируется listener'ом.
+- [x] Один конверт `401` независимо от точки отказа (entry point и guard дают одинаковое тело). (PR-2: `JwtAuthenticationFailureSubscriber` на 3 событиях Lexik; guard-конверт уже был `{error, message}`)
+- [x] Ручных 403-блоков в контроллерах нет, кроме `LoginController:125` «аккаунт деактивирован» — бизнес-факт, а не отказ доступа (решение S8 шаг 4): `AccessDeniedException` конвертируется listener'ом.
 - [ ] Один словарь лейбла `error` на статус `422` (или split зафиксирован в `ARCHITECTURE.md`).
 - [ ] `details` либо стабильны, либо явно помечены как best-effort в `ARCHITECTURE.md`.
-- [ ] Ни один `500` не остаётся без записи в логе (включая три сайта в `CollectionController`:
-      `POST`/`PATCH`/`DELETE` на коллекциях оставляют след в логе).
+- [x] Ни один `500` не остаётся без записи в логе (включая три сайта в `CollectionController`:
+      `POST`/`PATCH`/`DELETE` на коллекциях оставляют след в логе). (PR-2: локальные `catch`
+      сняты, логирует фреймворк `logKernelException`; доказан smoke в S8-6, автотесты этого не покрывают)
 - [ ] `?limit=abc` и `?limit=0` дают `400`, покрыто тестом.
 - [ ] `?owner[]=x` (не-строка) даёт `400`, а не молчаливую подмену на свои коллекции.
 - [ ] Схемы ошибок в OpenAPI — `$ref` на общие компоненты, без inline-дублей.
@@ -445,8 +446,8 @@ if ($event->getResponse() !== null || $event->getThrowable() instanceof HttpExce
 3. `ApiExceptionSubscriber` + unit-тесты: `AccessDeniedHttpException` → 403-конверт;
    не-`HttpException` → 500-конверт; `getResponse() !== null` → no-op;
    `HttpExceptionInterface` → no-op; путь не `/api` → no-op.
-4. fwd-17, механика: 11 ручных 403-блоков → `AccessDeniedException`
-   (`CollectionController:425,517`; `ItemController:259,331,381`;
+4. fwd-17, механика: 10 ручных 403-блоков → `AccessDeniedException`
+   (9 конвертируются: `CollectionController:425,517`; `ItemController:259,331,381`;
    `CommentController:254,300,350`; `LikeController:226`). `LoginController:125`
    («аккаунт деактивирован») **остаётся ручным** — бизнес-факт, а не отказ voter'а.
    Правка тестов, ожидающих 403.
