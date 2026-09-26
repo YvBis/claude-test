@@ -291,4 +291,95 @@ entry point — `start()` (`:84-90`) вернёт `JWTAuthenticationFailureRespo
 `kernel.exception` при этом **не диспатчится вовсе**. Не подтверждено чтением менеджера
 аутентификаторов, нужен ещё один заход.
 
+---
+
+# S4–S7 — результат
+
+## Что сделал скилл
+
+`symfony-specialist` загружен. Размер — 6.4 КБ `SKILL.md` + 4.9 КБ `references/`
+(оценка «~1645 токенов» в плане относилась только к `SKILL.md`).
+
+**Закрыл 0 из 2 открытых проб.** Проверено, а не заявлено: греп по `references/*.md` по
+`kernel.exception`, `ExceptionListener`, `AccessDenied`, `entry.?point`, `ErrorListener`,
+`priority` — ноль совпадений. Скилл оказался чистым роутером (определить версии → выбрать узкий
+скилл) плюс набором quality-guardrails (`validationFailedStatusCode`, хеширование паролей,
+Messenger, Doctrine), из которого к нашим двум пробам не относится ничего. Направления, которые
+он предложил (`symfony-voters`, `functional-tests`, `secure-code-guardian`), содержат
+ответа на R4/R6 не больше, чем сам роутер.
+
+## Что показала независимая проверка
+
+`architect-reviewer` получил лог ответов без указания на источники и сверил с вендором.
+Результат: **A1, A2, A4 — неверны в выводах, A3 — неверен путь при верном коде статуса.**
+Ни один из четырёх не подтвердился целиком.
+
+Оба решающих факта перепроверены лично, судья прав:
+
+- `RequestEvent::setResponse()` (`vendor/symfony/http-kernel/Event/RequestEvent.php:39-44`) —
+  дословно `/** Sets a response and stops event propagation. */`, в теле `$this->stopPropagation()`.
+- `JWTAuthenticator` (`vendor/lexik/.../JWTAuthenticator.php:40`) —
+  `implements AuthenticationEntryPointInterface`, а
+  `RegisterEntryPointPass.php:53,68` регистрирует его авто-единственным entry point'ом.
+
+**Ошибка была одна и типичная:** я прочитал `ExceptionEvent::setThrowable()` и остановился на
+том, на что меня указали, не прочитав `RequestEvent::setResponse()`. Отсюда выросли сразу три
+неверных вывода. Указание на строку ускорило доступ и обесценило проверку.
+
+## Исправленные ответы (это и есть спецификация fwd-19/17/21)
+
+**Приоритеты на `kernel.exception`:** security `ExceptionListener` — **1**;
+`ErrorListener::logKernelException` — **0**; `ErrorListener::onKernelException` — **-128**
+(`ErrorListener.php:154-156`). Наш listener должен попасть в интервал **(-128, 1)** иначе не
+увидит ничего.
+
+**Модель распространения (перевернуло всё):** `setThrowable()` не останавливает
+распространение, но `setResponse()` — **останавливает** (`RequestEvent.php:44`). Отсюда:
+
+- если security дошёл до успешного `setResponse()`, наш listener **не вызывается вообще**;
+- наш listener вызывается, когда security только **переписал throwable** — то есть в ветках
+  «full-fledged + нет handler + нет errorPage» и «анонимный + entry point бросил».
+
+**Анонимный `AccessDeniedException` даёт 401, но не через `throwUnauthorizedException`.**
+Тот код недостижим при нашем конфиге: `JWTAuthenticator` авто-регистрирован как entry point,
+поэтому `startAuthentication()` доходит до `JWTAuthenticator::start()`
+(`JWTAuthenticator.php:86-94`), который шлёт `Events::JWT_NOT_FOUND` и возвращает
+`JWTAuthenticationFailureResponse(401)`. Плюс `setResponse()` останавливает распространение.
+
+**Три пути отказа Lexik, и 401 надо вешать на события Lexik, а не на `kernel.exception`:**
+
+| случай | путь | `kernel.exception`? |
+|---|---|---|
+| токена нет | `supports()` false → аноним → `ExceptionListener:138` → `start()` → `JWT_NOT_FOUND` → `JWTAuthenticationFailureResponse(401)` | да, но `setResponse` сразу глушит |
+| токен битый | `AuthenticatorManager.php:219-224` ловит исключение, `onAuthenticationFailure()` возвращает `Response` | **нет** |
+| токен просрочен | то же, `JWT_EXPIRED` | **нет** |
+
+Значит единый 401-конверт вешается на `Events::JWT_INVALID`, `JWT_NOT_FOUND`, `JWT_EXPIRED` и
+подменяет `$event->setResponse(...)`. `kernel.exception` для битого токена — не тот
+chokepoint: до него дело не доходит.
+
+**Catch-all на 500 требует двойной проверки**, а не одной:
+
+```php
+if ($event->getResponse() !== null || $event->getThrowable() instanceof HttpExceptionInterface) {
+    return;
+}
+```
+
+`getResponse() !== null` — защита от более раннего listener'а. `HttpExceptionInterface` —
+необходимая часть: в ветке «full-fledged + нет handler» response равен `null`, а throwable равен
+`AccessDeniedHttpException` (403), и без этой проверки наш 500-конверт перебьёт легитимный 403.
+
+## Вердикт по критерию
+
+Критерий был: **≥2 закрытых скиллом пробы и ноль противоречий**. Факт: **0 и 0.**
+
+Правило «загружать `symfony-specialist` в основной контекст» в `AGENTS.md` **не пишется**.
+
+Но результат эксперимента не «скиллы бесполезны», а «этот скилл — роутер, а не база знаний»,
+и одновременно: **моя базовая линия была сильно хуже, чем я записал.** Четыре уверенных
+ответа, из которых ни один не подтвердился целиком, за 176 секунд. Скорость чтения вендора
+оказалась не бесплатной: чтение по указанию даёт уверенность без охвата.
+
+
 
