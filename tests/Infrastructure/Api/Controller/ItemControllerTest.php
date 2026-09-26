@@ -320,6 +320,91 @@ final class ItemControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(400);
     }
 
+    public function testListOwnWithNonScalarNameReturns400WithEnvelope(): void
+    {
+        $this->client->request('GET', '/api/items?name%5B%5D=x', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $this->assertJsonStringEqualsJsonString(
+            '{"error":"Bad Request","message":"Invalid query parameters","details":["Invalid name: must be a string"]}',
+            $this->client->getResponse()->getContent()
+        );
+        // The pre-fix answer was the framework's HTML error page; the envelope
+        // is only real if the Content-Type says JSON.
+        $this->assertSame('application/json', $this->client->getResponse()->headers->get('Content-Type'));
+    }
+
+    public function testListOwnWithNonScalarNameAndInvalidLimitReportsPaginationFirst(): void
+    {
+        $this->client->request('GET', '/api/items?name%5B%5D=x&limit=abc', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Invalid query parameters', $data['message']);
+        $this->assertStringContainsString('limit', (string) $data['details'][0]);
+        $this->assertStringNotContainsString('name', \implode(' ', $data['details']));
+    }
+
+    public function testListOwnWithScalarTagsReturns400WithEnvelope(): void
+    {
+        // tags is an array parameter, so ?tags=x is the wrong shape. The previous
+        // InputBag::all('tags') threw a BadRequestException no catch could convert.
+        $this->client->request('GET', '/api/items?tags=x', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $this->assertJsonStringEqualsJsonString(
+            '{"error":"Bad Request","message":"Invalid query parameters","details":["Invalid tags: must be an array of strings"]}',
+            $this->client->getResponse()->getContent()
+        );
+        $this->assertSame('application/json', $this->client->getResponse()->headers->get('Content-Type'));
+    }
+
+    public function testListOwnWithRepeatedTagsReturns400(): void
+    {
+        // ?tags=a&tags=b is last-wins under PHP, so it is a scalar, not two elements.
+        $this->client->request('GET', '/api/items?tags=a&tags=b', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame(['Invalid tags: must be an array of strings'], $data['details']);
+    }
+
+    public function testListOwnWithNestedTagsElementReturns400(): void
+    {
+        // A nested element was previously dropped silently by an is_string() check,
+        // which widened the result set without saying so.
+        $this->client->request('GET', '/api/items?tags%5B%5D=a&tags%5B0%5D%5Bx%5D=1', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame(['Invalid tags: must be an array of strings'], $data['details']);
+    }
+
+    public function testListOwnWithRepeatedTagElementsStillFilters(): void
+    {
+        // The array form must keep working: this is the real multi-value spelling.
+        $collection = $this->createCollection();
+        $this->createItem($collection, ['name' => 'Tagged One', 'tags' => ['scifi', 'classic']]);
+        $this->createItem($collection, ['name' => 'Untagged', 'tags' => []]);
+
+        $this->client->request('GET', '/api/items?tags%5B%5D=scifi&tags%5B%5D=classic', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame(['Tagged One'], \array_column($data, 'name'));
+    }
+
+    public function testListByCollectionWithNonScalarNameReturns400(): void
+    {
+        $collectionId = $this->createCollection();
+
+        $this->client->request('GET', '/api/collections/'.$collectionId.'/items?name%5B%5D=x', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame(['Invalid name: must be a string'], $data['details']);
+    }
+
     public function testGetInvalidUuidReturns404(): void
     {
         $this->client->request('GET', '/api/items/not-a-uuid', [], [], $this->authHeaders());

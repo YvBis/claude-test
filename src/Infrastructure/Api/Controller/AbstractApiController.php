@@ -188,14 +188,23 @@ abstract class AbstractApiController extends BaseAbstractController
      */
     protected function parsePagination(Request $request): array
     {
-        $limit = $request->query->get('limit');
-        $offset = $request->query->get('offset');
+        // The whole bag is read on purpose: InputBag::get() throws
+        // BadRequestException (an UnexpectedValueException) on a non-scalar value such
+        // as ?limit[]=1, which no catch(\InvalidArgumentException) can convert into the
+        // API envelope. Reading the raw array keeps every type decision here.
+        $query = $request->query->all();
+        $limit = $query['limit'] ?? null;
+        $offset = $query['offset'] ?? null;
 
-        if (null !== $limit && '' !== $limit && (!\is_string($limit) || !\ctype_digit($limit))) {
+        // int is accepted because the test client stringifies its parameter array
+        // (browser-kit Request::__construct casts every value to string), so an int
+        // can only ever arrive from a programmatic call - and ctype_digit() emits a
+        // deprecation for any non-string, hence the explicit cast below.
+        if (null !== $limit && '' !== $limit && ((!\is_string($limit) && !\is_int($limit)) || !\ctype_digit((string) $limit))) {
             throw new \InvalidArgumentException('Invalid limit: must be a non-negative integer');
         }
 
-        if (null !== $offset && '' !== $offset && (!\is_string($offset) || !\ctype_digit($offset))) {
+        if (null !== $offset && '' !== $offset && ((!\is_string($offset) && !\is_int($offset)) || !\ctype_digit((string) $offset))) {
             throw new \InvalidArgumentException('Invalid offset: must be a non-negative integer');
         }
 

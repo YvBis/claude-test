@@ -1,5 +1,35 @@
 # Assumption Log
 
+## 2026-09-26 — fwd-25: посылка «200 со своими коллекциями» не воспроизводится, настоящий дефект — чужой конверт
+
+**Данные.** Живой `symfony/http-foundation` v7.4.19: `Request::create("/x?owner[]=x")` в контейнере
+показал, что `InputBag::get()` (`InputBag.php:44-46`) бросает `BadRequestException` раньше любого
+кода приложения; `HttpKernel.php:82-83` конвертирует любой `RequestExceptionInterface` в
+`BadRequestHttpException` → 400. End-to-end (зарегистрированный пользователь, валидный JWT,
+`APP_ENV=dev`, `http://nginx` из контейнера): `?owner[]=x`, `?name[]=x`, `?search[]=x`,
+`?limit[]=1`, `?offset[]=1`, `?tags=x`, `?tags=a&tags=b` — везде 400, но `Content-Type: text/html`
+с текстом фреймворка (`Input value "owner" contains a non-scalar value. (400 Bad Request)`).
+Нигде не 200. Отдельно: `?name[]=a&limit=abc` на `/api/items` отдавал ошибку `name`, а не
+пагинации — `parseFilters` вызывался до `parsePagination`, приоритет «структурные → доменные»
+(запинован `CollectionControllerTest:318`), был нарушен на практике.
+
+**Вердикт.** Задача была не про код, а про то, чей это конверт. Исправление: чтение сырого
+массива `$request->query->all()` вместо `get()`/`all($key)` — оба последних бросают
+`BadRequestException extends UnexpectedValueException`, который `catch (\InvalidArgumentException)`
+не видит; собственный бросок обязан быть `\InvalidArgumentException`. `ctype_digit` — только по
+строке (`is_string || is_int`, затем cast), потому что вызов на int/bool/float даёт deprecation
+и `false` (проверено; 5.24 его теперь видит). Инты из тестового клиента безопасны: конструктор
+`BrowserKit\Request` приводит значения к строке (`array_walk_recursive`,
+`browser-kit/Request.php:36-38`). Вложенные элементы `tags` (`?tags[]=a&tags[0][x]=1`) отвергаются,
+а не отбрасываются: молчаливое сужение расширяло бы выборку. `?tags=a&tags=b` — last-wins-скаляр,
+значит 400; рабочая мульти-форма — только `?tags[]=a&tags[]=b`. PRD: новый
+`PRD/fwd-25-non-scalar-query-params.md`; поправлены PRD fwd-20 (400 за `?limit[]=1` был не от
+`ctype_digit`) и PRD 5A решение 8 (убрано «фильтр тихо исчезает», зафиксирован 400 чужим
+конвертом; объём расширен с `owner` до `owner`+`name`+`search` решением пользователя).
+
+**Проверка.** 17 новых тестов (88 в трёх классах), smoke 38/38 с проверкой `Content-Type:
+application/json` на каждой точке. PHPStan чист.
+
 ## 2026-09-25 — 5.19B закрыта как устаревшая (разведка live, детектор не строится)
 
 **Данные.** `gh run list --workflow "Code Review" --limit 100` → `success 85 | cancelled 8 | failure 4 | skipped 3 | timed_out 0`. Все 8 `cancelled` superseded более поздним успешным прогоном на том же PR (сверка по `head_branch` + `databaseId`): `796b948→91514fb` (PR #95, amend), `ebcab37→f87dd1c`, `2aa2fea→f87dd1c`, `6b507fb→f87dd1c` (PR #74, три amend), `07ce8e4→e074d9d`, `b33e068→8eb3f55`, `acea376→d545da1`, `aaf2e69→d545da1`. Терминальных отмен 0. `timed_out` 0 за всю историю. `skipped` — draft-PR (`code-review.yml:26` `if: github.event.pull_request.draft == false`), не потеря вердикта; на мержибельном non-draft PR `skipped` невозможен (один job, ни matrix, ни paths-фильтра — проверено синьором).

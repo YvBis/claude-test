@@ -39,7 +39,7 @@ final class ItemController extends AbstractApiController
             new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
             new OA\Parameter(name: 'offset', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_OFFSET, minimum: self::DEFAULT_OFFSET)),
             new OA\Parameter(name: 'name', in: 'query', required: false, description: 'Substring match on item name (case-insensitive)', schema: new OA\Schema(type: 'string')),
-            new OA\Parameter(name: 'tags[]', in: 'query', required: false, description: 'Item must have all given tags (AND)', schema: new OA\Schema(type: 'array', items: new OA\Items(type: 'string'))),
+            new OA\Parameter(name: 'tags[]', in: 'query', required: false, description: 'Item must have all given tags (AND). Repeat the parameter (tags[]=a&tags[]=b); a single ?tags=a or a nested value is rejected with 400', schema: new OA\Schema(type: 'array', items: new OA\Items(type: 'string'))),
         ],
         tags: ['Items'],
         responses: [
@@ -48,7 +48,7 @@ final class ItemController extends AbstractApiController
                 description: 'Items retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Item')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid filter)'),
+            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset, or a filter that is not of the documented type, e.g. ?name[]=x or ?tags=x)'),
             new OA\Response(response: 401, description: 'Unauthorized'),
             new OA\Response(response: 404, description: 'Collection not found'),
         ],
@@ -69,10 +69,11 @@ final class ItemController extends AbstractApiController
             return $this->notFound('Collection not found');
         }
 
-        [$name, $tagNames] = $this->parseFilters($request);
-
         try {
+            // Structural parameters first, so ?name[]=x&limit=abc reports the
+            // pagination error rather than the filter one.
             [$limit, $offset] = $this->parsePagination($request);
+            [$name, $tagNames] = $this->parseFilters($request);
             $items = $itemService->listByCollection($collection->getId(), $limit, $offset, $name, $tagNames);
         } catch (\InvalidArgumentException $invalidArgumentException) {
             return $this->badRequest('Invalid query parameters', [$invalidArgumentException->getMessage()]);
@@ -91,7 +92,7 @@ final class ItemController extends AbstractApiController
             new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
             new OA\Parameter(name: 'offset', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_OFFSET, minimum: self::DEFAULT_OFFSET)),
             new OA\Parameter(name: 'name', in: 'query', required: false, description: 'Substring match on item name (case-insensitive)', schema: new OA\Schema(type: 'string')),
-            new OA\Parameter(name: 'tags[]', in: 'query', required: false, description: 'Item must have all given tags (AND)', schema: new OA\Schema(type: 'array', items: new OA\Items(type: 'string'))),
+            new OA\Parameter(name: 'tags[]', in: 'query', required: false, description: 'Item must have all given tags (AND). Repeat the parameter (tags[]=a&tags[]=b); a single ?tags=a or a nested value is rejected with 400', schema: new OA\Schema(type: 'array', items: new OA\Items(type: 'string'))),
         ],
         tags: ['Items'],
         responses: [
@@ -100,7 +101,7 @@ final class ItemController extends AbstractApiController
                 description: 'Items retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Item')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid filter)'),
+            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset, or a filter that is not of the documented type, e.g. ?name[]=x or ?tags=x)'),
             new OA\Response(response: 401, description: 'Unauthorized'),
         ],
     )]
@@ -112,10 +113,11 @@ final class ItemController extends AbstractApiController
             return $this->unauthorized();
         }
 
-        [$name, $tagNames] = $this->parseFilters($request);
-
         try {
+            // Structural parameters first, so ?name[]=x&limit=abc reports the
+            // pagination error rather than the filter one.
             [$limit, $offset] = $this->parsePagination($request);
+            [$name, $tagNames] = $this->parseFilters($request);
             $items = $itemService->listByOwner(
                 OwnerId::fromBytes($user->getId()->toBytes()),
                 $limit,
@@ -385,20 +387,36 @@ final class ItemController extends AbstractApiController
     }
 
     /**
+     * @throws \InvalidArgumentException if a filter has the wrong shape
+     *
      * @return array{0: ?string, 1: array<string>}
      */
     private function parseFilters(Request $request): array
     {
-        $name = $request->query->get('name');
-        if (!\is_string($name)) {
-            $name = null;
+        // See CollectionController::list(): InputBag::get() and InputBag::all($key)
+        // both throw a BadRequestException that no catch(\InvalidArgumentException)
+        // can convert into the API envelope, so the raw bag is read instead.
+        $query = $request->query->all();
+
+        $name = $query['name'] ?? null;
+        if (null !== $name && !\is_string($name)) {
+            throw new \InvalidArgumentException('Invalid name: must be a string');
+        }
+
+        $rawTags = $query['tags'] ?? [];
+        if (!\is_array($rawTags)) {
+            throw new \InvalidArgumentException('Invalid tags: must be an array of strings');
         }
 
         $tagNames = [];
-        foreach ($request->query->all('tags') as $tag) {
-            if (\is_string($tag)) {
-                $tagNames[] = $tag;
+        foreach ($rawTags as $tag) {
+            // A nested array (?tags[0][x]=1) is rejected rather than dropped: a
+            // silently discarded filter would widen the result set without saying so.
+            if (!\is_string($tag)) {
+                throw new \InvalidArgumentException('Invalid tags: must be an array of strings');
             }
+
+            $tagNames[] = $tag;
         }
 
         return [$name, $tagNames];

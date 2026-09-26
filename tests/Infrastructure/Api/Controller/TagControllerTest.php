@@ -121,6 +121,41 @@ final class TagControllerTest extends WebTestCase
         $this->assertSame(['_private'], \array_column($tags, 'name'));
     }
 
+    public function testNonScalarSearchReturns400WithEnvelope(): void
+    {
+        $this->client->request('GET', '/api/tags?search%5B%5D=q', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $this->assertJsonStringEqualsJsonString(
+            '{"error":"Bad Request","message":"Invalid query parameters","details":["Invalid search: must be a string"]}',
+            $this->client->getResponse()->getContent()
+        );
+        $this->assertSame('application/json', $this->client->getResponse()->headers->get('Content-Type'));
+    }
+
+    public function testNonScalarSearchAndInvalidLimitReportsPaginationFirst(): void
+    {
+        $this->client->request('GET', '/api/tags?search%5B%5D=q&limit=abc', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Invalid query parameters', $data['message']);
+        $this->assertStringContainsString('limit', (string) $data['details'][0]);
+        $this->assertStringNotContainsString('search', \implode(' ', $data['details']));
+    }
+
+    public function testArrayLimitReturns400WithEnvelope(): void
+    {
+        $this->client->request('GET', '/api/tags?limit%5B%5D=1', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $this->assertJsonStringEqualsJsonString(
+            '{"error":"Bad Request","message":"Invalid query parameters","details":["Invalid limit: must be a non-negative integer"]}',
+            $this->client->getResponse()->getContent()
+        );
+        $this->assertSame('application/json', $this->client->getResponse()->headers->get('Content-Type'));
+    }
+
     public function testListPagination(): void
     {
         $this->seedTags(['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon']);
