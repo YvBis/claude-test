@@ -381,5 +381,97 @@ if ($event->getResponse() !== null || $event->getThrowable() instanceof HttpExce
 ответа, из которых ни один не подтвердился целиком, за 176 секунд. Скорость чтения вендора
 оказалась не бесплатной: чтение по указанию даёт уверенность без охвата.
 
+---
+
+# S8 — план реализации PR-2 (fwd-19 + fwd-17 + fwd-21)
+
+Составлен 2026-09-26 чтением вендора, не реализацией. Источник решений — разделы выше
+плюс четыре новых факта этой сессии (п.1–4).
+
+## Новые подтверждённые факты
+
+1. **Ответ нашего listener'а переживает `ErrorListener::onKernelException` (-128) через
+   остановку распространения**, а не через порядок: `RequestEvent::setResponse()`
+   вызывает `stopPropagation()` (`RequestEvent.php:40-45`).
+2. **Логировать 500 в своём listener'е не надо — уже логирует фреймворк.**
+   `ErrorListener::logKernelException` (приоритет **0**, `ErrorListener.php:48-75`) пишет
+   `Uncaught PHP Exception ...` с `['exception' => $throwable]` для всего, что дошло до
+   `kernel.exception`. Наш listener идёт позже. Явный лог там же даст двойную запись.
+   Реальная дыра fwd-21 — только три `catch (\Throwable)` в `CollectionController`,
+   глотающие исключение до `kernel.exception`.
+3. **Logger доступен без monolog.** Сервис `logger` =
+   `Symfony\Component\HttpKernel\Log\Logger` (проверено `debug:container logger`),
+   `Psr\Log\LoggerInterface` резолвится через alias. Зависимости добавлять не нужно.
+4. **Точка подмены 401 — одна на три пути:** `JWTAuthenticator::start()` (`:86-94`)
+   диспатчит `JWTNotFoundEvent` и возвращает `$event->getResponse()`;
+   `onAuthenticationFailure()` (`:148-167`) — `JWTExpiredEvent`/`JWTInvalidEvent`; у всех
+   `JWTFailureEventInterface::setResponse()`. `AuthenticatorManager.php:219-227`
+   возвращает `Response` из `handleAuthenticationFailure` — `kernel.exception` при
+   битом/просроченном токене не диспатчится.
+5. **OpenAPI править не нужно:** в `src/` нет ни одного `property: 'code'` — примеры 401
+   уже описывают `error` + `message`, то есть желаемую форму.
+
+## Решения
+
+- **D1.** Конверт `{error, message?, details?}` — не меняем. `CollectionControllerTest:162`
+  ждёт `['error' => 'Unauthorized']`; fwd-19 сводит Lexik к этой форме, а не наоборот.
+- **D2.** Два компонента в `src/Infrastructure/Api/EventSubscriber/`:
+  `JwtAuthenticationFailureSubscriber` (3 события Lexik) + `ApiExceptionSubscriber`
+  (`kernel.exception`).
+- **D3.** Приоритет `ApiExceptionSubscriber` — **-10**: после security (1) и после
+  `logKernelException` (0), до рендера страницы ошибки (-128).
+- **D4.** Guard catch-all (см. «Исправленные ответы»): `getResponse() !== null` ИЛИ
+  throwable — `HttpExceptionInterface` → выход.
+- **D5.** Тело 500 = `{error: 'Internal Server Error'}`, без `message`. Без
+  дополнительного лога (см. факт 2).
+- **D6.** Listener работает только для путей `^/api` — `/health`, `/api/doc`, `/`
+  сохраняют фреймворковое поведение.
+- **D7.** Сообщение 403 всегда generic `'Forbidden'`, без `getMessage()` исключения
+  (утечка деталей).
+- **D8.** Вместо нового `ResourceVoter` — хелпер в `AbstractApiController`, бросающий
+  `AccessDeniedException`; существующая логика `canManage`/voter сохраняется.
+  Полноценный voter для Item/Collection — отдельная задача Roadmap (записать в
+  AssumptionLog как follow-up).
+- **D9.** `internalError()` после fwd-21 мёртв → удалить вместе с его тестом
+  (`AbstractApiControllerTest:103`).
+
+## Шаги (каждый — red/green, ≤2 ч / ≤150 LOC)
+
+1. `JwtAuthenticationFailureSubscriber` + unit-тест на 3 события: `setResponse(401
+   {error: 'Unauthorized', message: <текст Lexik>})`.
+2. Функциональные тесты 401: нет токена → `{"error":"Unauthorized","message":"JWT Token
+   not found"}`; битая подпись → `Invalid JWT Token`; просроченный → `Expired JWT Token`
+   (конструирование просроченного — через `JWTTokenManagerInterface` с `exp` в прошлом).
+3. `ApiExceptionSubscriber` + unit-тесты: `AccessDeniedHttpException` → 403-конверт;
+   не-`HttpException` → 500-конверт; `getResponse() !== null` → no-op;
+   `HttpExceptionInterface` → no-op; путь не `/api` → no-op.
+4. fwd-17, механика: 11 ручных 403-блоков → `AccessDeniedException`
+   (`CollectionController:425,517`; `ItemController:259,331,381`;
+   `CommentController:254,300,350`; `LikeController:226`). `LoginController:125`
+   («аккаунт деактивирован») **остаётся ручным** — бизнес-факт, а не отказ voter'а.
+   Правка тестов, ожидающих 403.
+5. fwd-21: снять три `catch (\Throwable)` в `CollectionController`. Узкие `catch`
+   (`ValidationException`, `NotEncodable*`, `CollectionNotFound`, `InvalidArgument`)
+   остаются.
+6. Регрессия: тест «сервис бросает `\RuntimeException`» на `POST /api/collections` →
+   500-конверт; плюс ручной smoke — вызвать 500 в dev и проверить
+   `docker compose logs app` на `Uncaught PHP Exception` (единственная честная проверка
+   «500 не без следа»).
+7. Артефакты: `ARCHITECTURE.md` (новый компонент + правило приоритетов + конверт),
+   `AssumptionLog.md`, чекбоксы PRD, статус Roadmap.
+
+## Риски
+
+- **Лог-запись не проверяется автотестами:** в `phpunit.xml.dist` нет `APP_DEBUG` →
+  `HttpKernel\Log\Logger::$debug` false → `getLogs()` пуст, `TestLogger` нет.
+  Автотесты доказывают, что исключение не глотается (500-конверт) и что subscriber не
+  логирует повторно; «лог есть» доказывается smoke'ом в dev + чтением
+  `ErrorListener.php:74`.
+- **Гонка приоритетов:** `-10` ни с чем не конфликтует; перед коммитом проверить
+  `debug:event-dispatcher kernel.exception`.
+- **Фреймворковые 4xx вне скоупа:** 404 неизвестного маршрута, 405,
+  `BadRequestHttpException` от `InputBag` — не конвертируем в этом PR (follow-up,
+  возможно к fwd-23).
+
 
 
