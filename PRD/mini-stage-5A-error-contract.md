@@ -203,3 +203,92 @@ Security, Lexik. Это внешнее знание, которое не леж�
   это осознанный бюджет, а не 15 минут потому что кончилось терпение.
 - Итог формулируется как «показано на 5A PR-2», без обобщения на другие проекты и задачи.
 
+## S2/S3 — «до»: чтение `vendor/`, таймбокс 15 минут
+
+Затрачено **176 секунд из 900**. Таймбокс не оказался ограничивающим: решающим фактором
+оказались не минуты, а указания `php-senior-reviewer` на конкретные строки. Записано честно,
+потому что это вывод о методе, а не о скилле.
+
+Итог: **4 пробы закрыты, 2 частично, 0 не начато.**
+
+### R1 — закрыта
+
+`ExceptionListener.php:68` — security-listener на приоритете **1**.
+`ExceptionListener.php:126` — `handleAccessDeniedException()` делает
+`$event->setThrowable(new AccessDeniedHttpException($exception->getMessage(), $exception))`.
+
+Значит какое исключение увидит кастомный listener, решает **его собственный приоритет**:
+
+| приоритет кастомного | что увидит |
+|---|---|
+| ≥ 2 (раньше security) | исходный `Security\Core\Exception\AccessDeniedException` |
+| ≤ 0 (позже security) | `HttpKernel\Exception\AccessDeniedHttpException` |
+
+Для конверта: `AccessDeniedHttpException` — это `HttpExceptionInterface` со
+`getStatusCode() === 403`, поэтому 403 достаётся бесплатно, но **только если исключение
+доживёт до `HttpKernel::handleThrowable()`.** Значит приоритет надо зафиксировать и писать
+ровно один класс, а не оба.
+
+### R2 — закрыта
+
+`ErrorListener.php:154-156`: `logKernelException` — приоритет **0**, `onKernelException` — **-128**.
+Проверено самостоятельно, не по наводке.
+
+Порядок на `kernel.exception`: security (**1**) → `logKernelException` (0) → наш listener →
+`ErrorListener::onKernelException` (-128).
+
+Ответ на «нужен ли `stopPropagation`»: **нет**. `ExceptionEvent::setThrowable()`
+(`ExceptionEvent.php:57-60`) только присваивает поле и **не** вызывает `stopPropagation()`.
+Поэтому после security-listener, поставившего response, наш listener всё равно будет вызван.
+Чтобы наш конверт приклеился, он должен ставиться на приоритет **> 0** (то есть раньше
+security) иначе он увидит уже переписанное исключение из R1; либо на любой приоритет, если
+он готов работать с `AccessDeniedHttpException`.
+
+### R3 — закрыта
+
+`ExceptionListener.php:129`: `if (!$this->authenticationTrustResolver->isFullFledged($token))`.
+При анонимном токене `isFullFledged` → false, и security **не отдаёт 403**: уходит в
+`startAuthentication()` с `InsufficientAuthenticationException`. А
+`ExceptionListener.php:176-178` → при отсутствии entry point →
+`throwUnauthorizedException()` → `HttpException(401)`.
+
+**Ответ: анонимный `AccessDeniedException` даёт 401, а не 403.** 403 получается только при
+полноценном токене. Это ровно та причина, по которой «403 на неавторизованный доступ» в
+этом проекте нельзя писать одним правилом.
+
+### R4 — частично
+
+Два пути расходятся, как и предполагалось:
+
+- **Токена нет.** `JWTAuthenticator::supports()` (`:96-98`) → `false` из-за
+  `false !== $this->getTokenExtractor()->extract($request)`, аутентификатор не идёт.
+  Дальше `AccessListener`/`access_control` даёт анонимный токен, срабатывает
+  `ExceptionListener` → `handleAccessDeniedException` → `isFullFledged` false →
+  `startAuthentication()` (`ExceptionListener.php:176-181`).
+- **Токен битый/просроченный.** `supports()` → true, `onAuthenticationFailure()`
+  (`JWTAuthenticator.php:148-160`) строит `JWTAuthenticationFailureResponse` и диспатчит
+  `JWTInvalidEvent` / `JWTExpiredEvent`.
+
+Незакрытый подвопрос: **является ли `JWTAuthenticator` entry point'ом этого файрвола.**
+`entry_point` не найден ни в `config/packages/security.yaml`, ни в `vendor/lexik/`. Если он
+entry point — `start()` (`:84-90`) вернёт `JWTAuthenticationFailureResponse` и разошлёт
+`JWT_NOT_FOUND`. Если нет — `throwUnauthorizedException()` бросит `HttpException(401)`. От
+этого зависит, покрывает ли подписка на `Events::JWT_NOT_FOUND` оба случая. Требует либо
+докопать регистрацию, либо проверить рантаймом.
+
+### R5 — закрыта
+
+`setThrowable()` не останавливает распространение (см. R2), поэтому catch-all на 500 будет
+вызван и после security. Единственная защита — **проверить `$event->getResponse() !== null`
+(наследуется от `RequestEvent`) и выйти**, иначе наш 500-конверт перекроет уже корректный
+401/403 от Lexik и от наших же `unauthorized()`/`forbidden()`.
+
+### R6 — частично
+
+Приоритеты известны (см. R2): security **1**, `ErrorListener::onKernelException` **-128**.
+Незакрытый подвопрос: тот путь, где аутентификатор возвращает готовый `Response`, —
+`onAuthenticationFailure()` возвращает `?Response`, и есть основания полагать, что
+`kernel.exception` при этом **не диспатчится вовсе**. Не подтверждено чтением менеджера
+аутентификаторов, нужен ещё один заход.
+
+
