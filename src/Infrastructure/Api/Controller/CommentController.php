@@ -119,7 +119,7 @@ final class CommentController extends AbstractApiController
                 description: 'Comments retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Comment')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid pagination)'),
+            new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)'),
             new OA\Response(response: 401, description: 'Unauthorized'),
             new OA\Response(response: 404, description: 'Item not found'),
         ],
@@ -166,7 +166,7 @@ final class CommentController extends AbstractApiController
                 description: 'Comments retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Comment')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid pagination)'),
+            new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)'),
             new OA\Response(response: 401, description: 'Unauthorized'),
         ],
     )]

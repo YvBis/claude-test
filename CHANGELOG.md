@@ -59,6 +59,7 @@
 - **Tag API** (4.7): `GET /api/tags?search=&limit=&offset=` — список/поиск для выбора при тегировании.
 
 ### Фиксы
+- Не-скалярные query-параметры отдают 400 нашим конвертом (fwd-25): `?owner[]=x`, `?name[]=x`, `?search[]=x`, `?limit[]`/`?offset[]`, скалярный `?tags` и вложенные элементы `tags[0][x]`. Эмпирика опровергла исходную посылку («молча отдают 200 со своими коллекциями»): `InputBag::get()` бросает `BadRequestException` раньше любого `is_string`, и клиент уже получал 400 — но фреймворковой HTML-страницей. Чтение переведено на сырой массив `$request->query->all()` с явной проверкой типа и броском `\InvalidArgumentException` внутрь существующего `try/catch`; `ctype_digit` вызывается только по строке (`is_string || is_int`, иначе deprecation). Приоритет «пагинация → фильтры» сохранён (`?name[]=x&limit=abc` отвечает пагинационной причиной); OpenAPI документирует 400 за неверный тип. 17 новых тестов, smoke 38/38.
 - Ghost-proxy final-сущностей (Collection/User) во всех read-методах репозиториев Item/CollectionField — JOIN FETCH-цепочки.
 - `ItemSlotMapper::asDate` — строгая ISO-8601 (Z, милли/микросекунды, offset-less), rejection джанка.
 - `default => throw` в match-армах слотов (slot > 3 больше не пишет в text3 молча).

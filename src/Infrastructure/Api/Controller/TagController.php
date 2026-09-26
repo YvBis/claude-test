@@ -34,7 +34,7 @@ final class TagController extends AbstractApiController
                 description: 'Tags retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Tag')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset)'),
+            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset/search, or a non-scalar value for any of them, e.g. ?search[]=x)'),
             new OA\Response(response: 401, description: 'Unauthorized'),
         ],
     )]
@@ -47,13 +47,20 @@ final class TagController extends AbstractApiController
         }
 
         try {
+            // Structural parameters first, so ?search[]=x&limit=abc reports the
+            // pagination error rather than the filter one.
             [$limit, $offset] = $this->parsePagination($request);
+
+            // See CollectionController::list() for why the whole bag is read instead
+            // of InputBag::get(), which throws a catch-invisible BadRequestException.
+            $search = $request->query->all()['search'] ?? null;
+
+            if (null !== $search && !\is_string($search)) {
+                throw new \InvalidArgumentException('Invalid search: must be a string');
+            }
         } catch (\InvalidArgumentException $invalidArgumentException) {
             return $this->badRequest('Invalid query parameters', [$invalidArgumentException->getMessage()]);
         }
-
-        $search = $request->query->get('search');
-        $search = \is_string($search) ? $search : null;
 
         $tags = $tagService->listTags($search, $limit, $offset);
 

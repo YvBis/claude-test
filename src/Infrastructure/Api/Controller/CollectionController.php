@@ -259,7 +259,7 @@ final class CollectionController extends AbstractApiController
                     ]
                 )
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset/owner id)'),
+            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset/owner id, or a non-scalar value for any of them, e.g. ?owner[]=x)'),
         ]
     )]
     public function list(Request $request, CollectionService $collectionService): JsonResponse
@@ -276,10 +276,18 @@ final class CollectionController extends AbstractApiController
             return $this->badRequest('Invalid query parameters', [$invalidArgumentException->getMessage()]);
         }
 
-        $owner = $request->query->get('owner');
+        // Read the whole query bag: InputBag::get() throws BadRequestException on a
+        // non-scalar value (e.g. ?owner[]=x), which is an UnexpectedValueException and
+        // therefore escapes the InvalidArgumentException catch below, leaving the
+        // framework to render an HTML error page instead of the API envelope.
+        $owner = $request->query->all()['owner'] ?? null;
 
-        if (null !== $owner && \is_string($owner)) {
+        if (null !== $owner) {
             try {
+                if (!\is_string($owner)) {
+                    throw new \InvalidArgumentException('Invalid owner id');
+                }
+
                 $ownerId = OwnerId::fromString($owner);
             } catch (\InvalidArgumentException) {
                 return $this->badRequest('Invalid query parameters', ['Invalid owner id']);

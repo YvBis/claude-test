@@ -328,6 +328,87 @@ final class CollectionControllerTest extends WebTestCase
         $this->assertStringNotContainsString('owner', \implode(' ', $response['details']));
     }
 
+    public function testListWithNonScalarOwnerReturns400WithEnvelope(): void
+    {
+        // ?owner[]=x is an array. InputBag::get() throws a BadRequestException
+        // (an UnexpectedValueException) on it, which no catch(\InvalidArgumentException)
+        // can convert - the client would get the framework's HTML error page instead of
+        // the API envelope. The controller reads the raw bag so the check is ours.
+        $this->client->request('GET', '/api/collections?owner%5B%5D=x', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $this->assertJsonStringEqualsJsonString(
+            '{"error":"Bad Request","message":"Invalid query parameters","details":["Invalid owner id"]}',
+            $this->client->getResponse()->getContent()
+        );
+        $this->assertSame('application/json', $this->client->getResponse()->headers->get('Content-Type'));
+    }
+
+    public function testListWithNestedOwnerKeyReturns400(): void
+    {
+        // ?owner[a][b]=c also produces an array under the same key.
+        $this->client->request('GET', '/api/collections?owner%5Ba%5D%5Bb%5D=c', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Invalid query parameters', $data['message']);
+        $this->assertSame(['Invalid owner id'], $data['details']);
+    }
+
+    public function testListWithNonScalarOwnerAndInvalidLimitReportsPaginationFirst(): void
+    {
+        $this->client->request('GET', '/api/collections?owner%5B%5D=x&limit=abc', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Invalid query parameters', $response['message']);
+        $this->assertStringContainsString('limit', (string) $response['details'][0]);
+        $this->assertStringNotContainsString('owner', \implode(' ', $response['details']));
+    }
+
+    public function testListWithRepeatedOwnerKeepsLastValueAndRejectsIt(): void
+    {
+        // ?owner=x&owner=y is a string under PHP's last-wins rule, so this is the
+        // plain invalid-uuid path, not the non-scalar one.
+        $this->client->request('GET', '/api/collections?owner=x&owner=y', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame(['Invalid owner id'], $data['details']);
+    }
+
+    public function testListWithArrayLimitReturns400WithEnvelope(): void
+    {
+        $this->client->request('GET', '/api/collections?limit%5B%5D=1', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $this->assertJsonStringEqualsJsonString(
+            '{"error":"Bad Request","message":"Invalid query parameters","details":["Invalid limit: must be a non-negative integer"]}',
+            $this->client->getResponse()->getContent()
+        );
+    }
+
+    public function testListWithArrayOffsetReturns400WithEnvelope(): void
+    {
+        $this->client->request('GET', '/api/collections?offset%5B%5D=1', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Invalid query parameters', $data['message']);
+        $this->assertStringContainsString('offset', (string) $data['details'][0]);
+    }
+
+    public function testListWithEmptyOwnerReturns400(): void
+    {
+        // ?owner= is an empty string, not an array: it reaches OwnerId::fromString('')
+        // and is rejected there, with the same fixed detail as any other bad owner.
+        $this->client->request('GET', '/api/collections?owner=', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame(['Invalid owner id'], $data['details']);
+    }
+
     public function testGetReturns200AndData(): void
     {
         $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
