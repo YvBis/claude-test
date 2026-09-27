@@ -20,6 +20,9 @@ use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Clock\Clock;
+use Symfony\Component\Clock\MockClock;
+use Symfony\Component\Clock\NativeClock;
 
 final class DoctrineItemRepositoryTest extends KernelTestCase
 {
@@ -222,6 +225,46 @@ final class DoctrineItemRepositoryTest extends KernelTestCase
 
         $this->assertCount(1, $items);
         $this->assertSame('Match One', $items[0]->getName());
+    }
+
+    public function testFindByCollectionIdOrdersEqualCreatedAtById(): void
+    {
+        // fwd-27: rows with equal sort keys must not reshuffle between pages.
+        // No $clock->sleep() between constructions: all four items share one
+        // frozen createdAt. PKs are uuid7 (time-ordered with a random tail),
+        // so id order is not insertion order — the expected order is
+        // id-ascending, computed, not assumed.
+        Clock::set(new MockClock('2026-09-27 10:00:00'));
+        try {
+            $collection = $this->createCollection($this->createUser('tiebreak'), 'Tiebreak');
+            foreach (['Alpha', 'Beta', 'Gamma', 'Delta'] as $name) {
+                $this->em->persist(Item::create($collection, $name));
+            }
+            $this->em->flush();
+
+            $expected = $this->idsOf($this->repo->findByCollectionId($collection->getId()));
+            \sort($expected);
+
+            $pageOne = $this->idsOf($this->repo->findByCollectionId($collection->getId(), 2, 0));
+            $pageTwo = $this->idsOf($this->repo->findByCollectionId($collection->getId(), 2, 2));
+            $again = $this->idsOf($this->repo->findByCollectionId($collection->getId()));
+
+            $this->assertSame(\array_slice($expected, 0, 2), $pageOne);
+            $this->assertSame(\array_slice($expected, 2), $pageTwo);
+            $this->assertSame($expected, $again);
+        } finally {
+            Clock::set(new NativeClock());
+        }
+    }
+
+    /**
+     * @param list<Item> $items
+     *
+     * @return list<string>
+     */
+    private function idsOf(array $items): array
+    {
+        return \array_map(static fn (Item $item): string => $item->getId()->toString(), $items);
     }
 
     public function testRemoveDeletesItem(): void

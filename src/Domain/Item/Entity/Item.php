@@ -18,7 +18,9 @@ use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'items')]
-#[ORM\Index(name: 'idx_item_collection', columns: ['collection_id'])]
+// fwd-27: serves the (created_at, id) listing order of findByCollectionId.
+// The plain (collection_id) index was subsumed as its leftmost prefix.
+#[ORM\Index(name: 'idx_item_collection_list', columns: ['collection_id', 'created_at', 'id'])]
 #[ORM\HasLifecycleCallbacks]
 final class Item
 {
