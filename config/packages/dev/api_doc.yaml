@@ -75,6 +75,21 @@ nelmio_api_doc:
                         content: { type: string, maxLength: 3000, example: 'Great read! ## Notes' }
                         created_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
                         updated_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
+                # fwd-23: the single envelope for every 4xx/5xx produced by
+                # AbstractApiController helpers and ApiExceptionSubscriber.
+                # `error` is always the HTTP reason phrase (5A contract);
+                # `message`/`details` are optional (500 carries bare {error}).
+                Error:
+                    type: object
+                    required: [error]
+                    description: 'Canonical API error envelope'
+                    properties:
+                        error: { type: string, example: 'Unprocessable Entity' }
+                        message: { type: string, example: 'Validation failed' }
+                        details:
+                            type: array
+                            items: { type: string }
+                            example: ['Collection name must be at least 3 characters']
         servers:
             - url: 'http://localhost:8000'
               description: 'Development server'

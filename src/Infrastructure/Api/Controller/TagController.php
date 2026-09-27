@@ -34,8 +34,8 @@ final class TagController extends AbstractApiController
                 description: 'Tags retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Tag')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset/search, or a non-scalar value for any of them, e.g. ?search[]=x)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
+            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset/search, or a non-scalar value for any of them, e.g. ?search[]=x)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function list(Request $request, TagService $tagService): JsonResponse

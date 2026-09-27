@@ -48,9 +48,9 @@ final class ItemController extends AbstractApiController
                 description: 'Items retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Item')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset, or a filter that is not of the documented type, e.g. ?name[]=x or ?tags=x)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 404, description: 'Collection not found'),
+            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset, or a filter that is not of the documented type, e.g. ?name[]=x or ?tags=x)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Collection not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function listByCollection(string $collectionId, Request $request, CollectionService $collectionService, ItemService $itemService): JsonResponse
@@ -101,8 +101,8 @@ final class ItemController extends AbstractApiController
                 description: 'Items retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Item')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset, or a filter that is not of the documented type, e.g. ?name[]=x or ?tags=x)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
+            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset, or a filter that is not of the documented type, e.g. ?name[]=x or ?tags=x)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function listOwn(Request $request, ItemService $itemService): JsonResponse
@@ -148,8 +148,8 @@ final class ItemController extends AbstractApiController
                 description: 'Item retrieved successfully',
                 content: new OA\JsonContent(ref: '#/components/schemas/ItemDetail'),
             ),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 404, description: 'Item not found'),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Item not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function get(
@@ -218,11 +218,11 @@ final class ItemController extends AbstractApiController
         tags: ['Items'],
         responses: [
             new OA\Response(response: 201, description: 'Item created', content: new OA\JsonContent(ref: '#/components/schemas/Item')),
-            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
-            new OA\Response(response: 422, description: 'Validation error or invalid slot value'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 403, description: 'Forbidden'),
-            new OA\Response(response: 404, description: 'Collection not found'),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 422, description: 'Validation error or invalid slot value', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 403, description: 'Forbidden', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Collection not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function create(
@@ -289,11 +289,11 @@ final class ItemController extends AbstractApiController
         tags: ['Items'],
         responses: [
             new OA\Response(response: 200, description: 'Item updated', content: new OA\JsonContent(ref: '#/components/schemas/Item')),
-            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
-            new OA\Response(response: 422, description: 'Empty body or invalid slot value'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 403, description: 'Forbidden'),
-            new OA\Response(response: 404, description: 'Item not found'),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 422, description: 'Empty body or invalid slot value', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 403, description: 'Forbidden', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Item not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function update(
@@ -352,9 +352,9 @@ final class ItemController extends AbstractApiController
         tags: ['Items'],
         responses: [
             new OA\Response(response: 204, description: 'Item deleted successfully (no content)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 403, description: 'Forbidden'),
-            new OA\Response(response: 404, description: 'Item not found'),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 403, description: 'Forbidden', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Item not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function delete(string $id, ItemService $itemService): JsonResponse

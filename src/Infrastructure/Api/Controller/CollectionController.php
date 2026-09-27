@@ -63,30 +63,9 @@ final class CollectionController extends AbstractApiController
                     required: ['id', 'name', 'theme', 'owner_id', 'created_at', 'updated_at']
                 )
             ),
-            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
-            new OA\Response(
-                response: 422,
-                description: 'Validation error',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Unprocessable Entity'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
-                        new OA\Property(property: 'details', type: 'array', items: new OA\Items(type: 'string'), example: ['Collection name must be at least 3 characters', 'Invalid theme: foo. Allowed: books, games, movies, drinks']),
-                    ]
-                )
-            ),
-            new OA\Response(
-                response: 401,
-                description: 'Unauthorized',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Unauthorized'),
-                        new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found'),
-                    ]
-                )
-            ),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 422, description: 'Validation error', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ]
     )]
     public function create(
@@ -151,28 +130,8 @@ final class CollectionController extends AbstractApiController
                     required: ['id', 'name', 'theme', 'owner_id', 'created_at', 'updated_at']
                 )
             ),
-            new OA\Response(
-                response: 401,
-                description: 'Unauthorized',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Unauthorized'),
-                        new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found'),
-                    ]
-                )
-            ),
-            new OA\Response(
-                response: 404,
-                description: 'Collection not found',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Not Found'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Collection not found'),
-                    ]
-                )
-            ),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Collection not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ]
     )]
     public function get(string $id, CollectionService $collectionService): JsonResponse
@@ -246,18 +205,8 @@ final class CollectionController extends AbstractApiController
                     )
                 )
             ),
-            new OA\Response(
-                response: 401,
-                description: 'Unauthorized',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Unauthorized'),
-                        new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found'),
-                    ]
-                )
-            ),
-            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset/owner id, or a non-scalar value for any of them, e.g. ?owner[]=x)'),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset/owner id, or a non-scalar value for any of them, e.g. ?owner[]=x)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ]
     )]
     public function list(Request $request, CollectionService $collectionService): JsonResponse
@@ -347,52 +296,11 @@ final class CollectionController extends AbstractApiController
                     required: ['id', 'name', 'theme', 'owner_id', 'created_at', 'updated_at']
                 )
             ),
-            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
-            new OA\Response(
-                response: 422,
-                description: 'Validation error',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Unprocessable Entity'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
-                        new OA\Property(property: 'details', type: 'array', items: new OA\Items(type: 'string'), example: ['Collection name must be at least 3 characters']),
-                    ]
-                )
-            ),
-            new OA\Response(
-                response: 401,
-                description: 'Unauthorized',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Unauthorized'),
-                        new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found'),
-                    ]
-                )
-            ),
-            new OA\Response(
-                response: 403,
-                description: 'Forbidden',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Forbidden'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Forbidden'),
-                    ]
-                )
-            ),
-            new OA\Response(
-                response: 404,
-                description: 'Collection not found',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Not Found'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Collection not found'),
-                    ]
-                )
-            ),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 422, description: 'Validation error', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 403, description: 'Forbidden', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Collection not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ]
     )]
     public function update(string $id, Request $request, CollectionService $collectionService, SerializerInterface $serializer, ValidatorInterface $validator): JsonResponse
@@ -456,39 +364,9 @@ final class CollectionController extends AbstractApiController
                 response: 204,
                 description: 'Collection deleted successfully (no content)'
             ),
-            new OA\Response(
-                response: 401,
-                description: 'Unauthorized',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Unauthorized'),
-                        new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found'),
-                    ]
-                )
-            ),
-            new OA\Response(
-                response: 403,
-                description: 'Forbidden',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Forbidden'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Forbidden'),
-                    ]
-                )
-            ),
-            new OA\Response(
-                response: 404,
-                description: 'Collection not found',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Not Found'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Collection not found'),
-                    ]
-                )
-            ),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 403, description: 'Forbidden', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Collection not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ]
     )]
     public function delete(string $id, CollectionService $collectionService): JsonResponse
