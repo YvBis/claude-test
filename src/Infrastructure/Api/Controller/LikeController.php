@@ -41,8 +41,8 @@ final class LikeController extends AbstractApiController
                     required: ['likes_count'],
                 ),
             ),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 404, description: 'Item not found'),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Item not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function create(string $itemId, ItemService $itemService, LikeService $likeService): JsonResponse
@@ -76,8 +76,8 @@ final class LikeController extends AbstractApiController
         tags: ['Likes'],
         responses: [
             new OA\Response(response: 204, description: 'Like removed (no content)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 404, description: 'Item not found'),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Item not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function deleteOwn(string $itemId, ItemService $itemService, LikeService $likeService): JsonResponse
@@ -117,9 +117,9 @@ final class LikeController extends AbstractApiController
                 description: 'Likes retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Like')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 404, description: 'Item not found'),
+            new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Item not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function listByItem(string $itemId, Request $request, ItemService $itemService, LikeService $likeService): JsonResponse
@@ -164,8 +164,8 @@ final class LikeController extends AbstractApiController
                 description: 'Likes retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Like')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
+            new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function listOwn(Request $request, LikeService $likeService): JsonResponse
@@ -203,9 +203,9 @@ final class LikeController extends AbstractApiController
         tags: ['Likes'],
         responses: [
             new OA\Response(response: 204, description: 'Like deleted successfully (no content)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 403, description: 'Forbidden'),
-            new OA\Response(response: 404, description: 'Like not found'),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 403, description: 'Forbidden', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Like not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function delete(string $id, LikeService $likeService): JsonResponse

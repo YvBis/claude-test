@@ -26,17 +26,7 @@ final class LogoutController extends AbstractController
                 response: 204,
                 description: 'Logged out successfully (no content)'
             ),
-            new OA\Response(
-                response: 401,
-                description: 'Unauthorized',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Unauthorized'),
-                        new OA\Property(property: 'message', type: 'string', example: 'JWT Token not found'),
-                    ]
-                )
-            ),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ]
     )]
     public function logout(): JsonResponse

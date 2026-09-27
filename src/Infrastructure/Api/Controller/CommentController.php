@@ -58,21 +58,10 @@ final class CommentController extends AbstractApiController
                 description: 'Comment created successfully',
                 content: new OA\JsonContent(ref: '#/components/schemas/Comment'),
             ),
-            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 404, description: 'Item not found'),
-            new OA\Response(
-                response: 422,
-                description: 'Invalid comment content',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Unprocessable Entity'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Invalid content'),
-                        new OA\Property(property: 'details', type: 'array', items: new OA\Items(type: 'string'), example: ['Comment content cannot be empty']),
-                    ]
-                )
-            ),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Item not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 422, description: 'Invalid comment content', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function create(string $itemId, Request $request, ItemService $itemService, CommentService $commentService): JsonResponse
@@ -119,9 +108,9 @@ final class CommentController extends AbstractApiController
                 description: 'Comments retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Comment')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 404, description: 'Item not found'),
+            new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Item not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function listByItem(string $itemId, Request $request, ItemService $itemService, CommentService $commentService): JsonResponse
@@ -166,8 +155,8 @@ final class CommentController extends AbstractApiController
                 description: 'Comments retrieved successfully',
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Comment')),
             ),
-            new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
+            new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function listOwn(Request $request, CommentService $commentService): JsonResponse
@@ -218,22 +207,11 @@ final class CommentController extends AbstractApiController
                 description: 'Comment updated successfully',
                 content: new OA\JsonContent(ref: '#/components/schemas/Comment'),
             ),
-            new OA\Response(response: 400, description: 'Bad request (malformed body)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 403, description: 'Forbidden'),
-            new OA\Response(response: 404, description: 'Comment not found'),
-            new OA\Response(
-                response: 422,
-                description: 'Invalid comment content',
-                content: new OA\JsonContent(
-                    type: 'object',
-                    properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Unprocessable Entity'),
-                        new OA\Property(property: 'message', type: 'string', example: 'Invalid content'),
-                        new OA\Property(property: 'details', type: 'array', items: new OA\Items(type: 'string'), example: ['Comment content cannot be empty']),
-                    ]
-                )
-            ),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 403, description: 'Forbidden', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Comment not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 422, description: 'Invalid comment content', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function update(string $id, Request $request, CommentService $commentService): JsonResponse
@@ -275,9 +253,9 @@ final class CommentController extends AbstractApiController
         tags: ['Comments'],
         responses: [
             new OA\Response(response: 204, description: 'Comment deleted successfully (no content)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 403, description: 'Forbidden'),
-            new OA\Response(response: 404, description: 'Comment not found'),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 403, description: 'Forbidden', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Comment not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function delete(string $id, CommentService $commentService): JsonResponse
@@ -314,9 +292,9 @@ final class CommentController extends AbstractApiController
         tags: ['Comments'],
         responses: [
             new OA\Response(response: 204, description: 'Comment deleted successfully (no content)'),
-            new OA\Response(response: 401, description: 'Unauthorized'),
-            new OA\Response(response: 403, description: 'Forbidden'),
-            new OA\Response(response: 404, description: 'Comment not found'),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 403, description: 'Forbidden', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 404, description: 'Comment not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function deleteInItem(string $itemId, string $id, CommentService $commentService): JsonResponse
