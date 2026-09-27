@@ -1,0 +1,67 @@
+monolog:
+    channels:
+        # Deprecations are logged in the dedicated "deprecation" channel when it exists
+        - deprecation
+        # Uncaught throwables logged by the framework (logKernelException) go here,
+        # not to the default `app` channel - declared so the id is explicit.
+        - request
+
+when@dev:
+    monolog:
+        handlers:
+            main:
+                type: stream
+                path: "%kernel.logs_dir%/%kernel.environment%.log"
+                level: debug
+                channels: ["!event"]
+            # Mirror of `main` on stderr for operational visibility: keeps
+            # `docker compose logs app` usable, because var/log lives in an
+            # anonymous volume (docker-compose.yml:11) and is invisible from the
+            # host. Deliberately narrower than the file: `info` instead of `debug`
+            # (no doctrine SQL/params duplication) and the console channel is left
+            # to the `console` handler below. Deprecations stay file-only - the CI
+            # advisory step is their source of truth.
+            stderr:
+                type: stream
+                path: "php://stderr"
+                level: info
+                channels: ["!event", "!deprecation", "!console"]
+            console:
+                type: console
+                process_psr_3_messages: false
+                channels: ["!event", "!doctrine", "!console"]
+
+when@test:
+    monolog:
+        handlers:
+            # The recipe writes var/log/test.log through fingers_crossed; the suite
+            # (741 tests) must not write log files. Tests that need records push a
+            # TestHandler onto monolog.logger.request instead.
+            main:
+                type: null
+                channels: ["!event"]
+
+when@prod:
+    monolog:
+        handlers:
+            main:
+                type: fingers_crossed
+                action_level: error
+                handler: nested
+                excluded_http_codes: [404, 405]
+                channels: ["!deprecation"]
+                buffer_size: 50 # How many messages should be saved? Prevent memory leaks
+            nested:
+                type: stream
+                path: php://stderr
+                level: debug
+                formatter: monolog.formatter.json
+            console:
+                type: console
+                process_psr_3_messages: false
+                channels: ["!event", "!doctrine"]
+            deprecation:
+                type: stream
+                channels: [deprecation]
+                path: php://stderr
+                formatter: monolog.formatter.json

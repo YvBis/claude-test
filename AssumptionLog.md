@@ -1767,3 +1767,96 @@ PR-3. `config/reference.php` — дрейф от OA-правок, откатит
 предсуществующий хелпер под тестами; phpstan/тесты зелёные на этом head; `openapi.json`
 сгенерирован в PR). Rebuttal с доказательствами — комментарий в PR; кода из ревью не
 последовало. Inline-комментов бот не оставил.
+
+## 2026-09-27 — 5.32: логирование (monolog)
+
+**Зачем.** `symfony/monolog-bundle` не стоял вообще: ни в `composer.json`/`composer.lock`, ни
+`config/packages/monolog.yaml`, ни `vendor/monolog` в контейнере, ни `var/log/`. Фактический
+`logger` — фреймворковский фолбэк `Symfony\Component\HttpKernel\Log\Logger` («designed to write
+in stderr»). Значит `ARCHITECTURE.md` («500 логирует только фреймворк») и граница 5A
+(«логирование 500» входит в объём) описывали несуществующее поведение, а заголовок 5A и
+`Roadmap.md:163` обещали «наблюдаемость API», которой не было. Требований к логированию нет и в
+`artifacts/*` — не отменено, а просто не зафиксировано.
+
+**Решения (пользователь, 2026-09-27):** D1 версия `^3.11` (3.11.2 тянет `symfony/* ^6.4||^7.0` —
+у нас 7.4.19; линия 4.x от 2026-09-12 шинит `monolog ^3.12`, мажорный свип уже есть в 5.25);
+D2 prod — JSON в stderr, dev/test — line; D3 место — бэклог этапа 5 (`5.32`, свободен после
+`5.31`), иначе этап 6 стартовал бы без логов; D4 объём — только бандл + конфиг + тест
+(processors и доменные каналы — отдельные задачи); D5 в `dev` рядом с файловым handler'ом —
+зеркало в `php://stderr` (единственное отступление от рецепта: `docker compose logs` остаётся
+рабочим, потому что `var/log` — анонимный volume, `docker-compose.yml:11`); D6 `when@test` →
+`type: null` (рецепт пишет `var/log/test.log`, а suite из 741 теста не должен писать логи);
+D7 правка формулировок `ARCHITECTURE.md` и границы 5A — внутри задачи.
+
+**Находка, стоившая времени: 500 логируется в канал `request`, а не `app`.** `ErrorListener`
+получает `LoggerInterface` конструктором, и это `monolog.logger.request` (проверено рефлексией по
+`event_dispatcher` в `kernel.exception`: `Monolog\Logger name=request`, у слушателя и у
+`monolog.logger` — разные объекты). Отсюда три следствия, все зафиксированы в тесте/конфиге:
+- ассерты на 500-лог вешаются на `monolog.logger.request`; сервиса `monolog.logger.app` не
+  существует вообще (у канала `app` нет собственного id — это сам `monolog.logger`);
+- канал `request` не «про ошибки»: Symfony пишет туда matched-route/info на INFO, поэтому
+  ассерт фильтрует по `Level::Critical`;
+- critical-записей **две** в test-окружении: тест-ядро работает с `catchExceptions=false`, поэтому
+  `Kernel::handleThrowable` логирует и пробрасывает, и только потом событие доходит до
+  `ErrorListener::logKernelException` (в dev/prod — одна). Поэтому точное число не пинится,
+  а проверяется «непусто + каждая critical несёт исходное исключение».
+
+**Второй факт про подмену сервиса.** Захват логов — `pushHandler(new TestHandler())` на живой
+инстанс, а не подмена сервиса в тест-контейнере: слушатель держит логгер в конструкторе, и
+подмена после boot ему не видна. Это отличие от PR-2, где подмена `CollectionService` сработала —
+там контроллер резолвит сервис на каждый запрос. Проверено мутацией: с закомментированным
+`pushHandler` тест падает (6 ассертов), значит не вакуумный.
+
+**Проверки.** `composer audit` — чисто; `lint:container` — OK; `debug:container logger` →
+`monolog.logger`; `debug:config monolog` — `dev.log` на `debug`; после прогона
+`tests/Infrastructure/` в `var/log/` только `dev.log`, `test.log` не создаётся (D6);
+`git check-ignore -v` → логи перекрыты `.gitignore:68 /var/` (ранние `!/var/log/*.log` не
+работают, правило ниже выигрывает); `ci:all` — 741 тест, 2256 ассертов. Smoke: реальный HTTP
+`GET /api/nonexistent-route` → 404 пишет `request.ERROR` **и** в `var/log/dev.log`, **и** в
+`docker logs taskflow_app` — то есть dev-обработчики работают по HTTP end-to-end.
+
+**Чего smoke не доказал (честно).** Critical-уровень по HTTP в dev напрямую не наблюдался:
+реальный 500 через HTTP без правок кода не воспроизводится, а синтетический dispatch
+`ExceptionEvent` из CLI-скрипта запись не дал (в списке `kernel.exception` слушатель
+`ErrorListener` присутствует, `TestHandler` на его логгере — тоже, но `logKernelException` не
+сработал; причину не копал — эффект того же процесса, не HTTP-пути). Critical-путь доказан
+функциональным тестом (реальный HTTP-подобный запрос, 2 critical с исходным исключением), а
+dev-обработчики — реальным HTTP-запросом; уровень для одного и того же канала и набора
+обработчиков — просто атрибут записи.
+
+**Побочный эффект, зафиксированный честно.** 4xx-исключения тоже логируются фреймворком
+(`resolveLogLevel`: 4xx → `error`, не-HTTP и 5xx → `critical`). Наши `400`/`404` строятся
+конвертом напрямую и до `kernel.exception` не доходят, а `403` (`AccessDeniedException`) доходит
+и пишется на `error` в `request` — это видно и в тестовом выводе. Поведение фреймворковое, не
+регрессия (до 5.32 фолбэк-логгер писал то же в stderr). Депрекейшены (Lexik internal class,
+`SocialContentVoter::voteOnAttribute`, отсутствующий `intl`, `profiler.collect_serializer_data`)
+теперь видны в `dev.log` — раньше они тоже шли в stderr через фолбэк; источник истины по ним —
+advisory-шаг CI (5.24/5.30), поэтому зеркало в stderr их исключает (`!deprecation`).
+
+**Ловушка повторена.** Stale test-контейнер: `monolog.logger.request` не находился, пока не
+сброшен `var/cache/test` (тот же класс, что в PR-2/PR-3: `tests/bootstrap.php` форсит
+`APP_DEBUG=0`, freshness-check нет).
+
+**Прод-конфиг не проверен в runtime.** Приложение в Docker всегда в `dev` (`docker-compose.yml:8`
+→ `.env`), поэтому `when@prod` (буферизованный handler + JSON в stderr) проверен только
+статически: `lint:container` и `debug:config`. Осознанное ограничение, не пропуск.
+
+**Ревью кода (3 агента, все с явным вердиктом; все SHIP-WITH-NITS, блокеров нет).** Разобрано:
+senior — (1) `debug:monolog` в бандле 3.x **не существует** (команд `*Command*` в `src` нет),
+в проверках заменено на `debug:config monolog` + `debug:container`; (2) ассерт усилен пинном
+сообщения `'DB exploded'`, иначе `instanceof RuntimeException` поймал бы любой runtime-critical
+канала; (3) зеркало в stderr сужено до `level: info` и без канала `console` — на `debug` оно
+дублировало бы файл, включая doctrine SQL и параметры; (4) прод-блок не проверен в runtime —
+зафиксировано выше; (5) критерий приёмки про «smoke 500 в обоих каналах» переписан под
+фактические доказательства. Архитектор — (6) из `ARCHITECTURE.md` убрано изложение
+`resolveLogLevel`-семантики и параметров `fingers_crossed`/`buffer_size`/`excluded_http_codes`:
+это редактируемое поведение рецепта, а не контракт проекта, оно сгниёт; (7) в комментарии теста
+возвращён em-dash; (8) комментарий про `deprecation` уточнён — депрекейшены остаются в файле,
+исключаются только из оперативного зеркала; (9) мёртвые правила `.gitignore` (5-6, перекрыты
+13-14/44/68) вынесены в задачу `5.33` [review] — вне объёма 5.32; (10) подтверждено, что решение
+fwd-21 «не инжектить `LoggerInterface`» остаётся архитектурным (техническая невозможность ушла,
+потребности нет), а не вынужденным. Техлид — (11) чекбоксы критериев приёмки переведены в `- [x]`
+по факту проверок. Все три подтвердили: слоёв не нарушено (ни одного файла в `src/`), `composer.lock`
+вырос ровно на 3 пакета (`monolog/monolog 3.12.0`, `symfony/monolog-bridge v7.4.18`,
+`symfony/monolog-bundle v3.11.2`), `composer audit` чист, `config/reference.php` откачен,
+ Roadmap-строка остаётся `todo` до merge.
