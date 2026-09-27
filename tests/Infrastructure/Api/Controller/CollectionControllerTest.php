@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace App\Tests\Infrastructure\Api\Controller;
 
 use App\Domain\Collection\Repository\CollectionRepositoryInterface;
+use Monolog\Handler\TestHandler;
+use Monolog\Level;
+use Monolog\Logger;
+use Monolog\LogRecord;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
@@ -169,15 +173,14 @@ final class CollectionControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(401);
     }
 
-    public function testCreateReturns500EnvelopeWhenServiceFails(): void
+    public function testCreateReturns500EnvelopeAndLogsThrowableWhenServiceFails(): void
     {
         // fwd-21: no local catch swallows the failure — the kernel.exception
         // subscriber renders the bare 500 envelope, and the framework logger
-        // records the throwable (proven by the dev smoke in S8, not here).
-        // CollectionService is final and cannot be doubled, so the failure is
-        // injected one layer down: the repository interface throws, the real
-        // service lets it bubble, and with no local catch left the
-        // kernel.exception subscriber must render the bare 500 envelope.
+        // records the throwable. CollectionService is final and cannot be doubled,
+        // so the failure is injected one layer down: the repository interface
+        // throws, the real service lets it bubble, and with no local catch left
+        // the kernel.exception subscriber must render the bare 500 envelope.
         $failingRepository = $this->createMock(CollectionRepositoryInterface::class);
         $failingRepository->method('save')->willThrowException(new \RuntimeException('DB exploded'));
 
@@ -186,6 +189,18 @@ final class CollectionControllerTest extends WebTestCase
         static::ensureKernelShutdown();
         $this->client = static::createClient();
         static::getContainer()->set(CollectionRepositoryInterface::class, $failingRepository);
+
+        // Capture records on the live logger instance instead of replacing the
+        // service: ErrorListener takes LoggerInterface through its constructor
+        // and keeps that instance, so a test-container substitution after boot
+        // would never reach the listener (unlike CollectionService, which the
+        // controller resolves per request).
+        // Channel matters: the framework logs uncaught throwables to the
+        // `request` channel (monolog.logger.request), not to the default `app` one.
+        $logger = static::getContainer()->get('monolog.logger.request');
+        self::assertInstanceOf(Logger::class, $logger);
+        $logHandler = new TestHandler();
+        $logger->pushHandler($logHandler);
 
         $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
             'name' => 'My Books',
@@ -197,6 +212,24 @@ final class CollectionControllerTest extends WebTestCase
             ['error' => 'Internal Server Error'],
             \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR),
         );
+
+        // Every critical record on the `request` channel carries the throwable.
+        // Other levels are filtered out because the channel is not dedicated to
+        // errors: Symfony logs matched-route/request info there at INFO.
+        // The critical count is not pinned: the test kernel runs with
+        // catchExceptions=false, so Kernel::handleThrowable logs and rethrows
+        // before the event reaches ErrorListener::logKernelException - two
+        // records here, one in dev/prod.
+        $criticals = \array_values(\array_filter(
+            $logHandler->getRecords(),
+            static fn (LogRecord $record): bool => Level::Critical === $record->level,
+        ));
+        $this->assertNotEmpty($criticals);
+        foreach ($criticals as $record) {
+            $this->assertArrayHasKey('exception', $record->context);
+            $this->assertInstanceOf(\RuntimeException::class, $record->context['exception']);
+            $this->assertSame('DB exploded', $record->context['exception']->getMessage());
+        }
     }
 
     public function testListWithoutTokenReturns401WithControllerEnvelope(): void
