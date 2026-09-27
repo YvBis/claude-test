@@ -244,9 +244,10 @@ final class CommentController extends AbstractApiController
     #[Route('/api/comments/{id}', name: 'api_comment_delete', methods: ['DELETE'])]
     #[OA\Delete(
         path: '/api/comments/{id}',
+        deprecated: true,
         security: [['Bearer' => []]],
         summary: 'Delete a comment',
-        description: 'Deletes a comment. Allowed for its author or an administrator.',
+        description: 'Deletes a comment. Allowed for its author or an administrator. Deprecated: use DELETE /api/items/{itemId}/comments/{id}.',
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
         ],
@@ -284,7 +285,7 @@ final class CommentController extends AbstractApiController
         path: '/api/items/{itemId}/comments/{id}',
         security: [['Bearer' => []]],
         summary: 'Delete a comment within an item',
-        description: 'Deletes a comment addressed through its item. Same authorization as DELETE /api/comments/{id} (author or administrator). The comment must belong to the given item, otherwise 404.',
+        description: 'Deletes a comment addressed through its item. Allowed for its author or an administrator. The comment must belong to the given item, otherwise 404.',
         parameters: [
             new OA\Parameter(name: 'itemId', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string')),

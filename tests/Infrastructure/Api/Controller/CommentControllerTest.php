@@ -377,6 +377,22 @@ final class CommentControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(404);
     }
 
+    public function testNestedDeleteByStrangerWithMismatchedItemIdReturns404(): void
+    {
+        $owner = $this->registerUser();
+        $collectionId = $this->createCollection($owner['token']);
+        $itemId = $this->createItem($collectionId, $owner['token']);
+        $otherItemId = $this->createItem($collectionId, $owner['token']);
+        $commentId = $this->createComment($itemId, $owner['token'], 'stranger mismatch');
+        $stranger = $this->registerUser();
+
+        $this->client->request('DELETE', '/api/items/'.$otherItemId.'/comments/'.$commentId, [], [], $this->authHeaders($stranger['token']));
+
+        // Path consistency is checked before authorization: a 403 here would
+        // confirm the comment exists, leaking an oracle. Must be 404.
+        $this->assertResponseStatusCodeSame(404);
+    }
+
     public function testListWithInvalidLimitReturns400(): void
     {
         $owner = $this->registerUser();

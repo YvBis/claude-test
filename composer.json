@@ -98,9 +98,11 @@
         "phpunit:no-coverage": "phpunit --no-coverage",
         "test": "@phpunit:no-coverage",
         "coverage:check": "XDEBUG_MODE=coverage phpunit --coverage-clover=var/coverage/clover.xml --coverage-html=var/coverage/html --coverage-php=var/coverage/coverage.php --log-junit=var/coverage/junit.xml",
-        "openapi:generate": "php bin/console nelmio:apidoc:dump --format=json --no-pretty > public/api/openapi.json",
+        "openapi:generate": "php bin/console nelmio:apidoc:dump --env=dev --format=json --no-pretty > public/api/openapi.json",
         "openapi:validate": "php bin/console lint:yaml public/api/openapi.json || true",
+        "openapi:fresh": "bash scripts/check-openapi-fresh.sh",
         "ci:static:quality": [
+            "@openapi:fresh",
             "@phpstan",
             "@phpcs:check",
             "@rector:dry-run"
