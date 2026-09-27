@@ -1860,3 +1860,15 @@ fwd-21 «не инжектить `LoggerInterface`» остаётся архит
 вырос ровно на 3 пакета (`monolog/monolog 3.12.0`, `symfony/monolog-bridge v7.4.18`,
 `symfony/monolog-bundle v3.11.2`), `composer audit` чист, `config/reference.php` откачен,
  Roadmap-строка остаётся `todo` до merge.
+
+**CI-ревью (OpenRabbit, PR #102).** Вердикт **ready to merge** — первый положительный за всю
+историю проекта; расхождений с кодом нет. Три inline-вопроса отвечены с доказательствами из вендора:
+(1) семантика `channels: ["!event", "!doctrine", "!console"]` подтверждена —
+`LoggerChannelPass::processChannels()` (`vendor/symfony/monolog-bundle/.../LoggerChannelPass.php:118-129`)
+для exclusive-типа возвращает `array_diff($channels, $elements)`, а `:94-104` навешивает handler
+на каждый оставшийся канал; уточнено, что фильтр считается по **объявленным** каналам, так что
+`event`/`doctrine`/`console` здесь пока no-op, и что `type: console` пишет только из CLI;
+(2) предложение запинить сообщение `'DB exploded'` уже выполнено до ревью (находка senior-ревью),
+совпали независимо; (3) `buffer_size: 50` — не мой выбор, а строка рецепта Flex (дефолт рецепта
+50, а не 0), блок `when@prod` не редактировался; оставлен как есть, тюнинг потребовал бы
+runtime-проверки prod, которой нет.
