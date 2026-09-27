@@ -15,7 +15,9 @@ use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'collections')]
-#[ORM\Index(name: 'idx_collection_owner', columns: ['owner_id'])]
+// fwd-27: serves the (created_at DESC, id DESC) listing order on a backward
+// scan of this plain ASC index. The plain (owner_id) index was subsumed.
+#[ORM\Index(name: 'idx_collection_owner_list', columns: ['owner_id', 'created_at', 'id'])]
 #[ORM\Index(name: 'idx_collection_theme', columns: ['theme'])]
 #[ORM\HasLifecycleCallbacks]
 final class Collection

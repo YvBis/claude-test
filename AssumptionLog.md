@@ -1873,6 +1873,82 @@ fwd-21 «не инжектить `LoggerInterface`» остаётся архит
 50, а не 0), блок `when@prod` не редактировался; оставлен как есть, тюнинг потребовал бы
 runtime-проверки prod, которой нет.
 
+## 2026-09-27 — задача fwd-27: детерминированная сортировка (+ fwd-28, правки 5.20/5.26/5.14-премис)
+
+Senior-review плана (локальный агент, NEEDS_FIX) подтвердился по всем пунктам;
+план пересобран до реализации, а не после.
+
+**Индексы — не оптимизация, а условие корректности.** `Item` имел только
+`idx_item_collection(collection_id)`, `Collection` — только
+`idx_collection_owner(owner_id)`; тай-брейкер без покрывающего индекса дал бы
+filesort под фильтром. Добавлены `idx_item_collection_list(collection_id,
+created_at, id)` и `idx_collection_owner_list(owner_id, created_at, id)`
+(миграция `Version20260927115659`, атрибуты на сущностях, `SHOW INDEX`
+подтверждает состав). Путь «айтемы по владельцу» фильтрует join'ом по
+`collection.owner` — покрывающего индекса нет, filesort принят и зафиксирован
+комментарием в коде; денормализация вне объёма.
+
+**Направление тай-брейкера следует за сортировкой.** У коллекций `createdAt DESC`,
+поэтому tie-breaker `id DESC`: ASC-индекс обслуживает смешанный порядок обратным
+сканированием. EXPLAIN на dev-БД: item — `type: ref, key: idx_item_collection_list`,
+без filesort; collection — `key: idx_collection_owner_list, Backward index scan`,
+без filesort. Тегу миграция не нужна (`uniq_tag_name` обслуживает `(name, id)`).
+
+**UUID v7 — порядок не по вставке.** PK содержат временную метку (`01a0e2bf…`),
+поэтому тест ассертит id-ascending/descending вычисленным массивом, а не
+порядком создания; `MockClock` без `sleep` даёт равный `createdAt`, сброс через
+`try/finally` на `NativeClock` (глобальное состояние, DAMA его не откатывает).
+
+**Пол `doctrine/orm: ^3.2` — ложный.** Проверено по上游: в ORM 3.6.7
+`OrderBy::add(string, string|null)`, enum `\SortDirection` — только в 3.7
+(установлено 3.7.2). Пол поднят до `^3.7`, lock обновлён content-hash'ем,
+`validate`/`audit` чисты (предупреждения `validate --strict` про отсутствие
+name/description — достояние проекта, CI его не запускает).
+
+**Негативная проба кусается:** смена tie-breaker на противоположное направление —
+FAIL на первом ассерте; откат — снова green.
+
+**`schema:validate` Database-половина недоступна в этой среде** (известный перекос
+ORM 3.7/DBAL 4.4.3 из строки 5.23 — `setSchema()` требует DBAL ^4.5). Mapping-половина
+чиста; синхронизацию маппинг↔схема подтверждают `SHOW INDEX` и одинаковые имена
+индексов в атрибутах и миграции; CI прогоняет миграции на свежей test-БД.
+
+**Ловушка локальной синхронизации схемы (fwd-9 смежно).** `bin/console --env=test`
+внутри контейнера ходит в **dev-БД** (`taskflow`), а не в `taskflow_test`:
+реальный env `DATABASE_URL` из compose побеждает `.env.test` (bootstrap-переопределение
+работает только для phpunit). Поэтому `migrations:migrate --env=test` молча мигрировал
+dev, а `execute --down` падал с `MigrationClassNotFound` (экранирование `\\` в PowerShell)
+и затем с `Duplicate key` (down() текущей версии на схеме без композитов). Лечение:
+dev доведён двумя `DROP INDEX` напрямую, test — честным `migrate` с явным
+`docker compose exec -e DATABASE_URL=mysql://taskflow:taskflow_pass@db:3306/taskflow_test?serverVersion=8.0`.
+Финальное состояние обеих БД сверено (`information_schema.STATISTICS`): только композиты.
+Для CI это неважно (там свежая БД + `migrate`), но локально `console --env=test` врёт
+про целевую БД — кандидат в fwd-9 при его переоткрытии.
+
+Замер для 5.20 (аудитируемость): `gh run list --workflow "Code Review" --limit 30
+--json conclusion,createdAt,updatedAt,headBranch`, длительность = updatedAt −
+createdAt; максимум 13.2 мин, ноль `timed_out`/`failure` в окне.
+
+**Ревью fwd-27 (senior SHIP-WITH-NITS, архитектор SHIP-WITH-NITS, техлид APPROVE).**
+Все три вердикта явные. Разобрано:
+- senior: комментарий `findAll` ложно обещал отсутствие filesort (индекс ведётся
+  с `owner_id`, фильтра по нему нет) — исправлен на честный «filesort остаётся»;
+  формулировки «UUID случайны» → «uuid7 с временной меткой и случайным хвостом»
+  в обоих тестах; старые одноколоночные индексы — по прецеденту Comment
+  (только композиты) удалены, Like-прецедент (plain + composite) здесь
+  неприменим — у него разные ведущие колонки;
+- архитектор: тот же filesort + `[review]`-задача `review-8` заведена в Roadmap
+  (денормализация owner / двухшаговый запрос — триггер: рост трафика);
+  правило «tie-breaker следует за направлением» сформулировано один раз в PRD
+  (таблица + абзац про смешанное направление); комментарии в коде — локальные
+  следствия для каждого запроса;
+- поправка к посылке архитектора #7: `findAll` коллекций/пользователей
+  пагинированы (`limit`/`offset` в сигнатуре) — вывод «оставить» верен,
+  обоснование скорректировано; Users-`findAll` не трогаем тем более;
+- `PRD:13` — артефакт IME («и上游») исправлен на «upstream»;
+- транзиентный таймаут первого `ci:all` (15 мин, затем green 747/2278 на ретрае) —
+  записан как транзиент инфраструктуры после ночной паузы, не flaky-тест.
+
 ## 2026-09-27 — задача 5.33: мёртвые правила `.gitignore` + статус-флип 5.32
 
 `git ls-files -ci --exclude-standard` до и после правки — пуст: ни один отслеживаемый файл

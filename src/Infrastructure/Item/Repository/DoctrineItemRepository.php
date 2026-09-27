@@ -58,6 +58,9 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
 
         return $queryBuilder
             ->orderBy('i.createdAt', \SortDirection::Ascending)
+            // fwd-27: id tie-breaker follows the primary direction so the
+            // (collection_id, created_at, id) index serves both keys.
+            ->addOrderBy('i.id', \SortDirection::Ascending)
             ->setMaxResults($limit)
             ->setFirstResult($offset)
             ->getQuery()
@@ -74,6 +77,10 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
 
         return $queryBuilder
             ->orderBy('i.createdAt', \SortDirection::Ascending)
+            // fwd-27: same direction as the primary sort. No covering index
+            // exists here (the filter joins on collection.owner), so this key
+            // buys determinism, not index service — filesort stays, accepted.
+            ->addOrderBy('i.id', \SortDirection::Ascending)
             ->setMaxResults($limit)
             ->setFirstResult($offset)
             ->getQuery()

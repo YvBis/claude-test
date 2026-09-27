@@ -64,6 +64,23 @@ final class DoctrineTagRepositoryTest extends KernelTestCase
         $this->assertNull($found);
     }
 
+    public function testSearchReturnsNameAscendingOrder(): void
+    {
+        // fwd-27: Tag names are unique, so the id tie-breaker is unreachable by
+        // construction — this pins the primary order only. Repo has no clock.
+        foreach (['Zulu', 'Alpha', 'Mike'] as $name) {
+            $this->em->persist(Tag::create(TagName::fromString($name)));
+        }
+        $this->em->flush();
+
+        $found = $this->repo->search(null);
+
+        $this->assertSame(
+            ['Alpha', 'Mike', 'Zulu'],
+            \array_map(static fn (Tag $tag): string => $tag->getName()->value(), $found),
+        );
+    }
+
     public function testRemoveDeletesTag(): void
     {
         $tag = Tag::create(TagName::fromString('ToRemove'));

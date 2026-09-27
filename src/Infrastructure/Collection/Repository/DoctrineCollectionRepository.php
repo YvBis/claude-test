@@ -54,6 +54,9 @@ final class DoctrineCollectionRepository extends ServiceEntityRepository impleme
             ->where('IDENTITY(c.owner) = :ownerId')
             ->setParameter('ownerId', $ownerId->toBytes(), 'binary')
             ->orderBy('c.createdAt', \SortDirection::Descending)
+            // fwd-27: tie-breaker direction follows the primary sort (DESC), so
+            // the ASC composite index serves the whole order on backward scan.
+            ->addOrderBy('c.id', \SortDirection::Descending)
             ->setMaxResults($limit)
             ->setFirstResult($offset)
             ->getQuery()
@@ -67,6 +70,10 @@ final class DoctrineCollectionRepository extends ServiceEntityRepository impleme
             ->leftJoin('c.owner', 'owner')
             ->addSelect('owner')
             ->orderBy('c.createdAt', \SortDirection::Descending)
+            // fwd-27: same direction-following tie-breaker for determinism.
+            // No owner filter, so idx_collection_owner_list cannot serve the
+            // sort — filesort stays on this admin path, accepted.
+            ->addOrderBy('c.id', \SortDirection::Descending)
             ->setMaxResults($limit)
             ->setFirstResult($offset)
             ->getQuery()
