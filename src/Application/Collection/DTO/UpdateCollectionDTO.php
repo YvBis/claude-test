@@ -16,10 +16,10 @@ final readonly class UpdateCollectionDTO
     )]
     public ?string $name;
 
-    #[Assert\Length(max: 500)]
+    #[Assert\Length(max: 500, maxMessage: 'Collection description cannot exceed {{ limit }} characters')]
     public ?string $description;
 
-    #[Assert\Length(max: 500)]
+    #[Assert\Length(max: 500, maxMessage: 'Collection image cannot exceed {{ limit }} characters')]
     public ?string $image;
 
     public function __construct(

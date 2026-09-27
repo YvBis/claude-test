@@ -197,7 +197,26 @@ final class ItemControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(422);
         $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
-        $this->assertSame('Validation failed', $data['error']);
+        $this->assertSame('Unprocessable Entity', $data['error']);
+    }
+
+    public function testCreateSlotOfWrongTypeOmitsInternalTypesFromDetails(): void
+    {
+        $collectionId = $this->createCollection();
+
+        $this->client->request('POST', '/api/collections/'.$collectionId.'/items', [], [], $this->authHeaders(), \json_encode([
+            'name' => '1984',
+            'slots' => [['type' => 'text', 'slot' => 1, 'value' => 123]],
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(422);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Unprocessable Entity', $data['error']);
+        $this->assertSame('Invalid content', $data['message']);
+        $this->assertNotEmpty($data['details']);
+        foreach ($data['details'] as $detail) {
+            $this->assertStringNotContainsString('got ', $detail);
+        }
     }
 
     public function testListByCollectionReturns200(): void

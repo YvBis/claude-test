@@ -64,7 +64,8 @@ final class RegistrationController extends AbstractApiController
                 content: new OA\JsonContent(
                     type: 'object',
                     properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Validation failed'),
+                        new OA\Property(property: 'error', type: 'string', example: 'Unprocessable Entity'),
+                        new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
                         new OA\Property(property: 'details', type: 'array', items: new OA\Items(type: 'string'), example: ['Name cannot be empty', 'Invalid email format', 'Password must be at least 8 characters']),
                     ]
                 )

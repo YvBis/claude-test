@@ -14,11 +14,11 @@ final readonly class RegisterUserDTO
 
     #[Assert\NotBlank(message: 'Email cannot be empty')]
     #[Assert\Email(mode: 'html5', message: 'Invalid email format')]
-    #[Assert\Length(max: 255)]
+    #[Assert\Length(max: 255, maxMessage: 'Email cannot exceed {{ limit }} characters')]
     public string $email;
 
     #[Assert\NotBlank(message: 'Password cannot be empty')]
-    #[Assert\Length(min: 8, max: 255, minMessage: 'Password must be at least {{ limit }} characters')]
+    #[Assert\Length(min: 8, max: 255, minMessage: 'Password must be at least {{ limit }} characters', maxMessage: 'Password cannot exceed {{ limit }} characters')]
     public string $password;
 
     public function __construct(

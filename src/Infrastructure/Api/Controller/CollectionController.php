@@ -70,7 +70,8 @@ final class CollectionController extends AbstractApiController
                 content: new OA\JsonContent(
                     type: 'object',
                     properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Validation failed'),
+                        new OA\Property(property: 'error', type: 'string', example: 'Unprocessable Entity'),
+                        new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
                         new OA\Property(property: 'details', type: 'array', items: new OA\Items(type: 'string'), example: ['Collection name must be at least 3 characters', 'Invalid theme: foo. Allowed: books, games, movies, drinks']),
                     ]
                 )
@@ -353,7 +354,8 @@ final class CollectionController extends AbstractApiController
                 content: new OA\JsonContent(
                     type: 'object',
                     properties: [
-                        new OA\Property(property: 'error', type: 'string', example: 'Validation failed'),
+                        new OA\Property(property: 'error', type: 'string', example: 'Unprocessable Entity'),
+                        new OA\Property(property: 'message', type: 'string', example: 'Validation failed'),
                         new OA\Property(property: 'details', type: 'array', items: new OA\Items(type: 'string'), example: ['Collection name must be at least 3 characters']),
                     ]
                 )

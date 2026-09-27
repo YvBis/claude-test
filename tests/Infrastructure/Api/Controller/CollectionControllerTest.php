@@ -136,8 +136,27 @@ final class CollectionControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
-        $this->assertSame('Validation failed', $response['error']);
+        $this->assertSame('Unprocessable Entity', $response['error']);
+        $this->assertSame('Validation failed', $response['message']);
         $this->assertNotEmpty($response['details']);
+    }
+
+    public function testCreateValidatesDescriptionMaxLengthWithOwnMessage(): void
+    {
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+            'name' => 'Long Desc',
+            'theme' => 'books',
+            'description' => \str_repeat('d', 600),
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(422);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Unprocessable Entity', $response['error']);
+        $this->assertSame('Validation failed', $response['message']);
+        $this->assertContains('Collection description cannot exceed 500 characters', $response['details']);
+        foreach ($response['details'] as $detail) {
+            $this->assertStringNotContainsString('This value should have', $detail);
+        }
     }
 
     public function testCreateReturns401WithoutToken(): void

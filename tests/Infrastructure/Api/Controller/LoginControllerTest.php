@@ -118,7 +118,7 @@ class LoginControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
-        $this->assertSame('Validation failed', $response['error']);
+        $this->assertSame('Unprocessable Entity', $response['error']);
         // Check actual validation message from serializer/validator
         $this->assertArrayHasKey('details', $response);
     }
@@ -132,7 +132,7 @@ class LoginControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
-        $this->assertSame('Validation failed', $response['error']);
+        $this->assertSame('Unprocessable Entity', $response['error']);
         // Check that details contains validation errors
         $this->assertArrayHasKey('details', $response);
         $this->assertIsArray($response['details']);
@@ -147,7 +147,7 @@ class LoginControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
-        $this->assertSame('Validation failed', $response['error']);
+        $this->assertSame('Unprocessable Entity', $response['error']);
         $this->assertArrayHasKey('details', $response);
         $this->assertIsArray($response['details']);
     }
