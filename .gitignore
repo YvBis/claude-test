@@ -1,17 +1,6 @@
 # Symfony
-/app/cache/*!/.gitignore
-/var/*
-!/var/log/.gitignore
-!/var/log/dev.log
-!/var/log/prod.log
 /composer
 symfony.lock
-
-# Environment
-.env.local
-.env.*.local
-/var/log/dev*.log
-/var/log/prod*.log
 
 # IDE
 .idea/
@@ -26,8 +15,8 @@ Thumbs.db
 /node_modules/
 
 # Composer
-composer.lock
-!composer.lock
+# composer.lock is intentionally tracked (lockfile rot is project work, see PRD/5.25) —
+# a bare `composer.lock` ignore line existed here next to its own negation.
 
 # Build outputs
 /build/
@@ -36,11 +25,12 @@ composer.lock
 *.native
 
 # Testing
-.phpunit.result.cache
 .phpunit.cache/
 coverage/
 
-# Debug
+# Logs
+# Runtime logs live under var/ (recipe `/var/` block below covers them);
+# this is the single definition for stray logs outside var/.
 *.log
 
 # Hidden directories (explicitly keep .gitignore content under them)
