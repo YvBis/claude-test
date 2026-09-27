@@ -62,6 +62,11 @@ coverage/
 # JWT keys
 config/jwt/*.pem
 
+# Hand-dumped Symfony config reference (fwd-11): regenerated during cache:clear
+# (runs via Flex auto-scripts on every composer install/update), never read by
+# the app. Regenerate on demand with: php bin/console config:dump-reference
+/config/reference.php
+
 ###> friendsofphp/php-cs-fixer ###
 /.php-cs-fixer.php
 /.php-cs-fixer.cache
