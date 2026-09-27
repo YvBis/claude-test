@@ -122,14 +122,18 @@ abstract class AbstractApiController extends BaseAbstractController
     }
 
     /**
-     * Create a standardized validation error response: 422 with the list of
-     * per-field messages under `details`.
+     * DTO-validation failures: 422 with the list of per-field messages under
+     * `details` and the fixed label `'Validation failed'` as `message`.
+     *
+     * Thin delegate to `unprocessable()`: the literal lives here so the six
+     * call sites do not duplicate it, and the response body is byte-identical
+     * to a direct `unprocessable('Validation failed', $errors)` call.
      *
      * @param string[] $errors
      */
     protected function createValidationErrorResponse(array $errors): JsonResponse
     {
-        return $this->errorResponse(Response::HTTP_UNPROCESSABLE_ENTITY, 'Validation failed', null, $errors);
+        return $this->unprocessable('Validation failed', $errors);
     }
 
     /**

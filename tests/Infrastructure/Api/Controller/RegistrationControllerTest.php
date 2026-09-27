@@ -59,7 +59,7 @@ class RegistrationControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
-        $this->assertSame('Validation failed', $response['error']);
+        $this->assertSame('Unprocessable Entity', $response['error']);
         $this->assertContains('Name cannot be empty', $response['details']);
     }
 
@@ -74,7 +74,7 @@ class RegistrationControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
-        $this->assertSame('Validation failed', $response['error']);
+        $this->assertSame('Unprocessable Entity', $response['error']);
         $this->assertContains('Invalid email format', $response['details']);
     }
 
@@ -88,8 +88,26 @@ class RegistrationControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(422);
         $response = \json_decode($this->client->getResponse()->getContent(), true);
-        $this->assertSame('Validation failed', $response['error']);
+        $this->assertSame('Unprocessable Entity', $response['error']);
         $this->assertContains('Password must be at least 8 characters', $response['details']);
+    }
+
+    public function testRegisterValidatesEmailMaxLengthWithOwnMessage(): void
+    {
+        $this->client->request('POST', '/api/register', [], [], ['CONTENT_TYPE' => 'application/json'], \json_encode([
+            'name' => 'John Doe',
+            'email' => \str_repeat('a', 290).'@example.com',
+            'password' => 'securePassword123',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(422);
+        $response = \json_decode($this->client->getResponse()->getContent(), true);
+        $this->assertSame('Unprocessable Entity', $response['error']);
+        $this->assertSame('Validation failed', $response['message']);
+        $this->assertContains('Email cannot exceed 255 characters', $response['details']);
+        foreach ($response['details'] as $detail) {
+            $this->assertStringNotContainsString('This value should have', $detail);
+        }
     }
 
     public function testRegisterWithMalformedBodyReturns400(): void

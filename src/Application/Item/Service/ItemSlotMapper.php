@@ -47,7 +47,7 @@ final readonly class ItemSlotMapper
             return $value;
         }
 
-        throw new \InvalidArgumentException(\sprintf('Text slot expects string, got %s', \get_debug_type($value)));
+        throw new \InvalidArgumentException('Text slot expects string');
     }
 
     private function asNumber(string|int|float|bool $value): float
@@ -56,13 +56,13 @@ final readonly class ItemSlotMapper
             return (float) $value;
         }
 
-        throw new \InvalidArgumentException(\sprintf('Number slot expects numeric value, got %s', \get_debug_type($value)));
+        throw new \InvalidArgumentException('Number slot expects numeric value');
     }
 
     private function asDate(string|int|float|bool $value): \DateTimeImmutable
     {
         if (!\is_string($value)) {
-            throw new \InvalidArgumentException(\sprintf('Date slot expects an ISO-8601 string, got %s', \get_debug_type($value)));
+            throw new \InvalidArgumentException('Date slot expects an ISO-8601 string');
         }
 
         if (\str_ends_with($value, 'Z')) {
@@ -85,7 +85,7 @@ final readonly class ItemSlotMapper
             }
         }
 
-        throw new \InvalidArgumentException(\sprintf('Date slot expects a valid ISO-8601 string, got "%s"', $value));
+        throw new \InvalidArgumentException('Date slot expects a valid ISO-8601 string');
     }
 
     private function asBool(string|int|float|bool $value): bool
@@ -94,6 +94,6 @@ final readonly class ItemSlotMapper
             return $value;
         }
 
-        throw new \InvalidArgumentException(\sprintf('Bool slot expects boolean, got %s', \get_debug_type($value)));
+        throw new \InvalidArgumentException('Bool slot expects boolean');
     }
 }

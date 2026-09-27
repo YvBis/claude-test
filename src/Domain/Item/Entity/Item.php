@@ -299,10 +299,9 @@ final class Item
 
         if (!\is_string($value)) {
             throw new \InvalidArgumentException(\sprintf(
-                'Slot %d of type "%s" expects string, got %s',
+                'Slot %d of type "%s" expects string',
                 $slot,
                 $type->value(),
-                \get_debug_type($value),
             ));
         }
 
@@ -330,10 +329,9 @@ final class Item
 
         if (!$value instanceof \DateTimeImmutable) {
             throw new \InvalidArgumentException(\sprintf(
-                'Slot %d of type "%s" expects DateTimeImmutable, got %s',
+                'Slot %d of type "%s" expects DateTimeImmutable',
                 $slot,
                 $type->value(),
-                \get_debug_type($value),
             ));
         }
 
@@ -351,10 +349,9 @@ final class Item
 
         if (!\is_bool($value)) {
             throw new \InvalidArgumentException(\sprintf(
-                'Slot %d of type "%s" expects bool, got %s',
+                'Slot %d of type "%s" expects bool',
                 $slot,
                 $type->value(),
-                \get_debug_type($value),
             ));
         }
 
@@ -375,10 +372,9 @@ final class Item
         }
 
         throw new \InvalidArgumentException(\sprintf(
-            'Slot %d of type "%s" expects numeric value, got %s',
+            'Slot %d of type "%s" expects numeric value',
             $slot,
             $type->value(),
-            \get_debug_type($value),
         ));
     }
 

@@ -54,6 +54,12 @@ OpenAPI, решение по двум DELETE-поверхностям комме
 6. **`fwd-24`** — стабильные `details` при ошибках ввода.
 7. **`fwd-23`** — `$ref` на общие схемы ошибок в OpenAPI вместо inline-блоков.
 8. **`fwd-18`** — каноническая DELETE-поверхность комментария.
+9. **PR-3: `fwd-22` + `fwd-24`** — один лейбл `error` для 422 (D10) + стабильный `details` (D11); 400 —
+    только аудит (D12). Общий listener не трогаем (PR-2 смержен как #98); правки — хелперы
+    контроллеров, тексты домена/Application, inline-примеры OpenAPI. План v2 (26.09): архитектор
+    APPROVE, техлид SHIP-WITH-NITS; недооценка `maxMessage` (2 → 7) и value-echo `ItemSlotMapper:88`
+    закрыты в шаге 4 ниже. Одно изменение — один PR: тесты fwd-24 ассертят лейбл fwd-22, разделение
+    создало бы зависимость порядка merge'ей.
 
 Шаги 2–4 делят один listener/entry point — их логично делать подряд, иначе listener придётся
 переписывать дважды. Шаги 5–7 — правки контракта и документации поверх готового механизма.
@@ -93,13 +99,47 @@ OpenAPI, решение по двум DELETE-поверхностям комме
     `get()`/`all($key)` (подробности и эмпирика — `PRD/fwd-25-non-scalar-query-params.md`).
     Политика: параметры, меняющие **идентичность** результата, отвергаются с `400` нашим конвертом;
     фильтры-сужатели отвергаются так же — третьего поведения «тихо игнорировать» больше нет.
+9. **Единый лейбл 422** (`fwd-22`, D10, 26.09): `error` — всегда HTTP reason phrase, поэтому 422 =
+    `{error: 'Unprocessable Entity', message: <string>, details?: string[]}`; `'Validation failed'`
+    переезжает из `error` в `message`. Инвариант всего конверта: 4xx = `{error, message, details?}`,
+    500 = `{error}`. Breaking change на 6 маршрутах DTO-валидации — внешних клиентов до релиза нет.
+10. **`details` как диагноз** (`fwd-24`, D11, 26.09): формат остаётся `string[]`, апгрейда до
+    `[{field, message}]` нет — для него нет потребителя. Стабильность достигается точечно: убраны
+    `get_debug_type()` (8 мест) и value-echo `got "%s"` (`ItemSlotMapper:88`), дописаны 7 `maxMessage`
+    (см. шаг 4); остальное уже авторское. В `ARCHITECTURE.md` фиксируется: `details` —
+    человекочитаемый диагноз, не машинный enum; структура (`string[]`) и триггер (422) стабильны.
+11. **400 без правок** (D12, 26.09): аудит показал, что `badRequest`-сообщения и `parsePagination`-тексты
+    уже наши и стабильные — менять нечего; вывод в `AssumptionLog.md`, чтобы не открывать вопрос заново.
+
+## Декомпозиция PR-3 (fwd-22 + fwd-24)
+
+Каждая подзадача ≤ 2 человеко-часов и ≤ 150 строк диффа:
+
+1. **Red.** Правка 9 ассертов на старый лейбл (`CollectionControllerTest:139`;
+   `ItemControllerTest:200`; `LoginControllerTest:121,135,150`;
+   `RegistrationControllerTest:62,77,91`; `AbstractApiControllerTest:100`) + переименование
+   `AbstractApiControllerTest:93` → `...Is422WithMessageAndDetails` + 3 новых функциональных
+   регрессии (email 300 симв.; description 600 симв.; слот неверного типа, `details` без `got `).
+   Не трогать (уже в целевой форме): `CollectionControllerTest:535`, `ItemControllerTest:187,517`,
+   `AbstractApiControllerTest:117,160`.
+2. **Green, контракт.** `createValidationErrorResponse()` → делегат
+   `unprocessable('Validation failed', $errors)`; 6 колл-сайтов не трогать.
+3. **Green, тексты.** 9 сообщений без `get_debug_type`/value-echo (`Item.php` ×4,
+   `ItemSlotMapper.php` ×5) + 7 `maxMessage` в 4 DTO (`LoginUserDTO:13`,
+   `RegisterUserDTO:17,21`, `CreateCollectionDTO:27,30`, `UpdateCollectionDTO:19,22`).
+4. **Green, OpenAPI + проверки.** 4 inline-примера 422 (`CollectionController:73,356`;
+   `LoginController:77`; `RegistrationController:67`) → `error: 'Unprocessable Entity'` + свойство
+   `message`; `composer openapi:generate`; `git checkout -- config/reference.php`; `ci:all` + smoke
+   (`GET /health`, `POST /api/register` с невалидным email → 422, `GET /api/tags` без токена → 401);
+   артефакты (`ARCHITECTURE.md`, `AssumptionLog.md`, `Roadmap.md` — статус после merge, чекбоксы);
+   self-review → 3 ревьюера → commit → push → CI. Мерж не делаю.
 
 ## Критерии приёмки
 
 - [x] Один конверт `401` независимо от точки отказа (entry point и guard дают одинаковое тело). (PR-2: `JwtAuthenticationFailureSubscriber` на 3 событиях Lexik; guard-конверт уже был `{error, message}`)
 - [x] Ручных 403-блоков в контроллерах нет, кроме `LoginController:125` «аккаунт деактивирован» — бизнес-факт, а не отказ доступа (решение S8 шаг 4): `AccessDeniedException` конвертируется listener'ом.
-- [ ] Один словарь лейбла `error` на статус `422` (или split зафиксирован в `ARCHITECTURE.md`).
-- [ ] `details` либо стабильны, либо явно помечены как best-effort в `ARCHITECTURE.md`.
+- [x] Один словарь лейбла `error` на статус `422` (D10, PR-3): `{error: 'Unprocessable Entity', message, details?}` везде; `'Validation failed'` — в `message` DTO-пути.
+- [x] `details` — человекочитаемый диагноз, не машинный enum (D11, PR-3): убраны `get_debug_type()` (8 мест) + value-echo (`ItemSlotMapper:88`), дописаны 7 `maxMessage`; зафиксировано в `ARCHITECTURE.md`.
 - [x] Ни один `500` не остаётся без записи в логе (включая три сайта в `CollectionController`:
       `POST`/`PATCH`/`DELETE` на коллекциях оставляют след в логе). (PR-2: локальные `catch`
       сняты, логирует фреймворк `logKernelException`; доказан smoke в S8-6, автотесты этого не покрывают)

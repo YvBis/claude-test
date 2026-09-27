@@ -90,14 +90,14 @@ final class AbstractApiControllerTest extends TestCase
         $this->assertSame(['error' => 'Unauthorized'], $this->payload($response));
     }
 
-    public function testCreateValidationErrorResponseIs422WithDetailsOnly(): void
+    public function testCreateValidationErrorResponseIs422WithMessageAndDetails(): void
     {
         $errors = ['Name cannot be empty', 'Password must be at least 8 characters'];
         $response = $this->controller->callCreateValidationErrorResponse($errors);
 
         $this->assertSame(422, $response->getStatusCode());
         $this->assertSame(
-            ['error' => 'Validation failed', 'details' => $errors],
+            ['error' => 'Unprocessable Entity', 'message' => 'Validation failed', 'details' => $errors],
             $this->payload($response),
         );
     }
