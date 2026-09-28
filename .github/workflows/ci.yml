@@ -78,7 +78,7 @@ jobs:
     # block merges. Roadmap 5.14 turns it into a blocking gate.
     continue-on-error: true
     env:
-      SYMFONY_LSP_VERSION: '0.21.0'
+      SYMFONY_LSP_VERSION: '0.23.0'
       # Binary and checker index share one cached directory, so a cache hit skips
       # the release download (the archive is still checksum-verified before use).
       SYMFONY_LSP_BIN_DIR: var/symfony-lsp/bin
@@ -115,9 +115,16 @@ jobs:
       # and a deleted index. Every diagnostic code the checker offers resolves
       # references against the runtime index, so on this project and fixture,
       # with symfony-lsp 0.21.x, the runtime pass was the only one that reported
-      # anything. Two of the six
-      # defects were missed by both modes - a checker bump should re-run the
-      # probe (task 5.26).
+      # anything; re-confirmed on 0.23.x by the 5.26 re-probe (PRD/5.26-symfony-lsp-version-bump.md).
+      # Two of the six
+      # defects were missed by both modes - the probe was re-run on the 0.23.0
+      # bump (task 5.26) with the same result; a future checker bump needs a new
+      # probe task.
+      # 5.14 risk: 0.23.0 emits an empty diagnostic list while the runtime index
+      # is incomplete - an incomplete index yields a green result instead of
+      # stale findings. The false-green gate risk is recorded in
+      # PRD/5.26-symfony-lsp-version-bump.md and must be addressed when this job
+      # becomes blocking.
       - name: Run Symfony Language Tools checker (runtime analysis)
         run: bash scripts/symfony-lsp-check.sh --environment=test --format=github
 
