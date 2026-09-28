@@ -1,0 +1,20 @@
+{
+    "schemaVersion": 1,
+    "tool": {"name": "Symfony Language Tools", "version": "0.23.0"},
+    "complete": false,
+    "coordinates": {"lineBase": 0, "characterBase": 0, "characterEncoding": "utf-16", "endExclusive": true},
+    "projects": [
+        {
+            "id": ".",
+            "environment": "test",
+            "analysis": {"mode": "runtime", "reason": null},
+            "source": {"state": "ready"},
+            "runtime": {"state": "stale", "lastSuccessfulAt": "2026-09-28T14:06:37+00:00", "error": "Runtime indexing failed."},
+            "complete": false
+        }
+    ],
+    "diagnostics": [],
+    "summary": {"diagnostics": 0, "active": 0, "matched": 0, "stale": 0, "blocking": 0},
+    "errors": [],
+    "baseline": {"path": null, "mode": "none", "strict": false, "stale": []}
+}

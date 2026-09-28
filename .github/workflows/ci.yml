@@ -74,9 +74,10 @@ jobs:
     name: Symfony Diagnostics (symfony-lsp)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Pilot phase: the checker publishes GitHub annotations only and must not
-    # block merges. Roadmap 5.14 turns it into a blocking gate.
-    continue-on-error: true
+    # Blocking gate (Roadmap 5.14): the checker fails the job on blocking
+    # diagnostics and on an incomplete report. The verdict is re-derived from
+    # a single `--format=json` artifact by scripts/symfony-lsp-gate.php — never
+    # from the checker's exit code alone, and never from two runs.
     env:
       SYMFONY_LSP_VERSION: '0.23.0'
       # Binary and checker index share one cached directory, so a cache hit skips
@@ -122,11 +123,19 @@ jobs:
       # probe task.
       # 5.14 risk: 0.23.0 emits an empty diagnostic list while the runtime index
       # is incomplete - an incomplete index yields a green result instead of
-      # stale findings. The false-green gate risk is recorded in
-      # PRD/5.26-symfony-lsp-version-bump.md and must be addressed when this job
-      # becomes blocking.
+      # stale findings. The gate below closes it: scripts/symfony-lsp-gate.php
+      # fails the job unless the report proves `complete: true`,
+      # `runtime.state: ready` and `blocking: 0` (measured shapes in
+      # PRD/5.14-blocking-diagnostics.md). Gating on `blocking` alone would be
+      # green exactly when blind.
       - name: Run Symfony Language Tools checker (runtime analysis)
-        run: bash scripts/symfony-lsp-check.sh --environment=test --format=github
+        # `|| true` is intentional: the checker exits non-zero on blocking
+        # diagnostics (10) and on failed sections (12), but its exit code is
+        # not the verdict — the gate script below re-derives everything from
+        # the JSON artifact and is the sole source of pass/fail.
+        run: |
+          bash scripts/symfony-lsp-check.sh --environment=test --format=json > var/symfony-lsp-report.json || true
+          php scripts/symfony-lsp-gate.php var/symfony-lsp-report.json
 
   unit-tests:
     name: Unit Tests
@@ -263,15 +272,16 @@ jobs:
       - name: Run composer audit
         run: composer audit --locked
 
-  # Aggregates the blocking jobs only: symfony-diagnostics is deliberately left
-  # out of needs (it is the non-blocking pilot, task 5.14). The single edit
+  # Aggregates the blocking jobs: symfony-diagnostics has been a blocking gate
+  # since task 5.14 (before that it was the non-blocking pilot, deliberately
+  # left out of needs). The single edit
   # point is `needs:` below — the step derives the table from `${{ toJSON(needs) }}`,
   # so a new job lands in the gate automatically once added to `needs:`
   # (the old two-place STATUS-string + grep hazard is gone, task 5.27).
   ci-summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [static-analysis, unit-tests, dependency-audit]
+    needs: [static-analysis, unit-tests, dependency-audit, symfony-diagnostics]
     if: always()
     env:
       NEEDS_JSON: ${{ toJSON(needs) }}

@@ -43,6 +43,20 @@ BIN_DIR="${SYMFONY_LSP_BIN_DIR:-var/bin}"
 BIN="${BIN_DIR}/symfony-lsp"
 SUMS="${BIN_DIR}/SHA256SUMS.${VERSION}"
 
+# Second trust factor beside the release SHA256SUMS (TOFU: the list comes from
+# the same release as the archive, so a compromised release verifies itself).
+# Pinned hashes for the version+asset pairs CI and maintainers measured; a
+# version bump MUST add its hashes here. A pair without a pinned entry falls
+# back to SHA256SUMS-only with a warning, so unmeasured platforms keep working.
+# A `case` table (not an associative array) keeps the script on bash 3.2, which
+# stock macOS still ships.
+pinned_sha256() {
+    case "$1" in
+        "0.23.0-linux-x64") printf '%s' "f7169b653d178fda23f1f57e1f818c42d182bb674058feaa8897ef469f97ebb6" ;;
+        *) return 1 ;;
+    esac
+}
+
 # Transient GitHub/CDN failures (504 while fetching a release asset) must not
 # fail the job: retry with backoff. --retry-all-errors covers non-connection
 # statuses, and the timeouts bound a stalled TLS handshake that would otherwise
@@ -100,6 +114,26 @@ verify_archive() {
 
     if ! (cd "${BIN_DIR}" && printf '%s\n' "${line}" | sha256sum -c -); then
         echo "symfony-lsp: checksum mismatch for ${archive}" >&2
+        return 1
+    fi
+
+    verify_pinned "${archive}"
+}
+
+# Fails loudly when the archive differs from the repo-pinned hash. A missing
+# entry is a warning, not an error: only measured version+asset pairs are
+# pinned, and an unmeasured platform must keep working on SHA256SUMS alone.
+verify_pinned() {
+    local archive="$1" key expected actual
+    key="${VERSION}-$(asset_name)"
+    if ! expected="$(pinned_sha256 "${key}")"; then
+        echo "symfony-lsp: no pinned SHA256 for ${key}, trusting SHA256SUMS only" >&2
+        return 0
+    fi
+
+    actual="$(sha256sum "${BIN_DIR}/${archive}" | awk '{ print $1 }')"
+    if [ "${actual}" != "${expected}" ]; then
+        echo "symfony-lsp: pinned SHA256 mismatch for ${archive} (expected ${expected}, got ${actual})" >&2
         return 1
     fi
 }

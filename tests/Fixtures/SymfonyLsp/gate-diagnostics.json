@@ -1,0 +1,33 @@
+{
+    "schemaVersion": 1,
+    "tool": {"name": "Symfony Language Tools", "version": "0.23.0"},
+    "complete": true,
+    "coordinates": {"lineBase": 0, "characterBase": 0, "characterEncoding": "utf-16", "endExclusive": true},
+    "projects": [
+        {
+            "id": ".",
+            "environment": "test",
+            "analysis": {"mode": "runtime", "reason": null},
+            "source": {"state": "ready"},
+            "runtime": {"state": "ready"},
+            "complete": true
+        }
+    ],
+    "diagnostics": [
+        {
+            "project": ".",
+            "path": "templates/gate_probe_514.html.twig",
+            "workspacePath": "templates/gate_probe_514.html.twig",
+            "range": {"start": {"line": 1, "character": 9}, "end": {"line": 1, "character": 44}},
+            "severity": "error",
+            "code": "route.not_found",
+            "source": "symfony",
+            "message": "Route \"app_gate_probe_route_does_not_exist\" does not exist in the selected environment.",
+            "baseline": "active",
+            "provenance": {"feature": "route", "provider": "route", "environment": "test", "analysisMode": "runtime"}
+        }
+    ],
+    "summary": {"diagnostics": 1, "active": 1, "matched": 0, "stale": 0, "blocking": 1},
+    "errors": [],
+    "baseline": {"path": null, "mode": "none", "strict": false, "stale": []}
+}
