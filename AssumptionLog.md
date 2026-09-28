@@ -2216,3 +2216,11 @@ exit 0; `DRIFT_PINNED_VERSION=0.22.0` — warning с рецептом бампа
 `gh` падает — «not checked» + exit 0; overlay с расходящимися якорями —
 warning о расхождении + exit 0 (по ходу найден и исправлен противоречивый
 текст «anchors agree» после warning'а).
+
+## 2026-09-28 — 5.14 закрыта: PR #110 смержен
+
+PR-B: senior SHIP-WITH-NITS, архитектор SHIP-WITH-NITS, техлид APPROVE.
+Разобрано кодом до коммита: `first`-дайджест, `$GITHUB_STEP_SUMMARY`,
+checkout v4, четвёртый гард-тест (drift-job вне `ci-summary.needs`),
+переименование теста, backstop в PRD. Внешний бот: ready to merge, ноль
+inline. `ci:all` 764/2677, audit чист. Roadmap 5.14 → done.
