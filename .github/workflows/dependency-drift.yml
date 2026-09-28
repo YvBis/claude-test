@@ -1,0 +1,42 @@
+name: Dependency Drift
+
+# Advisory-only version-drift visibility (Roadmap 5.14, PR-B): warns when the
+# pinned symfony-lsp checker binary lags the newest upstream release. This
+# workflow never fails and never enters the merge gate: no needs: edit in
+# CI Pipeline, no ruleset edit, no new required check. Upstream release
+# cadence is not a contract, so a drift must not block merges.
+#
+# Standalone file (not a job in ci.yml): ci.yml triggers only on push/PR to
+# main, so a schedule there would be an odd citizen. The checker binary is
+# downloaded, not vendored, so Dependabot cannot see it — this cron is the
+# only drift visibility.
+on:
+  schedule:
+    # Weekly, off-peak minute (GitHub spreads schedule load; exact minutes
+    # reduce thundering-herd delays).
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: drift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tool-version-drift:
+    name: Tool Version Drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The script always exits 0 (EXIT trap): a drift prints ::warning::, an
+      # unreachable API prints "not checked" instead of "stale". The offline
+      # proof hook documented in the script header must never be set here —
+      # it replaces the extracted pin and would blind the check (the guard
+      # test scans this file for it).
+      - name: Check symfony-lsp version drift
+        run: bash scripts/check-tool-version-drift.sh

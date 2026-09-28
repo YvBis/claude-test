@@ -153,7 +153,11 @@ docker compose exec app composer ci:symfony-lsp -- --source-only   # стати�
 > распаковкой, а бинарник всегда извлекается из проверенного архива (инвариант — «хеш проверен перед
 > запуском», а не «скачиваем каждый раз»). Версия переопределяется переменной `SYMFONY_LSP_VERSION`,
 > каталог — `SYMFONY_LSP_BIN_DIR`. Найденная ранее deprecated-настройка закрыта задачей `5.12`;
-> на 2026-09-23 — 0 диагностик (runtime).
+> на 2026-09-23 — 0 диагностик (runtime). Бинарник checker'а скачивается, а не вендорится,
+> поэтому Dependabot его не видит: дрейф версии отслеживает еженедельный advisory-workflow
+> `dependency-drift` (`scripts/check-tool-version-drift.sh` сверяет оба якоря пина —
+> дефолт скрипта и env в `ci.yml` — с новым релизом апстрима и печатает только `::warning::`,
+> в гейт не входит; детали — `PRD/5.14b-version-drift-cron.md`).
 
 ## Smoke tests
 
