@@ -2053,6 +2053,35 @@ index is incomplete» — неполный индекс даёт пустой (�
 устаревших находок; риск ложно-зелёного blocking-гейта, решать в 5.14.
 Побочная уборка: удалены `var/slsp-*.json/.err` — остатки пробы 5.17.
 
+## 2026-09-28 — задача 5.14, PR-A: блокирующий флип symfony-diagnostics
+
+Замеры в контейнере через bash: чисто exit 0; дефект (`route.not_found`) exit 10
+в обоих форматах; обрыв секций (`--bridge-timeout=1`) exit 12, `complete: false`,
+`runtime.state: stale`, `blocking: 0`, список пуст. Координаты JSON 0-based,
+аннотации 1-based (конвертер +1).
+
+Пин `PINNED_SHA256["0.23.0-linux-x64"]` в скрипте — второй фактор к TOFU-списку;
+негативная проба (битый хеш) — громкий отказ, exit 11. Без записи — warning,
+не ошибка (неизмеренные платформы продолжают работать).
+
+Конвертер `scripts/symfony-lsp-gate.php`: один JSON-прогон — единственный
+источник истины; `complete` + `runtime.state` + `blocking` + аннотации `::error`.
+Гейт строится не по exit-коду checker'а (его 0.x-семантика — не контракт) и не
+по двум прогонам (неатомарно). Fail-closed: нет файла/битый JSON/дрейф схемы —
+exit 1. Фикстуры `tests/Fixtures/SymfonyLsp/` (3 шт.), тест
+`SymfonyLspGateTest` (4 кейса, без контейнера).
+
+Кэш: отдельный механизм не нужен — все отказы громкие (exit 10/12), а
+`actions/cache` сохраняет только при успешном job'е («a new cache is
+automatically created provided the job completes successfully», actions/cache
+README, раздел про restore+save); красный job индекс не сохраняет.
+
+Двустороннее доказательство wiring'ом CI: дефект — gate-exit 1 с аннотацией;
+чисто — gate-exit 0. Слепые зоны `--environment=test` приняты как риск
+(`cache.app=redis`, `when@test`); сверка Doctrine-схемы штатной командой
+невозможна (ORM 3.7 требует DBAL ^4.5) — прикрыта миграциями на свежей test-БД
++ тестами; разблокировка — после DBAL 4.5 stable.
+
 **CI-красное на первом же прогоне — и это чек поймал настоящий баг, а не шум.**
 `openapi:fresh` упал в `Static Analysis & Lint` с `User Warning: $ref
 "#/components/schemas/" not found`. Корень: CI копирует `.env.test` поверх `.env`

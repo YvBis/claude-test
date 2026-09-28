@@ -12,9 +12,10 @@ use PHPUnit\Framework\TestCase;
  * The checker itself is an external binary, so these tests protect the
  * integration contract that a silent edit could break: the composer entry
  * point, the pinned version with checksum verification, the download-retry
- * policy, the non-blocking pilot CI job (runtime analysis only since the 5.17
- * parity probe) and the project configuration that keeps runtime analysis from
- * failing on the generated config/reference.php file.
+ * policy, the blocking CI gate (runtime analysis only since the 5.17 parity
+ * probe, blocking since the 5.14 flip) and the project configuration that
+ * keeps runtime analysis from failing on the generated config/reference.php
+ * file.
  */
 final class SymfonyLspConfigTest extends TestCase
 {
@@ -42,14 +43,14 @@ final class SymfonyLspConfigTest extends TestCase
         );
     }
 
-    public function testCiJobRunsRuntimeCheckAsNonBlockingPilot(): void
+    public function testCiJobRunsRuntimeCheckAsBlockingGate(): void
     {
         $workflow = (string) \file_get_contents($this->projectRoot.'/.github/workflows/ci.yml');
         $job = $this->jobBlock($workflow, 'symfony-diagnostics');
 
         self::assertSame(
             1,
-            \preg_match_all('/^\s*run:.*scripts\/symfony-lsp-check\.sh/m', $job),
+            \preg_match_all('/^\s*bash scripts\/symfony-lsp-check\.sh/m', $job),
             'CI must run the checker once: the parity probe showed the source-only pass reports nothing on symfony-lsp (5.17 baseline on 0.21.x, re-confirmed on 0.23.x by the 5.26 re-probe).',
         );
         self::assertDoesNotMatchRegularExpression(
@@ -59,14 +60,19 @@ final class SymfonyLspConfigTest extends TestCase
             .'A future checker bump needs a new probe task before this can change - see PRD/5.17-parity-probe.md and PRD/5.26-symfony-lsp-version-bump.md.',
         );
         self::assertMatchesRegularExpression(
-            '/scripts\/symfony-lsp-check\.sh --environment=test --format=github/',
+            '/scripts\/symfony-lsp-check\.sh --environment=test --format=json/',
             $job,
-            'The single invocation must pin --environment=test: the checker defaults to "dev" and ignores .env, and dev needs a Redis service.',
+            'The single invocation must pin --environment=test and --format=json: the checker defaults to "dev" and ignores .env, and the gate verdict is re-derived from the JSON artifact, never from a second run.',
         );
-        self::assertStringContainsString(
-            'continue-on-error: true',
+        self::assertMatchesRegularExpression(
+            '/php scripts\/symfony-lsp-gate\.php/m',
             $job,
-            'The symfony-lsp job is a pilot: it must stay non-blocking (continue-on-error: true).',
+            'The job must pipe the JSON report through the gate converter: it emits the annotations and fails on blocking diagnostics or an incomplete report.',
+        );
+        self::assertStringNotContainsString(
+            'continue-on-error',
+            $job,
+            'The symfony-lsp job is a blocking gate since 5.14: continue-on-error must be gone, otherwise failures stay silent.',
         );
         self::assertStringContainsString(
             'SYMFONY_LSP_VERSION',
@@ -78,10 +84,26 @@ final class SymfonyLspConfigTest extends TestCase
             $job,
             'The binary must live inside the cached directory, otherwise every run re-downloads the release.',
         );
-        self::assertStringNotContainsString(
+        self::assertStringContainsString(
             'symfony-diagnostics',
             $this->jobBlock($workflow, 'ci-summary'),
-            'ci-summary must not depend on the pilot job, otherwise the checker would block merges.',
+            'ci-summary must depend on the gate job since 5.14, otherwise the checker cannot block merges.',
+        );
+    }
+
+    public function testRunnerScriptPinsExpectedSha256(): void
+    {
+        $script = (string) \file_get_contents($this->projectRoot.'/scripts/symfony-lsp-check.sh');
+
+        self::assertMatchesRegularExpression(
+            '/pinned_sha256\(\) \{\s*case "\$1" in\s*"0\\.23\\.0-linux-x64"\) printf \'%s\' "f7169b653d178fda23f1f57e1f818c42d182bb674058feaa8897ef469f97ebb6"/',
+            $script,
+            'The runner must pin the expected archive hash in the repo: SHA256SUMS comes from the same release as the archive (TOFU), so the pinned constant is the second trust factor.',
+        );
+        self::assertStringContainsString(
+            'verify_pinned',
+            $script,
+            'The runner must verify the archive against the pinned hash, not just declare it.',
         );
     }
 
