@@ -24,18 +24,20 @@
 # deliberately not part of CI: the parity probe from task 5.17 showed that with
 # symfony-lsp 0.21.x it reports no diagnostics at all on this project (every code
 # the checker offers resolves references against the runtime index), while the
-# runtime pass reported four of the six injected defects. Re-run the probe on a
-# checker bump (task 5.26). See PRD/5.17-parity-probe.md.
+# runtime pass reported four of the six injected defects. The probe was re-run
+# on the 0.23.0 bump (task 5.26, PRD/5.26-symfony-lsp-version-bump.md) with the
+# same result — source-only stays out of CI. See PRD/5.17-parity-probe.md and
+# PRD/5.26-symfony-lsp-version-bump.md.
 #
 # Environment:
-#   SYMFONY_LSP_VERSION   release to install (default: 0.21.0)
+#   SYMFONY_LSP_VERSION   release to install (default: 0.23.0)
 #   SYMFONY_LSP_BIN_DIR   install/cache directory (default: var/bin)
 #   SYMFONY_LSP_BASE_URL  release base URL (default: the official GitHub release;
 #                         overridable so the failure paths stay testable offline)
 #
 set -euo pipefail
 
-VERSION="${SYMFONY_LSP_VERSION:-0.21.0}"
+VERSION="${SYMFONY_LSP_VERSION:-0.23.0}"
 BASE_URL="${SYMFONY_LSP_BASE_URL:-https://github.com/symfony/language-tools/releases/download/v${VERSION}}"
 BIN_DIR="${SYMFONY_LSP_BIN_DIR:-var/bin}"
 BIN="${BIN_DIR}/symfony-lsp"

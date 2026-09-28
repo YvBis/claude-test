@@ -50,13 +50,13 @@ final class SymfonyLspConfigTest extends TestCase
         self::assertSame(
             1,
             \preg_match_all('/^\s*run:.*scripts\/symfony-lsp-check\.sh/m', $job),
-            'CI must run the checker once: the 5.17 parity probe showed the source-only pass reports nothing on symfony-lsp 0.21.x.',
+            'CI must run the checker once: the parity probe showed the source-only pass reports nothing on symfony-lsp (5.17 baseline on 0.21.x, re-confirmed on 0.23.x by the 5.26 re-probe).',
         );
         self::assertDoesNotMatchRegularExpression(
             '/^\s*run:.*--source-only/m',
             $job,
-            'No executed command may pass --source-only with symfony-lsp 0.21.x: the 5.17 probe showed it reports no diagnostics at all on this project. '
-            .'A checker bump must re-run the probe (task 5.26) before this can change - see PRD/5.17-parity-probe.md.',
+            'No executed command may pass --source-only with symfony-lsp 0.23.x: the 5.17 probe showed it reports no diagnostics at all on this project, and the 5.26 re-probe confirmed it on 0.23.0. '
+            .'A future checker bump needs a new probe task before this can change - see PRD/5.17-parity-probe.md and PRD/5.26-symfony-lsp-version-bump.md.',
         );
         self::assertMatchesRegularExpression(
             '/scripts\/symfony-lsp-check\.sh --environment=test --format=github/',
