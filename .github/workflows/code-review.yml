@@ -26,6 +26,11 @@ jobs:
     if: github.event.pull_request.draft == false
     # Worst path: 12 + 15 + 2 + 3 = 32, leaving ~2.5 min for checkout and
     # runner start (task 5.29).
+    #
+    # Observed numbers live in one place only — PRD/5.20-review-timing-measurement.md
+    # (canonical snapshot, task 5.20) — because run timings go stale on re-measure
+    # and five copies drift. Re-measure any time with:
+    # bash scripts/review-timing-report.sh <run-id>.
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
