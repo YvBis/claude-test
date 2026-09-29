@@ -19,9 +19,11 @@ use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
+#[AllowMockObjectsWithoutExpectations]
 final class CommentServiceTest extends TestCase
 {
     private CommentRepositoryInterface&MockObject $commentRepository;

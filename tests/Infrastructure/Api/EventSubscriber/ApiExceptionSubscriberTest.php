@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Infrastructure\Api\EventSubscriber;
 
 use App\Infrastructure\Api\EventSubscriber\ApiExceptionSubscriber;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -21,6 +22,7 @@ use Symfony\Component\HttpKernel\KernelEvents;
  * envelope, and everything else (already-answered events, framework HTTP
  * errors, non-API paths) is left untouched.
  */
+#[AllowMockObjectsWithoutExpectations]
 final class ApiExceptionSubscriberTest extends TestCase
 {
     private ApiExceptionSubscriber $subscriber;

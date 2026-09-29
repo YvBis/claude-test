@@ -2315,3 +2315,19 @@ WARNING при exit 0); контроль: старый стиль 17 файло�
 Срез D: 45 >> порога 5 → 4 точечных skip'а с причинами
 (promotion-24, sort-args-20, RemoveDefaultValue — снял дефолты с
 `User::$isActive`, `Collection::$image`/`$description`, откачено); остаток применён, цикл закрыт. Гейт подключён.
+
+## 2026-09-29 — 5.25 PR-4: PHPUnit 11.5.56 → 12.5.37 (PRD/5.25-phpunit-bump.md)
+
+Срез 4a: DAMA 8.6.0 держит 12 (`^11.5.41 || ^12.3.14` в манифесте),
+bridge 8.1.6 дормантен (только `php >= 8.1`) — бампов кроме phpunit нет.
+Null-гард `coverage-gate.php:28` доказан двусторонне (нет `<metrics>` →
+ясное сообщение + exit 1; настоящий clover → pass).
+Срез 4b: `phpunit.xml.dist` валиден против схемы 12 без миграции;
+`failOnDeprecation`/`--display-deprecations` на месте. Падений 0,
+зато 57 PHPUnit Notices (`createMock` без `->expects()`).
+Срез 4c: blanket-переименование в `createStub` невозможно — `->expects()`
+пишется чейнингом с новой строки (первый греп не видел, сломал 11 тестов,
+откачено) + свойства `X&MockObject`. Решение: 8 классовых
+`#[AllowMockObjectsWithoutExpectations]` (действует только на моки без
+ожиданий). Итог: `OK (766/2684)`, ноль notices; coverage-прогон 97.84%,
+гейт держит.

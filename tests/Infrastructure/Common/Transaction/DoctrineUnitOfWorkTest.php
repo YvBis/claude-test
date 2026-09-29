@@ -6,8 +6,10 @@ namespace App\Tests\Infrastructure\Common\Transaction;
 
 use App\Infrastructure\Common\Transaction\DoctrineUnitOfWork;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 
+#[AllowMockObjectsWithoutExpectations]
 final class DoctrineUnitOfWorkTest extends TestCase
 {
     public function testTransactionalDelegatesToEntityManagerAndPassesThroughResult(): void
