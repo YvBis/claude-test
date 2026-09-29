@@ -108,7 +108,7 @@ final readonly class CollectionService
     public function toDTOList(array $collections): array
     {
         return \array_map(
-            fn (Collection $collection): CollectionDTO => $this->toDTO($collection),
+            $this->toDTO(...),
             $collections,
         );
     }

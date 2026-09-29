@@ -8,7 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Embeddable]
-final readonly class CollectionName
+final readonly class CollectionName implements \Stringable
 {
     /** Minimum number of UTF-8 bytes permitted in a collection display name. Trims input, then enforces. */
     private const int MIN_NAME_LENGTH = 3;

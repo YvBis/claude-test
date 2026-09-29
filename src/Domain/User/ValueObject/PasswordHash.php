@@ -8,7 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Embeddable]
-final readonly class PasswordHash
+final readonly class PasswordHash implements \Stringable
 {
     public const int BCRYPT_COST = 13;
 
@@ -37,12 +37,10 @@ final readonly class PasswordHash
             throw new \InvalidArgumentException('Password must be at least 8 characters');
         }
 
-        /** @var string|false $hash */
+        // `password_hash()` with hardcoded valid params cannot fail: PHPStan 2.2
+        // models its return as `non-empty-string` (verified via dumpType),
+        // so a `false` branch would be statically dead (`varTag.nativeType`).
         $hash = \password_hash($plainPassword, PASSWORD_BCRYPT, ['cost' => self::BCRYPT_COST]);
-
-        if (false === $hash) {
-            throw new \RuntimeException('Password hashing failed');
-        }
 
         return new self($hash);
     }

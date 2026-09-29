@@ -9,7 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Embeddable]
-final readonly class Role
+final readonly class Role implements \Stringable
 {
     #[ORM\Column(name: 'role', type: RoleEnumType::NAME, length: 20)]
     #[Assert\Choice(choices: [RoleEnum::USER->value, RoleEnum::ADMIN->value])]

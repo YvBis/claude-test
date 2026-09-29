@@ -11,7 +11,7 @@ namespace App\Application\Exception;
 final class ValidationException extends \RuntimeException
 {
     /** @var string[] */
-    private array $details;
+    private readonly array $details;
 
     /**
      * @param string[] $details

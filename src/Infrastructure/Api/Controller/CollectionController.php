@@ -84,7 +84,7 @@ final class CollectionController extends AbstractApiController
             $dto = $this->deserializeAndValidate($request->getContent(), CreateCollectionDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
-        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+        } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         }
 
@@ -144,9 +144,7 @@ final class CollectionController extends AbstractApiController
 
         try {
             $collection = $collectionService->getById($id);
-        } catch (CollectionNotFoundException $collectionNotFoundException) {
-            return $this->notFound('Collection not found');
-        } catch (\InvalidArgumentException $invalidArgumentException) {
+        } catch (CollectionNotFoundException|\InvalidArgumentException) {
             return $this->notFound('Collection not found');
         }
 
@@ -315,15 +313,13 @@ final class CollectionController extends AbstractApiController
             $dto = $this->deserializeAndValidate($request->getContent(), UpdateCollectionDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
-        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+        } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         }
 
         try {
             $collection = $collectionService->getById($id);
-        } catch (CollectionNotFoundException $collectionNotFoundException) {
-            return $this->notFound('Collection not found');
-        } catch (\InvalidArgumentException $invalidArgumentException) {
+        } catch (CollectionNotFoundException|\InvalidArgumentException) {
             return $this->notFound('Collection not found');
         }
 
@@ -379,9 +375,7 @@ final class CollectionController extends AbstractApiController
 
         try {
             $collection = $collectionService->getById($id);
-        } catch (CollectionNotFoundException $collectionNotFoundException) {
-            return $this->notFound('Collection not found');
-        } catch (\InvalidArgumentException $invalidArgumentException) {
+        } catch (CollectionNotFoundException|\InvalidArgumentException) {
             return $this->notFound('Collection not found');
         }
 

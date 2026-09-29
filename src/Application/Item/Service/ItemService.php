@@ -128,7 +128,7 @@ final readonly class ItemService
     public function toDTOList(array $items): array
     {
         return \array_map(
-            fn (Item $item): ItemDTO => $this->toDTO($item),
+            $this->toDTO(...),
             $items,
         );
     }

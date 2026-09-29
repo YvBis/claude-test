@@ -9,7 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Embeddable]
-final readonly class FieldType
+final readonly class FieldType implements \Stringable
 {
     #[ORM\Column(name: 'field_type', type: FieldTypeEnumType::NAME, length: 20)]
     #[Assert\Choice(callback: [self::class, 'values'])]

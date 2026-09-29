@@ -22,6 +22,8 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
  * Note: the decision reads `$subject->getOwner()`, so callers must pass an
  * entity whose owner association is already hydrated (the repositories do this
  * via JOIN FETCH — final entities cannot be lazy ghost proxies in ORM 3).
+ *
+ * @extends Voter<string, Comment|Like>
  */
 final class SocialContentVoter extends Voter
 {
@@ -73,13 +75,10 @@ final class SocialContentVoter extends Voter
             return true;
         }
 
-        // Defensive: `vote()` guarantees a supported subject, but this keeps the
-        // `getOwner()` call below type-safe (PHPStan level 6) and the method
-        // safe when invoked directly.
-        if (!$subject instanceof Comment && !$subject instanceof Like) {
-            return false;
-        }
-
+        // No defensive `instanceof` guard: `vote()` only reaches here for
+        // subjects passing `supports()` (Comment|Like, enforced by the
+        // `@extends Voter<string, Comment|Like>` template above), so `$subject`
+        // is `Comment|Like` by construction and the call below is type-safe.
         return $user->getId()->toString() === $subject->getOwner()->getId()->toString();
     }
 }

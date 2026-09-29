@@ -63,9 +63,7 @@ final class ItemController extends AbstractApiController
 
         try {
             $collection = $collectionService->getById($collectionId);
-        } catch (CollectionNotFoundException $collectionNotFoundException) {
-            return $this->notFound('Collection not found');
-        } catch (\InvalidArgumentException $invalidArgumentException) {
+        } catch (CollectionNotFoundException|\InvalidArgumentException) {
             return $this->notFound('Collection not found');
         }
 
@@ -166,9 +164,7 @@ final class ItemController extends AbstractApiController
 
         try {
             $item = $itemService->getById($id);
-        } catch (ItemNotFoundException $itemNotFoundException) {
-            return $this->notFound('Item not found');
-        } catch (\InvalidArgumentException $invalidArgumentException) {
+        } catch (ItemNotFoundException|\InvalidArgumentException) {
             return $this->notFound('Item not found');
         }
 
@@ -243,15 +239,13 @@ final class ItemController extends AbstractApiController
             $dto = $this->deserializeAndValidate($request->getContent(), CreateItemDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
-        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+        } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         }
 
         try {
             $collection = $collectionService->getById($collectionId);
-        } catch (CollectionNotFoundException $collectionNotFoundException) {
-            return $this->notFound('Collection not found');
-        } catch (\InvalidArgumentException $invalidArgumentException) {
+        } catch (CollectionNotFoundException|\InvalidArgumentException) {
             return $this->notFound('Collection not found');
         }
 
@@ -313,15 +307,13 @@ final class ItemController extends AbstractApiController
             $dto = $this->deserializeAndValidate($request->getContent(), UpdateItemDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
-        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+        } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         }
 
         try {
             $item = $itemService->getById($id);
-        } catch (ItemNotFoundException $itemNotFoundException) {
-            return $this->notFound('Item not found');
-        } catch (\InvalidArgumentException $invalidArgumentException) {
+        } catch (ItemNotFoundException|\InvalidArgumentException) {
             return $this->notFound('Item not found');
         }
 
@@ -367,9 +359,7 @@ final class ItemController extends AbstractApiController
 
         try {
             $item = $itemService->getById($id);
-        } catch (ItemNotFoundException $itemNotFoundException) {
-            return $this->notFound('Item not found');
-        } catch (\InvalidArgumentException $invalidArgumentException) {
+        } catch (ItemNotFoundException|\InvalidArgumentException) {
             return $this->notFound('Item not found');
         }
 

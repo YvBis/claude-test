@@ -72,13 +72,13 @@ final class RegistrationController extends AbstractApiController
             $dto = $this->deserializeAndValidate($request->getContent(), RegisterUserDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
-        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+        } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         }
 
         try {
             $user = $registrationService->register($dto);
-        } catch (UserAlreadyExistsException $userAlreadyExistsException) {
+        } catch (UserAlreadyExistsException) {
             return $this->conflict('User already exists');
         }
 
