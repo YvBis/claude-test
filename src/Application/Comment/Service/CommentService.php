@@ -127,7 +127,7 @@ final readonly class CommentService
     public function toDTOList(array $comments): array
     {
         return \array_map(
-            fn (Comment $comment): CommentDTO => $this->toDTO($comment),
+            $this->toDTO(...),
             $comments,
         );
     }

@@ -8,7 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Embeddable]
-final readonly class CommentContent
+final readonly class CommentContent implements \Stringable
 {
     public const int MIN_LENGTH = 1;
 

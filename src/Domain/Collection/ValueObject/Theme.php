@@ -9,7 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Embeddable]
-final readonly class Theme
+final readonly class Theme implements \Stringable
 {
     #[ORM\Column(name: 'theme', type: ThemeEnumType::NAME, length: 20)]
     #[Assert\Choice(choices: [

@@ -1,12 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Domain\User\ValueObject;
 
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Embeddable]
-final readonly class Email
+final readonly class Email implements \Stringable
 {
     #[ORM\Column(name: 'email', type: 'string', length: 255, unique: true)]
     #[Assert\NotBlank]

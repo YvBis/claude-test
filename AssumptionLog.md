@@ -2290,3 +2290,28 @@ ci:all» несовместимы (мажор даст находки) — по�
 `review-8` вне очереди), из `:169` убран протухший «`fwd-27` … в бэклоге».
 Техлид: статус `triggered` формализован словарём в `CLAUDE.md` (п. 2) —
 новым статусом его не считать, это значение из правила выбора.
+
+## 2026-09-29 — 5.25 свип: phpstan 2.2.16 + rector 2.6.7 (PRD/5.25-rector-phpstan-sweep.md)
+
+PR-2 и PR-3 слиты в один свип: `rector/rector` требует `phpstan/phpstan`
+во всём 2.x обычной зависимостью, корень пинит `^1.12` — разделить нельзя
+ни в каком порядке (подъём phpstan без rector ломает `composer install`).
+Вариант сосуществования мёртв: один пакет в двух версиях.
+
+Срез 0 (bleeding edge на 1.12.33): ровно 1 находка —
+`PasswordHash.php:41` (`varTag.nativeType`, предсказание точное).
+Срез A: замок ровно по плану (phpstan 2.2.16, doctrine 2.0.28, symfony
+2.0.20, deprecation-rules 2.0.5, rector 2.6.7), находок 2 — вторая
+(`SocialContentVoter` без `TAttribute`/`TSubject`) bleeding edge не дал.
+Срез B: `@var string|false` → принят стаб 2.2 (`password_hash` возвращает
+`non-empty-string`, замерено dumpType), мёртвая `false`-ветка удалена;
+в Voter добавлен `@extends Voter<string, Comment|Like>`, а ставший
+доказуемо мёртвым defensive-guard удалён (тест ходит только через
+`vote()`, поведение сохранено).
+Срез C: `SetList::PHP_83` → `withPhpSets()` (старый файл deprecated,
+WARNING при exit 0); контроль: старый стиль 17 файлов, новый 45.
+Контракт `validate-config`: чистый exit 0, deprecated-правило exit 1,
+несуществующий skip-путь НЕ ловится.
+Срез D: 45 >> порога 5 → 4 точечных skip'а с причинами
+(promotion-24, sort-args-20, RemoveDefaultValue — снял дефолты с
+`User::$isActive`, `Collection::$image`/`$description`, откачено); остаток применён, цикл закрыт. Гейт подключён.

@@ -83,7 +83,7 @@ final class LoginController extends AbstractApiController
             $dto = $this->deserializeAndValidate($request->getContent(), LoginUserDTO::class, $serializer, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
-        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+        } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         }
 

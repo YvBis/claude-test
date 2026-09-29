@@ -8,7 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Embeddable]
-final readonly class TagName
+final readonly class TagName implements \Stringable
 {
     /**
      * Tag names are stored with the casing first entered (case is preserved).

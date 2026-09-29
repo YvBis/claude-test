@@ -81,7 +81,7 @@ final class CommentController extends AbstractApiController
         try {
             $content = $this->parseContent($request);
             $comment = $commentService->create($user, $item, $content);
-        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+        } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         } catch (\InvalidArgumentException $invalidArgumentException) {
             return $this->unprocessable('Invalid content', [$invalidArgumentException->getMessage()]);
@@ -232,7 +232,7 @@ final class CommentController extends AbstractApiController
 
         try {
             $commentService->changeContent($comment, $this->parseContent($request));
-        } catch (NotEncodableValueException|NotNormalizableValueException $exception) {
+        } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         } catch (\InvalidArgumentException $invalidArgumentException) {
             return $this->unprocessable('Invalid content', [$invalidArgumentException->getMessage()]);

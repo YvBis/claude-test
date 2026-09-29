@@ -141,7 +141,7 @@ final readonly class LikeService
     public function toDTOList(array $likes): array
     {
         return \array_map(
-            fn (Like $like): LikeDTO => $this->toDTO($like),
+            $this->toDTO(...),
             $likes,
         );
     }
