@@ -76,9 +76,14 @@ final class TagServiceTest extends TestCase
         $beta = Tag::create(TagName::fromString('Beta'));
         $alpha = Tag::create(TagName::fromString('Alpha'));
 
+        $calls = 0;
         $this->repo->expects($this->exactly(2))
             ->method('getOrCreate')
-            ->willReturnOnConsecutiveCalls($beta, $alpha);
+            ->willReturnCallback(static function () use (&$calls, $beta, $alpha) {
+                ++$calls;
+
+                return 1 === $calls ? $beta : $alpha;
+            });
 
         $this->assertSame([$beta, $alpha], $this->service->resolveByNames(['Beta', 'Alpha']));
     }

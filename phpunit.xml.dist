@@ -9,6 +9,7 @@
          beStrictAboutOutputDuringTests="true"
          failOnRisky="true"
          failOnWarning="true"
+         failOnDeprecation="true"
          processIsolation="false"
          cacheResult="true"
          cacheDirectory=".phpunit.cache"

@@ -202,19 +202,19 @@ jobs:
       # merged the two steps and moved --display-deprecations into the `phpunit`
       # composer script this step runs.
       #
-      # Deprecations are surfaced, not enforced. The bridge env var is useless
+      # Deprecations are enforced, not just surfaced. The bridge env var is useless
       # here: phpunit.xml.dist keeps SYMFONY_DEPRECATIONS_HELPER=disabled=1 and
       # symfony/phpunit-bridge never registers its handler under PHPUnit 11 (its
       # bootstrap early-returns as soon as PHPUnit\Metadata\Metadata exists), so
       # a `weak` run would silently prove nothing. PHPUnit 11 reports
       # E_USER_DEPRECATED natively - proven with a transient trigger_error probe:
-      # --display-deprecations prints test + line, --fail-on-deprecation exits 1.
-      # Task 5.25 turns this into a hard gate once the baseline is clean.
+      # --display-deprecations prints test + line, and since 5.25 PR-1
+      # failOnDeprecation="true" in phpunit.xml.dist fails the run.
       #
       # pipefail keeps PHPUnit's exit code authoritative through the tee, and the
       # status is captured so the summary is still written when the gate fails:
       # a real test failure must fail the job, because this step is the gate.
-      # Only the deprecation line warns. Note: @trigger_error() suppresses the
+      # The deprecation line is blocking too. Note: @trigger_error() suppresses the
       # notice, so PHPUnit cannot see deprecations raised that way - do not use
       # the suppression operator.
       - name: Run PHPUnit with coverage enforcement and deprecation reporting
@@ -224,7 +224,7 @@ jobs:
           status=0
           composer coverage:gate 2>&1 | tee var/phpunit-ci.log || status=$?
           if grep -qE 'triggered [0-9]+ deprecation' var/phpunit-ci.log; then
-            echo "::warning::PHPUnit reported deprecations - see the job log. The baseline must stay clean before task 5.25 turns this into a hard gate."
+            echo "::warning::PHPUnit reported deprecations - see the job log. Since 5.25 PR-1 the run already fails on them (failOnDeprecation); this warning only marks the log."
           fi
           cat var/phpunit-ci.log >> "$GITHUB_STEP_SUMMARY" || true
           exit "$status"

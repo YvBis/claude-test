@@ -8,13 +8,14 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Guards deprecation reporting in the CI pipeline (tasks 5.24 and 5.30).
+ * Guards deprecation reporting in the CI pipeline (tasks 5.24, 5.25 and 5.30).
  *
  * The project runs the suite with `SYMFONY_DEPRECATIONS_HELPER=disabled=1`, and
  * the symfony/phpunit-bridge handler never registers under PHPUnit 11 (its
  * bootstrap early-returns as soon as `PHPUnit\Metadata\Metadata` exists), so the
- * bridge env var is inert here. PHPUnit 11's own `--display-deprecations` flag is
- * what surfaces new deprecations before the major sweep.
+ * bridge env var is inert here. Since 5.25 PR-1, PHPUnit 11's own
+ * `failOnDeprecation="true"` (phpunit.xml.dist) is what fails the run on a new
+ * deprecation, and `--display-deprecations` (composer `phpunit` script) prints it.
  *
  * Task 5.30 merged the former second, non-blocking PHPUnit pass into the coverage
  * gate. The suite costs about the same with and without coverage collection
@@ -63,6 +64,11 @@ final class DeprecationConfigTest extends TestCase
             'The flag belongs in the `phpunit` composer script that coverage:gate runs. Passing it as `composer coverage:gate -- --display-deprecations` does not work either: composer appends extra arguments to EVERY command of a script array (measured: `composer probe -- EXTRA` ran `echo FIRST EXTRA` and `echo SECOND EXTRA`), so the gate script would receive the flag as well.',
         );
         self::assertStringContainsString(
+            'failOnDeprecation="true"',
+            (string) \file_get_contents($this->projectRoot().'/phpunit.xml.dist'),
+            'Since 5.25 PR-1 deprecations fail the run, not just print: the XML attribute covers every invocation (CI coverage:gate, local ci:all, direct vendor/bin/phpunit), while a script-only flag would leave local runs blind.',
+        );
+        self::assertStringContainsString(
             'triggered [0-9]+ deprecation',
             $run,
             'The deprecation line must still be detected and turned into an annotation.',
@@ -75,7 +81,7 @@ final class DeprecationConfigTest extends TestCase
         self::assertArrayNotHasKey(
             'continue-on-error',
             $step,
-            'The merged step is the coverage gate: a real test failure must fail the job. Only the deprecation line is advisory.',
+            'The merged step is the coverage gate: a real test failure must fail the job. Since 5.25 PR-1 the deprecation line is blocking too (failOnDeprecation in phpunit.xml.dist), not advisory.',
         );
         self::assertStringNotContainsString(
             'SYMFONY_DEPRECATIONS_HELPER',
@@ -170,7 +176,7 @@ final class DeprecationConfigTest extends TestCase
         self::assertMatchesRegularExpression(
             '/<server name="SYMFONY_DEPRECATIONS_HELPER" value="disabled=1"\s*\/>/',
             $config,
-            'The main suite keeps deprecations disabled on purpose; the CI step is where they are surfaced.',
+            'The bridge env var stays as-is (inert on PHPUnit 11, proven in 5.24); the real gate is the native failOnDeprecation attribute, not this variable. Its removal is a separate decision.',
         );
     }
 
