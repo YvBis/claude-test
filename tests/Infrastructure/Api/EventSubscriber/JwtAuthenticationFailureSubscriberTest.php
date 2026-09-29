@@ -9,10 +9,14 @@ use Lexik\Bundle\JWTAuthenticationBundle\Event\JWTExpiredEvent;
 use Lexik\Bundle\JWTAuthenticationBundle\Event\JWTInvalidEvent;
 use Lexik\Bundle\JWTAuthenticationBundle\Event\JWTNotFoundEvent;
 use Lexik\Bundle\JWTAuthenticationBundle\Events;
+use Lexik\Bundle\JWTAuthenticationBundle\Exception\ExpiredTokenException;
+use Lexik\Bundle\JWTAuthenticationBundle\Exception\InvalidTokenException;
+use Lexik\Bundle\JWTAuthenticationBundle\Exception\MissingTokenException;
 use Lexik\Bundle\JWTAuthenticationBundle\Response\JWTAuthenticationFailureResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Security\Core\Exception\AuthenticationException;
 
 /**
  * Pins the unified 401 envelope: every Lexik JWT failure (missing, invalid,
@@ -46,9 +50,11 @@ final class JwtAuthenticationFailureSubscriberTest extends TestCase
      * @param class-string $eventClass
      */
     #[DataProvider('jwtFailureProvider')]
-    public function testJwtFailureBecomesUnauthorizedEnvelope(string $eventClass, string $lexikMessage): void
+    public function testJwtFailureBecomesUnauthorizedEnvelope(string $eventClass, AuthenticationException $exception, string $lexikMessage): void
     {
-        $event = new $eventClass(null, new JWTAuthenticationFailureResponse($lexikMessage));
+        // Lexik 3 types AuthenticationFailureEvent::$exception non-nullable,
+        // so the event carries a real exception like in production.
+        $event = new $eventClass($exception, new JWTAuthenticationFailureResponse($lexikMessage));
 
         $this->subscriber->onAuthenticationFailure($event);
 
@@ -62,12 +68,12 @@ final class JwtAuthenticationFailureSubscriberTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{0: class-string, 1: string}>
+     * @return iterable<string, array{0: class-string, 1: AuthenticationException, 2: string}>
      */
     public static function jwtFailureProvider(): iterable
     {
-        yield 'missing token' => [JWTNotFoundEvent::class, 'JWT Token not found'];
-        yield 'invalid token' => [JWTInvalidEvent::class, 'Invalid JWT Token'];
-        yield 'expired token' => [JWTExpiredEvent::class, 'Expired JWT Token'];
+        yield 'missing token' => [JWTNotFoundEvent::class, new MissingTokenException('JWT Token not found'), 'JWT Token not found'];
+        yield 'invalid token' => [JWTInvalidEvent::class, new InvalidTokenException('Invalid JWT Token'), 'Invalid JWT Token'];
+        yield 'expired token' => [JWTExpiredEvent::class, new ExpiredTokenException(), 'Expired JWT Token'];
     }
 }

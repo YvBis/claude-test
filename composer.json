@@ -11,7 +11,7 @@
         "doctrine/doctrine-bundle": "^2.12",
         "doctrine/doctrine-migrations-bundle": "^3.2",
         "doctrine/orm": "^3.7",
-        "lexik/jwt-authentication-bundle": "^2.20",
+        "lexik/jwt-authentication-bundle": "^3.2",
         "ramsey/uuid": "^4.7",
         "symfony/asset": "7.*",
         "symfony/clock": "7.*",
@@ -34,7 +34,7 @@
     "require-dev": {
         "dama/doctrine-test-bundle": "^8.2",
         "friendsofphp/php-cs-fixer": "^3.55",
-        "lcobucci/jwt": "*",
+        "lcobucci/jwt": "^5.0",
         "nelmio/api-doc-bundle": "^4.30",
         "phpstan/phpstan": "2.2.16",
         "phpstan/phpstan-deprecation-rules": "2.0.5",
