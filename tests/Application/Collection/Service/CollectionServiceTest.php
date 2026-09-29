@@ -16,8 +16,10 @@ use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\User\Entity\User;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 
+#[AllowMockObjectsWithoutExpectations]
 final class CollectionServiceTest extends TestCase
 {
     private CollectionRepositoryInterface $collectionRepository;

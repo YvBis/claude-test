@@ -16,8 +16,10 @@ use App\Domain\User\ValueObject\PasswordHash;
 use App\Domain\User\ValueObject\Role;
 use App\Domain\User\ValueObject\UserId;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 
+#[AllowMockObjectsWithoutExpectations]
 final class AuthenticationServiceTest extends TestCase
 {
     private UserRepositoryInterface $userRepository;

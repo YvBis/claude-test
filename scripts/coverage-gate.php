@@ -6,9 +6,12 @@ declare(strict_types=1);
  * Coverage gate: fails with exit code 1 when line coverage is below the minimum.
  *
  * Reads var/coverage/clover.xml (written by phpunit --coverage-clover) and parses
- * the project-level metrics. Expected clover schema (stable across php-code-coverage):
+ * the project-level metrics. Expected clover schema:
  *
  *     <coverage><project><metrics statements="356" coveredstatements="353" .../></project></coverage>
+ *
+ * The <project>/<metrics> shape may shift across php-code-coverage majors,
+ * so absence is a gate failure with a clear message — never a PHP warning.
  *
  * COVERAGE_MIN is read from the environment and defaults to 80.
  */
@@ -25,7 +28,13 @@ if (false === $xml) {
     exit(1);
 }
 
-$metrics = $xml->project->metrics;
+$project = $xml->project ?? null;
+$metrics = $project?->metrics ?? null;
+if (null === $metrics || !isset($metrics['statements'], $metrics['coveredstatements'])) {
+    \fwrite(STDERR, "coverage-gate: no project metrics in $file (expected <coverage><project><metrics …/>).\n");
+    exit(1);
+}
+
 $statements = (int) $metrics['statements'];
 $covered = (int) $metrics['coveredstatements'];
 

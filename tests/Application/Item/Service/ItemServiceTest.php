@@ -25,8 +25,10 @@ use App\Domain\Tag\ValueObject\TagName;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 
+#[AllowMockObjectsWithoutExpectations]
 final class ItemServiceTest extends TestCase
 {
     private ItemRepositoryInterface $itemRepo;

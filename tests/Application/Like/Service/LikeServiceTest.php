@@ -17,9 +17,11 @@ use App\Domain\Like\ValueObject\LikeId;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
+#[AllowMockObjectsWithoutExpectations]
 final class LikeServiceTest extends TestCase
 {
     private LikeRepositoryInterface&MockObject $likeRepository;
