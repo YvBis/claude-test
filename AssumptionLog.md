@@ -2331,3 +2331,23 @@ Null-гард `coverage-gate.php:28` доказан двусторонне (не
 `#[AllowMockObjectsWithoutExpectations]` (действует только на моки без
 ожиданий). Итог: `OK (766/2684)`, ноль notices; coverage-прогон 97.84%,
 гейт держит.
+
+## 2026-09-29 — 5.34: lexik 2.21.0 → 3.2.0 (PRD/5.34-lexik-bump.md)
+
+Пин `^3.2` (диапазон — конвенция `require`; senior отклонил точный пин),
+`lcobucci/jwt: "*" → "^5.0"` в require-dev (прямая связь с бампом).
+Lock: lexik 3.2.0, `namshi/jose` удалён, `lcobucci/clock` удалён,
+транзитивных мажоров нет (H5 сошлась).
+Срез A: 5 errors + 14 failures. Два корня: (1) stale-контейнер lexik 2
+(6 аргументов с `'openssl'` против 5 в v3) — лечится `cache:clear`
+до первого прогона, иначе чинишь призраков; (2) настоящие 3 errors —
+`AuthenticationFailureEvent::$exception` типизировано non-nullable в v3,
+тест строил событие с `null`.
+Срез B: провайдер отдаёт реальные исключения (`MissingTokenException` /
+`InvalidTokenException` / `ExpiredTokenException`) как продакшен.
+Конверт 401 неизменен: статус + 3 текста + заголовок `Bearer`.
+Слепое пятно зафиксировано, не закрыто: путь «валидный токен +
+удалённый/деактивированный пользователь» — ни одного теста → `fwd-31`
+(обе части: `isActive()` в `refreshUser` + тест удалённого).
+Бюджет срезов соблюдён (A ≤1ч, B ≤0.5ч чистой работы; wall-clock
+с ожиданием CI отдельно не замерялся).
