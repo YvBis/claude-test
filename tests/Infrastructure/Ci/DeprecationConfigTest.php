@@ -8,7 +8,13 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Yaml\Yaml;
 
 /**
- * Guards deprecation reporting in the CI pipeline (tasks 5.24, 5.25 and 5.30).
+ * Guards deprecation reporting in the CI pipeline (tasks 5.24, 5.25, 5.30, fwd-29 and fwd-30).
+ *
+ * The class has outgrown its name: besides deprecation wiring it also pins the
+ * PHPUnit issue policy in phpunit.xml.dist (fwd-29 removed the inert bridge env
+ * var, fwd-30 pinned failOnPhpunitNotice). A rename to something like
+ * `PhpunitConfigPolicyTest` is the right shape but belongs in its own `refactor:`
+ * PR — renames break blame and triple a 0.25h task.
  *
  * The project used to run the suite with `SYMFONY_DEPRECATIONS_HELPER=disabled=1`
  * in phpunit.xml.dist. Task fwd-29 removed it: the symfony/phpunit-bridge handler
@@ -183,6 +189,20 @@ final class DeprecationConfigTest extends TestCase
                 ),
             );
         }
+    }
+
+    public function testPhpunitConfigFailsOnPhpunitNotices(): void
+    {
+        $config = (string) \file_get_contents($this->projectRoot().'/phpunit.xml.dist');
+
+        // The full attribute name, not a substring: 'failOnNotice="true"' is NOT
+        // contained in 'failOnPhpunitNotice="true"', and failOnNotice is a
+        // different family (application E_USER_NOTICE), which fwd-30 excludes.
+        self::assertStringContainsString(
+            'failOnPhpunitNotice="true"',
+            $config,
+            'Task fwd-30 pinned this attribute for a reason: 5.25 PR-4 silenced 57 PHPUnit notices (mocks without ->expects()) with eight class-level #[AllowMockObjectsWithoutExpectations]. Its XSD default is false, so without the pin, deleting one of those attributes would silently bring the N-markers back and the suite would stay green. Measured proof: removing any one of the eight attributes turns that class run red with a non-zero exit and a "PHPUnit notices" summary.',
+        );
     }
 
     /**

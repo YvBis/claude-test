@@ -10,6 +10,7 @@
          failOnRisky="true"
          failOnWarning="true"
          failOnDeprecation="true"
+         failOnPhpunitNotice="true"
          processIsolation="false"
          cacheResult="true"
          cacheDirectory=".phpunit.cache"
