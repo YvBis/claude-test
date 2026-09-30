@@ -203,10 +203,10 @@ jobs:
       # composer script this step runs.
       #
       # Deprecations are enforced, not just surfaced. The bridge env var is useless
-      # here: phpunit.xml.dist keeps SYMFONY_DEPRECATIONS_HELPER=disabled=1 and
-      # symfony/phpunit-bridge never registers its handler under PHPUnit 11 (its
-      # bootstrap early-returns as soon as PHPUnit\Metadata\Metadata exists), so
-      # a `weak` run would silently prove nothing. PHPUnit 11 reports
+      # here: it was removed from phpunit.xml.dist in fwd-29, and
+      # symfony/phpunit-bridge never registers its handler on PHPUnit >= 10 (its
+      # bootstrap returns as soon as PHPUnit\Metadata\Metadata exists), so
+      # a `weak` run would silently prove nothing. PHPUnit reports
       # E_USER_DEPRECATED natively - proven with a transient trigger_error probe:
       # --display-deprecations prints test + line, and since 5.25 PR-1
       # failOnDeprecation="true" in phpunit.xml.dist fails the run.

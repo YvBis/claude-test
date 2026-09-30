@@ -10,12 +10,14 @@ use Symfony\Component\Yaml\Yaml;
 /**
  * Guards deprecation reporting in the CI pipeline (tasks 5.24, 5.25 and 5.30).
  *
- * The project runs the suite with `SYMFONY_DEPRECATIONS_HELPER=disabled=1`, and
- * the symfony/phpunit-bridge handler never registers under PHPUnit 11 (its
- * bootstrap early-returns as soon as `PHPUnit\Metadata\Metadata` exists), so the
- * bridge env var is inert here. Since 5.25 PR-1, PHPUnit 11's own
- * `failOnDeprecation="true"` (phpunit.xml.dist) is what fails the run on a new
- * deprecation, and `--display-deprecations` (composer `phpunit` script) prints it.
+ * The project used to run the suite with `SYMFONY_DEPRECATIONS_HELPER=disabled=1`
+ * in phpunit.xml.dist. Task fwd-29 removed it: the symfony/phpunit-bridge handler
+ * never registers on PHPUnit >= 10 (its bootstrap returns as soon as
+ * `PHPUnit\Metadata\Metadata` exists, which is every version since 10, this
+ * project on 12), and the bootstrap is loaded but returns before reading the
+ * variable at all. PHPUnit's own `failOnDeprecation="true"` (phpunit.xml.dist) is
+ * what fails the run on a new deprecation, and `--display-deprecations` (composer
+ * `phpunit` script) prints it.
  *
  * Task 5.30 merged the former second, non-blocking PHPUnit pass into the coverage
  * gate. The suite costs about the same with and without coverage collection
@@ -86,7 +88,7 @@ final class DeprecationConfigTest extends TestCase
         self::assertStringNotContainsString(
             'SYMFONY_DEPRECATIONS_HELPER',
             $run,
-            'The bridge env var does nothing on PHPUnit 11; relying on it would silently turn this step into a no-op.',
+            'The bridge env var has no reader: on PHPUnit >= 10 its handler never registers, and it was removed from phpunit.xml.dist in fwd-29. Relying on it would silently turn this step into a no-op.',
         );
 
         $env = $step['env'] ?? null;
@@ -122,7 +124,7 @@ final class DeprecationConfigTest extends TestCase
             self::assertStringNotContainsString(
                 'SYMFONY_DEPRECATIONS_HELPER',
                 (string) ($step['run'] ?? ''),
-                'No executed command may rely on SYMFONY_DEPRECATIONS_HELPER: on PHPUnit 11 it does nothing.',
+                'No executed command may rely on SYMFONY_DEPRECATIONS_HELPER: it has no reader on PHPUnit >= 10, and the variable itself is gone from phpunit.xml.dist since fwd-29.',
             );
 
             $env = $step['env'] ?? [];
@@ -130,7 +132,7 @@ final class DeprecationConfigTest extends TestCase
                 self::assertArrayNotHasKey(
                     'SYMFONY_DEPRECATIONS_HELPER',
                     $env,
-                    'Declaring the bridge env var in a step env: is inert on PHPUnit 11 and only adds noise.',
+                    'Declaring the bridge env var in a step env: is inert on PHPUnit >= 10 and only adds noise.',
                 );
             }
         }
@@ -169,15 +171,42 @@ final class DeprecationConfigTest extends TestCase
         );
     }
 
-    public function testPhpunitConfigKeepsDeprecationsDisabledForTheMainRun(): void
+    public function testPhpunitConfigDoesNotCarryTheInertBridgeEnvVar(): void
     {
-        $config = (string) \file_get_contents($this->projectRoot().'/phpunit.xml.dist');
+        foreach ($this->envAndConfigFiles() as $file) {
+            self::assertStringNotContainsString(
+                'SYMFONY_DEPRECATIONS_HELPER',
+                (string) \file_get_contents($file),
+                \sprintf(
+                    'The bridge env var was removed in task fwd-29: it has no reader. symfony/phpunit-bridge reaches the read in bootstrap.php only after the return at :16-18, which fires on every PHPUnit >= 10 — including the 12 this project runs. The real gate is the native failOnDeprecation attribute. Re-adding the line would add a no-op that reads like a policy. Found in %s.',
+                    $file,
+                ),
+            );
+        }
+    }
 
-        self::assertMatchesRegularExpression(
-            '/<server name="SYMFONY_DEPRECATIONS_HELPER" value="disabled=1"\s*\/>/',
-            $config,
-            'The bridge env var stays as-is (inert on PHPUnit 11, proven in 5.24); the real gate is the native failOnDeprecation attribute, not this variable. Its removal is a separate decision.',
-        );
+    /**
+     * Every file that could plausibly re-declare the variable. A non-existent
+     * file is skipped rather than failed: `.env` is gitignored, so a checkout
+     * without it must not turn this guard red for a reason unrelated to its job.
+     *
+     * @return list<string>
+     */
+    private function envAndConfigFiles(): array
+    {
+        $root = $this->projectRoot();
+        $files = [
+            $root.'/phpunit.xml.dist',
+            $root.'/.env',
+            $root.'/.env.test',
+            $root.'/.env.example',
+            $root.'/.env.dev',
+            $root.'/docker-compose.yml',
+            $root.'/tests/bootstrap.php',
+            $root.'/composer.json',
+        ];
+
+        return \array_values(\array_filter($files, \is_file(...)));
     }
 
     private function phpunitScript(): string
