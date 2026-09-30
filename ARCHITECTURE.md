@@ -162,6 +162,32 @@ Item 1 ──── * Comment
 - `CommentRequestDTO` — content (Application/Comment/DTO; тонкий, валидация в `CommentContent` → 422) 
 - `ItemDetailDTO` — `ItemDTO::toArray()` + likes_count, comments_count, liked_by_me (только `GET /api/items/{id}`)
 
+## Авторизация
+
+Авторизация в проекте **не централизована**, и это важно понимать перед чтением
+любой строки про «права». Механизмов три, и стратегия из третьего относится
+только к одному из них.
+
+| Механизм | Где живёт | Что покрывает |
+|----------|-----------|---------------|
+| Voter через `AccessDecisionManager` | `SocialContentVoter` | `SOCIAL_EDIT` / `SOCIAL_DELETE` для `Comment` и `Like`; плюс всё, что проходит через `access_control` и `#[IsGranted]` |
+| Инлайновый булев предикат | `AbstractApiController::canManage` / `denyUnlessCanManage` | owner-or-admin для айтемов |
+| Инлайновая проверка в контроллере | `CollectionController::delete` | **owner-only** (без админа) — тихая асимметрия с `canManage`, отдельный вопрос |
+
+**Стратегия `access_decision_manager` — `unanimous`, задана явно (fwd-15).**
+Без явной строки бандл молча берёт `AffirmativeStrategy`
+(`AccessDecisionManager.php:49`), а при affirmative первый же GRANT другого
+вотера перебивает DENY — то есть будущий вотер молча открыл бы редактирование
+лайка. `unanimous` возвращает `false` на первом DENY
+(`UnanimousStrategy.php:37`), поэтому такой DENY переживает чужой GRANT.
+Отвергнутый abstain при этом **не** блокирует (блокирует только DENY), так
+что вотер для другого домена может спокойно abstain'ить на социальных
+атрибутах. `allow_if_all_abstain` намеренно не задан: дефолт `false` означает,
+что «все воздержались» = «запрещено».
+
+Стратегия **не** покрывает два инлайновых пути — они не доходят до ADM и
+остаются отдельным решением (трек `fwd-14`).
+
 ## Infrastructure
 
 | Компонент | Путь | Описание |
