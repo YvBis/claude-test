@@ -52,6 +52,5 @@
         <env name="KERNEL_CLASS" value="App\Kernel"/>
         <env name="DEFAULT_URI" value="http://localhost"/>
         <env name="JWT_PASSPHRASE" value="test_passphrase"/>
-        <server name="SYMFONY_DEPRECATIONS_HELPER" value="disabled=1" />
     </php>
 </phpunit>
