@@ -30,7 +30,11 @@ final readonly class UserProvider implements UserProviderInterface
         $email = Email::fromString($identifier);
         $user = $this->userRepository->findByEmail($email);
 
-        if (!$user instanceof User) {
+        // A blocked account is indistinguishable from a missing one for the
+        // caller: the `api` firewall is stateless, so this method runs on every
+        // request and is what actually kills a bearer on the next request after
+        // the deactivation is flushed (fwd-31).
+        if (!$user instanceof User || !$user->isActive()) {
             throw new UserNotFoundException('User not found');
         }
 
@@ -46,7 +50,7 @@ final readonly class UserProvider implements UserProviderInterface
 
         $refreshedUser = $this->userRepository->findByEmail($user->getEmail());
 
-        if (!$refreshedUser instanceof User) {
+        if (!$refreshedUser instanceof User || !$refreshedUser->isActive()) {
             throw new UserNotFoundException('User not found');
         }
 
