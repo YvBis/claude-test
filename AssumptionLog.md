@@ -2604,3 +2604,87 @@ bridge, «удалена в fwd-29» как язык события в архи�
 сознательно оставлено: привязка к номерам строк vendor'а в тексте
 ассерта (сама ассерта строковая и переживёт иное расположение строк), и
 `CLAUDE.md:366` вне скоупа.
+
+## fwd-30 — запинен `failOnPhpunitNotice="true"`
+
+**Среда чинилась до работы (п.3 workflow).** На старте Docker daemon был
+мёртв (`docker compose ps` падал на отсутствующем `npipe` Docker Desktop).
+Поднят Docker Desktop, `compose up -d`, все пять сервисов `running`,
+`ci:all` зелёный. Зафиксировано, потому что причина неочевидна: симптом
+выглядит как «проект сломан», а проект цел.
+
+**План сначала был не про ту задачу (senior-review, high).** Он строился из
+формулировки «блокировать suite на новых PHPUnit-нотисах, `failOnDeprecation`
+не покрывал нотисы, warning из PR #66» — **ни одной из них нет в
+репозитории**; `PR #66` это задача 5.6 (`PRD/5.10-social-voter.md:98`).
+Канон — `Roadmap.md:93`: запинить `failOnPhpunitNotice="true"`, вектор —
+57 PHPUnit Notices из 5.25 PR-4 (моки без `->expects()`), подавленные
+восемью классовыми `#[AllowMockObjectsWithoutExpectations]`; `failOnNotice`
+(пользовательские `E_USER_NOTICE`) — **прямо исключён** строкой. План
+переписан с нуля от строки, а не дополнен.
+
+**Что отвергнуто и почему (senior-review).**
+- `failOnNotice="true"` — строкой запрещено: это политика про
+  `E_USER_NOTICE` из `src/`, способная покрасить сьют на коде, не
+  относящемся к задаче.
+- Display-флаги в composer-скрипт — no-op: выставленный
+  `failOnPhpunitNotice` сам включает показ деталей (`Merger.php:916`).
+- Advisory-греп для нотисов в `ci.yml` — не добавлен, потому что **второй
+  `grep -qE '<pattern>'` роняет блокирующий шаг зонда 5.31**:
+  `scripts/deprecation-format-probe.sh:21-24` требует ровно один и падает
+  при `COUNT=2`. Дублировал бы и блокирующий атрибут.
+- «deprecation-adjacent» вектор снят как несуществующий:
+  `failOnDeprecation` покрывает `deprecations` + `phpDeprecations`
+  (`ShellExitCodeCalculator.php:142`), собственные депрекейшены PHPUnit —
+  другое семейство (`:146`), они никогда не были тем же переключателем.
+
+**Доказательство — зонт по настоящему вектору.** Снят
+`#[AllowMockObjectsWithoutExpectations]` с
+`tests/Infrastructure/Common/Transaction/DoctrineUnitOfWorkTest.php`:
+прогон класса красный, **exit=1**, вывод `2 tests triggered 2 PHPUnit
+notices: / OK, but there were issues!`. Атрибут возвращён — прогон снова
+`OK (3 tests, 7 assertions)`, **exit=0**, файл восстановлен байт-в-байт
+(`cmp`). Прежний вариант зонта (`trigger_error(E_USER_NOTICE)`) проверял
+бы `failOnNotice`, то есть не тот флаг; выброшен. Зонт транзиентный, в
+коммит не вошёл.
+
+**Ассерт.** `testPhpunitConfigFailsOnPhpunitNotices` проверяет **полное**
+имя атрибута `failOnPhpunitNotice="true"`: короткое имя
+`failOnNotice="true"` не является его подстрокой, поэтому проверка по
+короткому имени молча охраняла бы не тот ключ. Форма строковая — как у
+уже существующего ассерта на `failOnDeprecation` в этом же классе;
+парсинг XML через `SimpleXML` senior считает опциональным, и согласие
+выбрано в пользу единообразия с соседним гардом (архитектор и senior
+не настаивали).
+
+**Ложный ноль при поиске атрибутов (повтор класса ошибки).**
+`Select-String -Path tests\ -Include *.php` вернул **ноль** совпадений по
+восьми `#[AllowMockObjectsWithoutExpectations]`, которые на месте; Grep-инструмент
+нашёл все 16 вхождений сразу. Это тот же дефект, что раньше ронял решения
+в этом проекте (нерекурсивный `Select-String`). Вывод: каталоги искать
+только Grep-инструментом, `Select-String` — по конкретным файлам.
+
+**Три ревьюера (шаг 6.1).** senior — **APPROVE** (3 low: строковый ассерт
+вместо парсинга, отсутствие `failOnPhpunitWarning` в наблюдениях, нет
+записи в логе; также отмечено отсутствие baseline как приемлемое),
+architect — SHIP-WITH-NITS (переименование класса в отдельный `refactor:`
+PR, честность докблока, хрупкий счётчик «2 tests» в тексте ассерта —
+закрыт), tech-lead — MERGE-WITH-FIXES (запись о починке среды, флип
+Roadmap, упоминание гарда в коммите). Закрыто: сообщение ассерта
+переформулировано без счётчика, докблок дополнен, в наблюдения добавлен
+`failOnPhpunitWarning`.
+
+**Наблюдения, оставленные владельцу.**
+- `failOnPhpunitDeprecation` — симметричный пробел (собственные
+  депрекейшены PHPUnit, дефолт `false`, `failOnDeprecation` не покрывает).
+- `failOnPhpunitWarning` — на него опирается политика, но он не запинен:
+  дефолт `true` (`phpunit.xsd:187`), и смена дефолта молча сняла бы гейт.
+- `DeprecationConfigTest` перерос имя (депрекейшены + bridge-env + пин
+  нотисов): переименование в `PhpunitConfigPolicyTest` — отдельный
+  `refactor:` PR, ломать blame ради задачи на 0.25ч нельзя.
+- `/phpunit.xml` в `.gitignore` перекрывает `.dist` для локальных
+  прогонов, а гард читает только `.dist` — предсуществующее поведение,
+  общее с гардом на `failOnDeprecation`; не вносилось этим PR.
+
+**Проверки.** `composer ci:all` — 773 теста / 2891 ассерта, exit 0;
+`composer audit` — advisories нет; гард-класс — 6 тестов / 67 ассертов.
