@@ -8,6 +8,7 @@ use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
 use App\Domain\User\ValueObject\Role;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Clock\Clock;
 use Symfony\Component\Clock\MockClock;
@@ -250,5 +251,61 @@ final class UserTest extends TestCase
             Email::fromString('test@example.com'),
             PasswordHash::createFromPlain($password)
         );
+    }
+
+    /**
+     * @return iterable<string, array{bool, string, bool, bool, bool}>
+     */
+    public static function canManageMatrix(): iterable
+    {
+        // [actorIsAdmin, actorEmail, ownerSharesIdentity, ownerIsAdmin, expected]
+        yield 'admin manages someone else\'s resource' => [true, 'admin@example.com', false, false, true];
+        yield 'owner manages their own resource' => [false, 'owner@example.com', true, false, true];
+        yield 'admin manages their own resource' => [true, 'admin@example.com', true, false, true];
+        yield 'plain user cannot manage someone else\'s resource' => [false, 'other@example.com', false, false, false];
+        yield 'ownership holds when the roles differ' => [false, 'other@example.com', true, true, true];
+    }
+
+    #[DataProvider('canManageMatrix')]
+    public function testCanManageIsOwnerOrAdmin(
+        bool $actorIsAdmin,
+        string $actorEmail,
+        bool $ownerSharesIdentity,
+        bool $ownerIsAdmin,
+        bool $expected,
+    ): void {
+        $actor = $this->userWithEmail($actorEmail, $actorIsAdmin);
+        // A second object carrying the same id: ownership is compared by id, not
+        // by object reference — this is the shape a rehydrated owner arrives in.
+        $owner = $ownerSharesIdentity
+            ? new User(
+                id: $actor->getId()->toBytes(),
+                name: 'Same Person',
+                email: Email::fromString('owner-copy@example.com'),
+                passwordHash: PasswordHash::createFromPlain('password123'),
+                role: $ownerIsAdmin ? Role::admin() : Role::user(),
+            )
+            : $this->userWithEmail('owner@example.com', $ownerIsAdmin);
+
+        // fwd-14: the single owner-or-admin predicate, previously duplicated in
+        // AbstractApiController::canManage and SocialContentVoter::voteOnAttribute.
+        $this->assertSame($expected, $actor->isOwnerOrAdminOf($owner));
+    }
+
+    public function testCanManageIgnoresDeactivation(): void
+    {
+        // Deactivation is enforced when the bearer token is read (fwd-31), not
+        // by the ownership predicate — a deactivated admin is still an admin.
+        $actor = $this->userWithEmail('admin@example.com', true);
+        $actor->deactivate();
+
+        $this->assertTrue($actor->isOwnerOrAdminOf($this->userWithEmail('other@example.com')));
+    }
+
+    private function userWithEmail(string $email, bool $isAdmin = false): User
+    {
+        return $isAdmin
+            ? User::createAdmin('Admin', Email::fromString($email), PasswordHash::createFromPlain('password123'))
+            : User::register('Test User', Email::fromString($email), PasswordHash::createFromPlain('password123'));
     }
 }
