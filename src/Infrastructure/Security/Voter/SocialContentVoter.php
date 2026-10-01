@@ -71,14 +71,15 @@ final class SocialContentVoter extends Voter
             return false;
         }
 
-        if ($user->getRole()->isAdmin()) {
-            return true;
-        }
-
         // No defensive `instanceof` guard: `vote()` only reaches here for
         // subjects passing `supports()` (Comment|Like, enforced by the
         // `@extends Voter<string, Comment|Like>` template above), so `$subject`
         // is `Comment|Like` by construction and the call below is type-safe.
-        return $user->getId()->toString() === $subject->getOwner()->getId()->toString();
+        //
+        // The admin short-circuit lives inside `User::isOwnerOrAdminOf()`
+        // (fwd-14) and is deliberately not repeated here: a second copy of
+        // "admin implies allowed" is exactly the divergence this predicate was
+        // unified to remove.
+        return $user->isOwnerOrAdminOf($subject->getOwner());
     }
 }

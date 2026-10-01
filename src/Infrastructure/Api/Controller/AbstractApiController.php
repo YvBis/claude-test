@@ -160,10 +160,13 @@ abstract class AbstractApiController extends BaseAbstractController
      * Authorization rule for item and collection mutations: the owner of the
      * resource or an administrator may manage it. Social content moderation is
      * handled by `App\Infrastructure\Security\Voter\SocialContentVoter` instead.
+     *
+     * A delegate to `User::isOwnerOrAdminOf()` (fwd-14); kept as a method so the
+     * item call sites read as a guard rather than as a domain call.
      */
     protected function canManage(User $user, User $owner): bool
     {
-        return $user->getRole()->isAdmin() || $user->getId()->toString() === $owner->getId()->toString();
+        return $user->isOwnerOrAdminOf($owner);
     }
 
     /**
