@@ -78,10 +78,10 @@ final class CollectionControllerTest extends WebTestCase
         $this->token = $loginResponse['access_token'];
     }
 
-    private function authHeaders(): array
+    private function authHeaders(?string $token = null): array
     {
         return [
-            'HTTP_AUTHORIZATION' => 'Bearer '.$this->token,
+            'HTTP_AUTHORIZATION' => 'Bearer '.($token ?? $this->token),
             'CONTENT_TYPE' => 'application/json',
         ];
     }
@@ -646,5 +646,64 @@ final class CollectionControllerTest extends WebTestCase
         $this->client->request('DELETE', '/api/collections/not-a-uuid', [], [], $this->authHeaders());
 
         $this->assertResponseStatusCodeSame(404);
+    }
+
+    public function testDeleteForeignCollectionReturns403(): void
+    {
+        $owner = $this->registerUser();
+        $id = $this->createCollectionId($owner['token']);
+        $stranger = $this->registerUser();
+
+        $this->client->request('DELETE', '/api/collections/'.$id, [], [], $this->authHeaders($stranger['token']));
+
+        $this->assertResponseStatusCodeSame(403);
+        // The envelope must be the standard 403, so assert the body too: a future
+        // change to the guard must not leak the exception message or bypass
+        // ApiExceptionSubscriber.
+        $this->assertSame(
+            ['error' => 'Forbidden', 'message' => 'Forbidden'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR),
+        );
+    }
+
+    public function testAdminCanDeleteForeignCollection(): void
+    {
+        // Deleting a collection follows the same owner-or-admin rule as every
+        // other mutation. Before this was the case, an admin could delete every
+        // item of a foreign collection one by one but not the collection itself.
+        $foreign = $this->registerUser();
+        $id = $this->createCollectionId($foreign['token']);
+        $admin = $this->registerUser();
+        $this->promoteToAdmin($admin['id']);
+
+        $this->client->request('DELETE', '/api/collections/'.$id, [], [], $this->authHeaders($admin['token']));
+        $this->assertResponseStatusCodeSame(204);
+
+        $this->client->request('GET', '/api/collections/'.$id, [], [], $this->authHeaders());
+        $this->assertResponseStatusCodeSame(404);
+    }
+
+    private function createCollectionId(string $token): string
+    {
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders($token), \json_encode([
+            'name' => 'Disposable '.\uniqid('', true),
+            'theme' => 'books',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(201);
+
+        return \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)['id'];
+    }
+
+    private function promoteToAdmin(string $userId): void
+    {
+        $em = static::getContainer()->get('doctrine.orm.entity_manager');
+        // No EntityManager::clear() needed: the next request runs on a rebooted
+        // kernel with a fresh identity map, and this test authenticates by token
+        // rather than by re-reading the entity. Pattern copied from
+        // CommentControllerTest::promoteToAdmin.
+        $em->getConnection()->executeStatement(
+            'UPDATE users SET role = "admin" WHERE id = UNHEX(REPLACE(?, "-", ""))',
+            [\preg_replace('/-/', '', $userId)]
+        );
     }
 }

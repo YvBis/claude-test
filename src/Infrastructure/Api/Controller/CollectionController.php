@@ -345,7 +345,7 @@ final class CollectionController extends AbstractApiController
         path: '/api/collections/{id}',
         security: [['Bearer' => []]],
         summary: 'Delete a collection',
-        description: 'Deletes a collection if it belongs to the authenticated user.',
+        description: 'Deletes a collection if it belongs to the authenticated user, or if the authenticated user is an administrator.',
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -379,10 +379,7 @@ final class CollectionController extends AbstractApiController
             return $this->notFound('Collection not found');
         }
 
-        // Authorization: only owner can delete
-        if ($collection->getOwner()->getId()->toString() !== $user->getId()->toString()) {
-            throw new AccessDeniedException('Forbidden');
-        }
+        $this->denyUnlessCanManage($user, $collection->getOwner());
 
         $collectionService->delete($collection);
 

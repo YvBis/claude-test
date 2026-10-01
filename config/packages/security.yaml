@@ -10,9 +10,10 @@ security:
     # Scope: this strategy governs every decision made through the access
     # decision manager, which is wider than social moderation — `access_control`
     # rows (AccessListener:78) and #[IsGranted] (LogoutController:17) pass
-    # through it too. It does NOT govern the inline owner-or-admin checks in
-    # AbstractApiController::canManage and CollectionController::delete, which
-    # never reach the ADM (see ARCHITECTURE.md, "Authorization").
+    # through it too. It does NOT govern the owner-or-admin checks, which run
+    # outside the ADM as User::isOwnerOrAdminOf() via canManage/denyUnlessCanManage
+    # (and inline in CollectionController::update) — see ARCHITECTURE.md,
+    # "Authorization".
     access_decision_manager:
         strategy: unanimous
         # allow_if_all_abstain stays at its default (false): all voters abstained

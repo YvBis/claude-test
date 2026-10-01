@@ -169,10 +169,18 @@ Item 1 ──── * Comment
 только к одному из них.
 
 | Механизм | Где живёт | Что покрывает |
-|----------|-----------|---------------|
+|----------|-----------|------------|
 | Voter через `AccessDecisionManager` | `SocialContentVoter` | `SOCIAL_EDIT` / `SOCIAL_DELETE` для `Comment` и `Like`; плюс всё, что проходит через `access_control` и `#[IsGranted]` |
-| Инлайновый булев предикат | `AbstractApiController::canManage` / `denyUnlessCanManage` | owner-or-admin для айтемов |
-| Инлайновая проверка в контроллере | `CollectionController::delete` | **owner-only** (без админа) — тихая асимметрия с `canManage`, отдельный вопрос |
+| `canManage` / `denyUnlessCanManage` | `AbstractApiController` | owner-or-admin для айтемов **и удаления коллекции** — делегат к `User::isOwnerOrAdminOf()` (fwd-14) |
+| Инлайновая проверка в контроллере | `CollectionController::update` | **owner-only** (без админа) для `PATCH` — единственный оставшийся выход из правила, открытый вопрос `fwd-33` |
+
+**Все мутации коллекций и айтимов — owner-or-admin через один предикат**
+(`User::isOwnerOrAdminOf()`, fwd-14). Единственное исключение — `PATCH
+/api/collections/{id}`, где осталась инлайновая owner-only проверка: это
+решение владельца ещё не принято (`fwd-17`), и оно тем заметнее, что удаление
+уже owner-or-admin. Новый код не должен писать owner-сравнение инлайн — путь
+через `denyUnlessCanManage()`.
+
 
 **Стратегия `access_decision_manager` — `unanimous`, задана явно (fwd-15).**
 Без явной строки бандл молча берёт `AffirmativeStrategy`
@@ -185,8 +193,8 @@ Item 1 ──── * Comment
 атрибутах. `allow_if_all_abstain` намеренно не задан: дефолт `false` означает,
 что «все воздержались» = «запрещено».
 
-Стратегия **не** покрывает два инлайновых пути — они не доходят до ADM и
-остаются отдельным решением (трек `fwd-14`).
+Стратегия **не** покрывает инлайновую проверку в `CollectionController::update`
+— она не доходит до ADM и остаётся отдельным решением (трек `fwd-33`).
 
 ## Infrastructure
 
