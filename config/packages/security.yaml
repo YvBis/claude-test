@@ -1,4 +1,24 @@
 security:
+    # fwd-15: stated explicitly instead of relying on the bundle default
+    # (affirmative, AccessDecisionManager:49). Under affirmative a second
+    # voter granting access would silently override SocialContentVoter's DENY
+    # for editing a like. Unanimous also lets a future voter abstain freely:
+    # abstain is transparent under unanimous (only an explicit DENY blocks), so
+    # a voter for another domain may abstain on SOCIAL_* attributes without
+    # accidentally locking down the access_control routes.
+    #
+    # Scope: this strategy governs every decision made through the access
+    # decision manager, which is wider than social moderation — `access_control`
+    # rows (AccessListener:78) and #[IsGranted] (LogoutController:17) pass
+    # through it too. It does NOT govern the inline owner-or-admin checks in
+    # AbstractApiController::canManage and CollectionController::delete, which
+    # never reach the ADM (see ARCHITECTURE.md, "Authorization").
+    access_decision_manager:
+        strategy: unanimous
+        # allow_if_all_abstain stays at its default (false): all voters abstained
+        # is answered with denied. Relaxing it would hand anonymous access to
+        # any attribute nobody votes on.
+
     password_hashers:
         Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
         App\Domain\User\Entity\User:
