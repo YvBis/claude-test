@@ -178,4 +178,49 @@ final class DoctrineLikeRepositoryTest extends KernelTestCase
         $this->assertSame($secondItem->getId()->toString(), $page[0]->getItem()->getId()->toString());
         $this->assertSame($thirdItem->getId()->toString(), $page[1]->getItem()->getId()->toString());
     }
+
+    /**
+     * Locks the hydration invariant that `SocialContentVoter::voteOnAttribute`
+     * and `LikeDTO::fromEntity` both depend on: the returned like must carry a
+     * *hydrated* owner, not a lazy ghost.
+     *
+     * `$em->clear()` forces the cold path, because `UnitOfWork::createEntity`
+     * reuses an already-managed association target instead of proxying it — a
+     * join-less query would then pass only when the owner happens to be in the
+     * identity map, and fail on the next request.
+     *
+     * `isUninitializedObject()` is native-lazy-aware (`UnitOfWork.php:3303`), so
+     * this lock keeps working if `nativeLazyObjects` is ever enabled and a ghost
+     * stops throwing.
+     *
+     * Scope: this locks the `l.owner` and `l.item` joins of the shared `withAll()`
+     * helper — the two the current consumers actually read (the voter and
+     * `LikeDTO::fromEntity`). It does NOT lock `item.collection` /
+     * `collection.owner`, which no consumer reads today, and it cannot tell you
+     * that those two have become pure over-fetch while still present.
+     */
+    public function testFindByIdHydratesTheOwnerForTheVoter(): void
+    {
+        $owner = $this->createUser();
+        $item = $this->createItem($owner);
+        $like = $this->like($owner, $item);
+        $this->em->flush();
+        $likeId = $like->getId();
+        $this->em->clear();
+
+        $repo = self::getContainer()->get(LikeRepositoryInterface::class);
+        $found = $repo->findById($likeId);
+
+        $this->assertNotNull($found);
+        $unitOfWork = $this->em->getUnitOfWork();
+
+        $this->assertFalse(
+            $unitOfWork->isUninitializedObject($found->getOwner()),
+            'findById must return a hydrated owner: SocialContentVoter and LikeDTO read getOwner()',
+        );
+        $this->assertFalse(
+            $unitOfWork->isUninitializedObject($found->getItem()),
+            'findById must return a hydrated item: LikeDTO reads getItem()->getId()',
+        );
+    }
 }
