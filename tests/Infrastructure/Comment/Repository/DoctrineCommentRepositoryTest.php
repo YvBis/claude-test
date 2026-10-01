@@ -168,6 +168,50 @@ final class DoctrineCommentRepositoryTest extends KernelTestCase
         ));
     }
 
+    /**
+     * Locks the hydration invariant that `SocialContentVoter::voteOnAttribute`
+     * and `CommentDTO::fromEntity` both depend on: the returned comment must
+     * carry a *hydrated* owner, not a lazy ghost.
+     *
+     * `$em->clear()` forces the cold path, because `UnitOfWork::createEntity`
+     * reuses an already-managed association target instead of proxying it — a
+     * join-less query would then pass only when the owner happens to be in the
+     * identity map, and fail on the next request.
+     *
+     * `isUninitializedObject()` is native-lazy-aware (`UnitOfWork.php:3303`), so
+     * this lock keeps working if `nativeLazyObjects` is ever enabled and a ghost
+     * stops throwing.
+     *
+     * Scope: this locks the `c.owner` and `c.item` joins of the shared `withAll()`
+     * helper — the two the current consumers actually read (the voter and
+     * `CommentDTO::fromEntity`). It does NOT lock `item.collection` /
+     * `collection.owner`, which no consumer reads today, and it cannot tell you
+     * that those two have become pure over-fetch while still present.
+     */
+    public function testFindByIdHydratesTheOwnerForTheVoter(): void
+    {
+        $owner = $this->createUser();
+        $item = $this->createItem($owner);
+        $comment = $this->comment($owner, $item, 'to be moderated');
+        $this->em->flush();
+        $commentId = $comment->getId();
+        $this->em->clear();
+
+        $found = $this->repository()->findById($commentId);
+
+        $this->assertNotNull($found);
+        $unitOfWork = $this->em->getUnitOfWork();
+
+        $this->assertFalse(
+            $unitOfWork->isUninitializedObject($found->getOwner()),
+            'findById must return a hydrated owner: SocialContentVoter and CommentDTO read getOwner()',
+        );
+        $this->assertFalse(
+            $unitOfWork->isUninitializedObject($found->getItem()),
+            'findById must return a hydrated item: CommentDTO reads getItem()->getId()',
+        );
+    }
+
     public function testRemoveComment(): void
     {
         $owner = $this->createUser();
