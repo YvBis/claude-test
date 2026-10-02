@@ -11,6 +11,7 @@ use App\Domain\Item\Repository\ItemRepositoryInterface;
 use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\Tag\Entity\Tag;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -39,11 +40,19 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
     #[\Override]
     public function findById(ItemId $id): ?Item
     {
-        return $this->withCollectionAndOwner($this->createQueryBuilder('i'))
+        $item = $this->withCollectionAndOwner($this->createQueryBuilder('i'))
             ->where('i.id = :id')
             ->setParameter('id', $id->toBytes(), 'binary')
             ->getQuery()
             ->getOneOrNullResult();
+
+        if (null === $item) {
+            return null;
+        }
+
+        $this->initializeTags([$item]);
+
+        return $item;
     }
 
     #[\Override]
@@ -56,7 +65,7 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
             ->setParameter('collectionId', $collectionId->toBytes(), 'binary');
         $this->applyFilters($queryBuilder, $name, $tagNames);
 
-        return $queryBuilder
+        $items = $queryBuilder
             ->orderBy('i.createdAt', \SortDirection::Ascending)
             // fwd-27: id tie-breaker follows the primary direction so the
             // (collection_id, created_at, id) index serves both keys.
@@ -65,6 +74,9 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
             ->setFirstResult($offset)
             ->getQuery()
             ->getResult();
+        $this->initializeTags($items);
+
+        return $items;
     }
 
     #[\Override]
@@ -75,7 +87,7 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
             ->setParameter('ownerId', $ownerId->toBytes(), 'binary');
         $this->applyFilters($queryBuilder, $name, $tagNames);
 
-        return $queryBuilder
+        $items = $queryBuilder
             ->orderBy('i.createdAt', \SortDirection::Ascending)
             // fwd-27: same direction as the primary sort. No covering index
             // exists here (the filter joins on collection.owner), so this key
@@ -83,6 +95,48 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
             ->addOrderBy('i.id', \SortDirection::Ascending)
             ->setMaxResults($limit)
             ->setFirstResult($offset)
+            ->getQuery()
+            ->getResult();
+        $this->initializeTags($items);
+
+        return $items;
+    }
+
+    /**
+     * fwd-6: pre-initialize the tag collections of a page of items in one
+     * extra query.
+     *
+     * The batch is a second statement rather than a fetch join on the listing
+     * query, because joining a to-many collection inflates rows and breaks
+     * setMaxResults/setFirstResult. It runs against the ids of the page just
+     * fetched, so the entities come back from the identity map and Doctrine
+     * initializes their existing collections in place (ObjectHydrator's
+     * initRelatedCollection), leaving the order and contents of $items alone.
+     *
+     * LEFT JOIN, not INNER: an item without tags produces no row under INNER,
+     * would stay uninitialized and lazy-load on the next getTags() — the N+1
+     * would come back for exactly those items.
+     *
+     * The two statements are not wrapped in a transaction here, so a tag change
+     * committed between them yields a snapshot taken across both. Accepted for
+     * list reads; the same trade-off already applies to the listing query
+     * itself.
+     *
+     * @param array<Item> $items
+     */
+    private function initializeTags(array $items): void
+    {
+        if ([] === $items) {
+            return;
+        }
+
+        $ids = \array_map(static fn (Item $item): string => $item->getId()->toBytes(), $items);
+
+        $this->createQueryBuilder('i')
+            ->leftJoin('i.tags', 't')
+            ->addSelect('t')
+            ->where('i.id IN (:ids)')
+            ->setParameter('ids', $ids, ArrayParameterType::BINARY)
             ->getQuery()
             ->getResult();
     }
