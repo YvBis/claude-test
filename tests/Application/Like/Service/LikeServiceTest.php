@@ -144,6 +144,13 @@ final class LikeServiceTest extends TestCase
         $this->assertFalse($this->service->isLikedBy($this->owner, $this->item));
     }
 
+    public function testIsLikedByFalseWhenOwnerIsNull(): void
+    {
+        $this->likeRepository->expects($this->never())->method('findByOwnerAndItem');
+
+        $this->assertFalse($this->service->isLikedBy(null, $this->item));
+    }
+
     public function testFindByOwnerAndItemUsesOwnerIdFromUser(): void
     {
         $expectedOwnerId = OwnerId::fromBytes($this->owner->getId()->toBytes());
