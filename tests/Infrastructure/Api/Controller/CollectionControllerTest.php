@@ -234,18 +234,17 @@ final class CollectionControllerTest extends WebTestCase
         }
     }
 
-    public function testListWithoutTokenReturns401WithControllerEnvelope(): void
+    public function testListWithoutTokenReturns400WithControllerEnvelope(): void
     {
-        // GET /api/collections is PUBLIC_ACCESS at the firewall, so the request
-        // reaches the controller and the shared guard answers 401 with the
-        // {error, message?} envelope (protected paths are rejected earlier by
-        // the JWT entry point and answer with its own {code, message} body).
+        // fwd-7: a guest without ?owner= has no "own collections" to list, and the
+        // request is refused with 400 rather than an empty list that would be
+        // indistinguishable from "this owner has nothing".
         $this->client->request('GET', '/api/collections');
 
-        $this->assertResponseStatusCodeSame(401);
+        $this->assertResponseStatusCodeSame(400);
         $this->assertSame(
-            ['error' => 'Unauthorized'],
-            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
+            ['error' => 'Bad Request', 'message' => 'Invalid query parameters', 'details' => ['The owner parameter is required for guest access']],
+            \json_decode((string) $this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)
         );
     }
 

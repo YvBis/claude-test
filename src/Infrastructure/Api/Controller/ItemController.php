@@ -31,9 +31,9 @@ final class ItemController extends AbstractApiController
     #[Route('/api/collections/{collectionId}/items', name: 'api_item_list_by_collection', methods: ['GET'])]
     #[OA\Get(
         path: '/api/collections/{collectionId}/items',
-        security: [['Bearer' => []]],
+        security: [['Bearer' => []], []],
         summary: 'List items of a collection',
-        description: 'Returns a paginated list of items of a collection. Any authenticated user may read it. Optional filters: name (substring) and tags (AND semantics).',
+        description: 'Returns a paginated list of items of a collection. Guests may read it. Optional filters: name (substring) and tags (AND semantics).',
         parameters: [
             new OA\Parameter(name: 'collectionId', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
@@ -49,18 +49,11 @@ final class ItemController extends AbstractApiController
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Item')),
             ),
             new OA\Response(response: 400, description: 'Bad request (invalid limit/offset, or a filter that is not of the documented type, e.g. ?name[]=x or ?tags=x)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
-            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 404, description: 'Collection not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function listByCollection(string $collectionId, Request $request, CollectionService $collectionService, ItemService $itemService): JsonResponse
     {
-        $user = $this->getUser();
-
-        if (!$user instanceof User) {
-            return $this->unauthorized();
-        }
-
         try {
             $collection = $collectionService->getById($collectionId);
         } catch (CollectionNotFoundException|\InvalidArgumentException) {
@@ -133,9 +126,9 @@ final class ItemController extends AbstractApiController
     #[Route('/api/items/{id}', name: 'api_item_get', methods: ['GET'])]
     #[OA\Get(
         path: '/api/items/{id}',
-        security: [['Bearer' => []]],
+        security: [['Bearer' => []], []],
         summary: 'Get an item by ID',
-        description: 'Returns a single item. Any authenticated user may read it.',
+        description: 'Returns a single item. Guests may read it; liked_by_me is false for them.',
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
         ],
@@ -146,7 +139,6 @@ final class ItemController extends AbstractApiController
                 description: 'Item retrieved successfully',
                 content: new OA\JsonContent(ref: '#/components/schemas/ItemDetail'),
             ),
-            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 404, description: 'Item not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
@@ -156,23 +148,22 @@ final class ItemController extends AbstractApiController
         LikeService $likeService,
         CommentService $commentService,
     ): JsonResponse {
-        $user = $this->getUser();
-
-        if (!$user instanceof User) {
-            return $this->unauthorized();
-        }
-
         try {
             $item = $itemService->getById($id);
         } catch (ItemNotFoundException|\InvalidArgumentException) {
             return $this->notFound('Item not found');
         }
 
+        // fwd-7: a guest can read the item, so liked_by_me is false rather than
+        // absent — the field stays in the payload and keeps its documented type.
+        $user = $this->getUser();
+        $likedByMe = $user instanceof User && $likeService->isLikedBy($user, $item);
+
         $detail = ItemDetailDTO::fromItem(
             $item,
             $likeService->countByItem($item->getId()),
             $commentService->countByItem($item->getId()),
-            $likeService->isLikedBy($user, $item),
+            $likedByMe,
         );
 
         return new JsonResponse($detail->toArray(), Response::HTTP_OK);

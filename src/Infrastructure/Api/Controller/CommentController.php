@@ -93,9 +93,9 @@ final class CommentController extends AbstractApiController
     #[Route('/api/items/{itemId}/comments', name: 'api_comment_list_by_item', methods: ['GET'])]
     #[OA\Get(
         path: '/api/items/{itemId}/comments',
-        security: [['Bearer' => []]],
+        security: [['Bearer' => []], []],
         summary: 'List comments of an item',
-        description: 'Returns a paginated list of comments of an item, oldest first. Any authenticated user may read it.',
+        description: 'Returns a paginated list of comments of an item, oldest first. Guests may read it; comments carry the owner id and display name.',
         parameters: [
             new OA\Parameter(name: 'itemId', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
@@ -109,18 +109,11 @@ final class CommentController extends AbstractApiController
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Comment')),
             ),
             new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
-            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 404, description: 'Item not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function listByItem(string $itemId, Request $request, ItemService $itemService, CommentService $commentService): JsonResponse
     {
-        $user = $this->getUser();
-
-        if (!$user instanceof User) {
-            return $this->unauthorized();
-        }
-
         $item = $this->findItemOrNull($itemId, $itemService);
 
         if (!$item instanceof Item) {

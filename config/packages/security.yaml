@@ -48,13 +48,38 @@ security:
         - { path: ^/api/doc, roles: PUBLIC_ACCESS }
         - { path: ^/api/doc.json, roles: PUBLIC_ACCESS }
         - { path: ^/health, roles: PUBLIC_ACCESS }
-        # Anonymous GET access to collections and search per PRD (firewall level):
-        # PUBLIC_ACCESS lets the request through, but controllers that require a user
-        # answer 401 — full guest views are Roadmap task fwd-7.
-        # Item reads are owner/admin only (Task 4.5): the collection-items
-        # rule must come BEFORE the public collections rule (first match wins).
+        # Anonymous GET access to collections and search per PRD (firewall level).
+        # A controller still answers 401 on its own when it needs an identity
+        # rather than a resource — the "own" listings (items, likes, comments,
+        # tags). `liked_by_me` is NOT such a case: a guest reads the item detail
+        # and gets liked_by_me=false.
+        #
+        # Guest reads (fwd-7, PRD story 37). `access_control` matches the FIRST row whose
+        # path matches, and PathRequestMatcher anchors only the LEFT edge — the
+        # pattern has no trailing `$` of its own, which is why every row below
+        # that must bound a single segment carries an explicit `$`. Without it,
+        # `^/api/items/[^/]+` would also swallow a future `GET /api/items/{id}/X`
+        # and make it public without anyone deciding so.
+        # The rows are anchored rather than sharing one namespace row: a new
+        # sub-resource of an item then requires an explicit row to become public,
+        # instead of inheriting access from the item endpoint.
+        # HEAD is listed with GET because the router serves HEAD from the GET
+        # route while MethodRequestMatcher compares the raw method with no
+        # HEAD->GET folding — without it a HEAD probe gets 401 on a public read.
+        # Everything else under /api/items — own listings, every mutation — falls
+        # through to the catch-all at the bottom.
+        - { path: '^/api/items/[^/]+$', roles: PUBLIC_ACCESS, methods: [GET, HEAD] }
+        - { path: '^/api/items/[^/]+/likes$', roles: PUBLIC_ACCESS, methods: [GET, HEAD] }
+        - { path: '^/api/items/[^/]+/comments$', roles: PUBLIC_ACCESS, methods: [GET, HEAD] }
+        # Split into GET and the rest: a guest may read the items of a collection
+        # but not create them. First match wins, so GET/HEAD stop at the first row
+        # and every other method falls through to the authenticated one.
+        # No `$` here, unlike the /api/items rows above: this path has no
+        # sub-resources today, and adding one later means reviewing this row then,
+        # which is the moment to decide. The row below catches every non-GET.
+        - { path: '^/api/collections/[^/]+/items', roles: PUBLIC_ACCESS, methods: [GET, HEAD] }
         - { path: '^/api/collections/[^/]+/items', roles: IS_AUTHENTICATED_FULLY }
-        - { path: ^/api/collections, roles: PUBLIC_ACCESS, methods: [GET] }
+        - { path: ^/api/collections, roles: PUBLIC_ACCESS, methods: [GET, HEAD] }
         - { path: ^/api/search, roles: PUBLIC_ACCESS, methods: [GET] }
         # Authenticated endpoints
         - { path: ^/api/logout, roles: IS_AUTHENTICATED_FULLY }
