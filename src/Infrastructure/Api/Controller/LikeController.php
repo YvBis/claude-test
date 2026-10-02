@@ -102,9 +102,9 @@ final class LikeController extends AbstractApiController
     #[Route('/api/items/{itemId}/likes', name: 'api_like_list_by_item', methods: ['GET'])]
     #[OA\Get(
         path: '/api/items/{itemId}/likes',
-        security: [['Bearer' => []]],
+        security: [['Bearer' => []], []],
         summary: 'List likes of an item',
-        description: 'Returns a paginated list of likes of an item. Any authenticated user may read it.',
+        description: 'Returns a paginated list of likes of an item, newest first. Guests may read it; likes carry the owner id and display name.',
         parameters: [
             new OA\Parameter(name: 'itemId', in: 'path', required: true, schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
@@ -118,18 +118,11 @@ final class LikeController extends AbstractApiController
                 content: new OA\JsonContent(type: 'array', items: new OA\Items(ref: '#/components/schemas/Like')),
             ),
             new OA\Response(response: 400, description: 'Bad request (invalid pagination, or a non-scalar value, e.g. ?limit[]=1)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
-            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 404, description: 'Item not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
     public function listByItem(string $itemId, Request $request, ItemService $itemService, LikeService $likeService): JsonResponse
     {
-        $user = $this->getUser();
-
-        if (!$user instanceof User) {
-            return $this->unauthorized();
-        }
-
         $item = $this->findItemOrNull($itemId, $itemService);
 
         if (!$item instanceof Item) {

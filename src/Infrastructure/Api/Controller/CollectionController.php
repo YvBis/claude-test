@@ -99,9 +99,9 @@ final class CollectionController extends AbstractApiController
     #[Route('/api/collections/{id}', name: 'api_collection_get', methods: ['GET'])]
     #[OA\Get(
         path: '/api/collections/{id}',
-        security: [['Bearer' => []]],
+        security: [['Bearer' => []], []],
         summary: 'Get a collection by ID',
-        description: 'Returns a single collection. Any authenticated user may read it.',
+        description: 'Returns a single collection. Guests may read it.',
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -130,18 +130,11 @@ final class CollectionController extends AbstractApiController
                     required: ['id', 'name', 'theme', 'owner_id', 'created_at', 'updated_at']
                 )
             ),
-            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 404, description: 'Collection not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ]
     )]
     public function get(string $id, CollectionService $collectionService): JsonResponse
     {
-        $user = $this->getUser();
-
-        if (!$user instanceof User) {
-            return $this->unauthorized();
-        }
-
         try {
             $collection = $collectionService->getById($id);
         } catch (CollectionNotFoundException|\InvalidArgumentException) {
@@ -157,9 +150,9 @@ final class CollectionController extends AbstractApiController
     #[Route('/api/collections', name: 'api_collection_list', methods: ['GET'])]
     #[OA\Get(
         path: '/api/collections',
-        security: [['Bearer' => []]],
+        security: [['Bearer' => []], []],
         summary: 'List collections',
-        description: 'Returns a paginated list of collections. Without an "owner" parameter — the authenticated user\'s own collections; with "owner" — another user\'s collections.',
+        description: 'Returns a paginated list of collections. Without an "owner" parameter — the authenticated user\'s own collections; with "owner" — that user\'s collections. Guests may read with "owner"; without it they get 400.',
         parameters: [
             new OA\Parameter(
                 name: 'limit',
@@ -203,18 +196,11 @@ final class CollectionController extends AbstractApiController
                     )
                 )
             ),
-            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
-            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset/owner id, or a non-scalar value for any of them, e.g. ?owner[]=x)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 400, description: 'Bad request (invalid limit/offset/owner id, a non-scalar value for any of them e.g. ?owner[]=x, or "owner" omitted on a guest request)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ]
     )]
     public function list(Request $request, CollectionService $collectionService): JsonResponse
     {
-        $user = $this->getUser();
-
-        if (!$user instanceof User) {
-            return $this->unauthorized();
-        }
-
         try {
             [$limit, $offset] = $this->parsePagination($request);
         } catch (\InvalidArgumentException $invalidArgumentException) {
@@ -240,6 +226,15 @@ final class CollectionController extends AbstractApiController
 
             $collections = $collectionService->listByOwnerId($ownerId, $limit, $offset);
         } else {
+            // fwd-7: without ?owner= the listing means "my collections", which a
+            // guest has none of. 400 rather than an empty list — an empty list is
+            // indistinguishable from "this owner has nothing", so it would lie.
+            $user = $this->getUser();
+
+            if (!$user instanceof User) {
+                return $this->badRequest('Invalid query parameters', ['The owner parameter is required for guest access']);
+            }
+
             $ownerId = OwnerId::fromBytes($user->getId()->toBytes());
             $collections = $collectionService->listByOwnerId($ownerId, $limit, $offset);
         }

@@ -232,11 +232,13 @@ final class ItemControllerTest extends WebTestCase
         $this->assertSame('1984', $data[0]['name']);
     }
 
-    public function testListByCollectionWithoutAuthReturns401(): void
+    public function testListByCollectionWithoutAuthReturns404ForMissingCollection(): void
     {
+        // fwd-7 opened this read to guests, so it no longer answers 401: the
+        // firewall lets the request through and the lookup misses instead.
         $this->client->request('GET', '/api/collections/018f0a1b-2c3d-4e5f-6789-0123456789ab/items');
 
-        $this->assertResponseStatusCodeSame(401);
+        $this->assertResponseStatusCodeSame(404);
     }
 
     public function testListByCollectionForeignReturns200(): void
