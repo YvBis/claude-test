@@ -19,6 +19,7 @@ use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\ORM\PersistentCollection;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Clock\Clock;
 use Symfony\Component\Clock\MockClock;
@@ -95,6 +96,149 @@ final class DoctrineItemRepositoryTest extends KernelTestCase
 
         $this->assertNotNull($found);
         $this->assertTrue($found->getCollection()->getId()->equals($collectionId));
+    }
+
+    public function testFindByIdHydratesTagsCollection(): void
+    {
+        $collection = $this->createCollection($this->createUser('singletags'), 'Single Tags');
+        $item = Item::create($collection, 'Tagged One');
+        $item->addTag($this->createTag('solo'));
+        $this->em->persist($item);
+        $this->em->flush();
+        $itemId = $item->getId();
+
+        $this->em->clear();
+
+        // fwd-6: getTags() must not lazy-load per item. Item.tags is a LAZY
+        // ManyToMany, so an uninitialized collection turns every DTO mapping
+        // into its own SELECT.
+        $found = $this->repo->findById($itemId);
+
+        $this->assertNotNull($found);
+        $this->assertTrue(
+            $this->tagsAreInitialized($found),
+            'findById must leave the tags collection initialized',
+        );
+    }
+
+    public function testFindByCollectionIdHydratesTagsCollections(): void
+    {
+        $collection = $this->createCollection($this->createUser('batchtags'), 'Batch Tags');
+        $shared = $this->createTag('shared');
+        foreach (['One', 'Two', 'Three'] as $name) {
+            $item = Item::create($collection, $name);
+            $item->addTag($shared);
+            $item->addTag($this->createTag(\strtolower($name)));
+            $this->em->persist($item);
+        }
+        $untagged = Item::create($collection, 'Untagged');
+        $this->em->persist($untagged);
+        $this->em->flush();
+        $collectionId = $collection->getId();
+
+        // Without clear() the query returns the very instances the fixtures
+        // created, whose tags were populated by addTag() — the lazy path would
+        // never be exercised and this test could not tell a fix from the bug.
+        $this->em->clear();
+
+        $items = $this->repo->findByCollectionId($collectionId);
+
+        $this->assertCount(4, $items);
+        foreach ($items as $item) {
+            $this->assertTrue(
+                $this->tagsAreInitialized($item),
+                'findByCollectionId must leave every tags collection initialized',
+            );
+        }
+
+        // A tag-less item must come back initialized-EMPTY, not uninitialized:
+        // an INNER JOIN would leave it out of the batch query and the next
+        // getTags() would go to the database for it. Asserting the tag list is
+        // empty would prove nothing — getTags() returns [] either way, it just
+        // lazy-loads when the collection is uninitialized. What distinguishes
+        // the two is isInitialized(), so that is what is asserted, and the
+        // emptiness is read through the already-initialized collection.
+        $names = \array_map(static fn (Item $item): string => $item->getName(), $items);
+        $untaggedItem = $items[\array_search('Untagged', $names, true)];
+        $this->assertTrue(
+            $this->tagsAreInitialized($untaggedItem),
+            'an item without tags must be initialized by the batch query too',
+        );
+        $this->assertCount(0, $this->reflectTags($untaggedItem));
+
+        // The tags themselves must have arrived, not just an initialized
+        // collection. Without this, a batch that hydrates every item as
+        // initialized-EMPTY would satisfy every assertion above.
+        $tagged = $items[\array_search('One', $names, true)];
+        $tagNames = \array_map(
+            static fn (Tag $tag): string => $tag->getName()->value(),
+            $this->reflectTags($tagged)->toArray(),
+        );
+        \sort($tagNames);
+        $this->assertSame(['one', 'shared'], $tagNames);
+    }
+
+    /**
+     * Proves the LEFT JOIN is what makes the tag-less item above initialized.
+     * Mutation-only check: swap the batch's LEFT JOIN for an INNER JOIN, run
+     * this test, and the assertion above turns red. Not committed in that
+     * state — it exists so the reason for LEFT JOIN is verifiable, not argued.
+     */
+    public function testTaglessItemIsInitializedNotLazyLoaded(): void
+    {
+        $collection = $this->createCollection($this->createUser('empty'), 'Empty');
+        $this->em->persist(Item::create($collection, 'No Tags'));
+        $this->em->flush();
+        $collectionId = $collection->getId();
+
+        $this->em->clear();
+
+        $items = $this->repo->findByCollectionId($collectionId);
+
+        $this->assertCount(1, $items);
+        $this->assertTrue(
+            $this->tagsAreInitialized($items[0]),
+            'LEFT JOIN must initialize a tag-less item; under INNER JOIN it would lazy-load',
+        );
+    }
+
+    /**
+     * Reads the tags collection without going through getTags(), so touching the
+     * entity in an assertion cannot hide the lazy load under test.
+     */
+    private function tagsAreInitialized(Item $item): bool
+    {
+        return $this->reflectTags($item)->isInitialized();
+    }
+
+    private function reflectTags(Item $item): PersistentCollection
+    {
+        $property = (new \ReflectionClass(Item::class))->getProperty('tags');
+        $tags = $property->getValue($item);
+        \assert($tags instanceof PersistentCollection);
+
+        return $tags;
+    }
+
+    public function testFindByOwnerIdHydratesTagsCollections(): void
+    {
+        $user = $this->createUser('ownertags');
+        $collection = $this->createCollection($user, 'Owner Tags');
+        $item = Item::create($collection, 'Owned');
+        $item->addTag($this->createTag('owned'));
+        $this->em->persist($item);
+        $this->em->flush();
+        $ownerId = OwnerId::fromBytes($user->getId()->toBytes());
+
+        $this->em->clear();
+
+        $items = $this->repo->findByOwnerId($ownerId);
+
+        $this->assertCount(1, $items);
+        $this->assertTrue(
+            $this->tagsAreInitialized($items[0]),
+            'findByOwnerId must leave the tags collection initialized',
+        );
     }
 
     public function testFindByCollectionIdReturnsAllItems(): void
