@@ -154,10 +154,8 @@ final class ItemController extends AbstractApiController
             return $this->notFound('Item not found');
         }
 
-        // fwd-7: a guest can read the item, so liked_by_me is false rather than
-        // absent — the field stays in the payload and keeps its documented type.
         $user = $this->getUser();
-        $likedByMe = $user instanceof User && $likeService->isLikedBy($user, $item);
+        $likedByMe = $likeService->isLikedBy($user instanceof User ? $user : null, $item);
 
         $detail = ItemDetailDTO::fromItem(
             $item,

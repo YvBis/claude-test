@@ -81,8 +81,12 @@ final readonly class LikeService
         return true;
     }
 
-    public function isLikedBy(User $owner, Item $item): bool
+    public function isLikedBy(?User $owner, Item $item): bool
     {
+        if (!$owner instanceof User) {
+            return false;
+        }
+
         return $this->findLike($owner, $item) instanceof Like;
     }
 
