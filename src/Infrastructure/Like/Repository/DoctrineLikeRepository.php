@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Like\Repository;
 
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\Like\Entity\Like;
 use App\Domain\Like\Repository\LikeRepositoryInterface;
@@ -49,7 +49,7 @@ final class DoctrineLikeRepository extends ServiceEntityRepository implements Li
     public function findByOwnerAndItem(OwnerId $ownerId, ItemId $itemId): ?Like
     {
         return $this->withAll($this->createQueryBuilder('l'))
-            ->where('IDENTITY(l.owner) = :ownerId')
+            ->where('l.ownerId = :ownerId')
             ->andWhere('IDENTITY(l.item) = :itemId')
             ->setParameter('ownerId', $ownerId->toBytes(), 'binary')
             ->setParameter('itemId', $itemId->toBytes(), 'binary')
@@ -75,7 +75,7 @@ final class DoctrineLikeRepository extends ServiceEntityRepository implements Li
     public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array
     {
         return $this->withAll($this->createQueryBuilder('l'))
-            ->where('IDENTITY(l.owner) = :ownerId')
+            ->where('l.ownerId = :ownerId')
             ->setParameter('ownerId', $ownerId->toBytes(), 'binary')
             ->orderBy('l.createdAt', \SortDirection::Ascending)
             ->addOrderBy('l.id', \SortDirection::Ascending)
@@ -97,16 +97,16 @@ final class DoctrineLikeRepository extends ServiceEntityRepository implements Li
     }
 
     /**
-     * Hydrates owner and the item's full chain inline (final classes are not
-     * proxiable in ORM 3, so every read joins the chain to avoid ghost proxies).
+     * Hydrates the item's chain inline (final classes are not proxiable in ORM 3,
+     * so every read joins the chain to avoid ghost proxies). The collection's
+     * owner is not part of it: since fwd-5 that is an `owner_id` column rather
+     * than an association, and nothing on this read path needs a `User`.
      */
     private function withAll(QueryBuilder $qb): QueryBuilder
     {
         return $qb
-            ->innerJoin('l.owner', 'owner')
             ->innerJoin('l.item', 'item')
             ->innerJoin('item.collection', 'collection')
-            ->innerJoin('collection.owner', 'collectionOwner')
-            ->addSelect('owner', 'item', 'collection', 'collectionOwner');
+            ->addSelect('item', 'collection');
     }
 }

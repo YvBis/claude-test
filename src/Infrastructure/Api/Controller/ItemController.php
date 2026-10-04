@@ -13,7 +13,7 @@ use App\Application\Item\DTO\UpdateItemDTO;
 use App\Application\Item\Service\ItemService;
 use App\Application\Like\Service\LikeService;
 use App\Domain\Collection\Exception\CollectionNotFoundException;
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Exception\ItemNotFoundException;
 use App\Domain\User\Entity\User;
 use OpenApi\Attributes as OA;
@@ -238,7 +238,7 @@ final class ItemController extends AbstractApiController
             return $this->notFound('Collection not found');
         }
 
-        $this->denyUnlessCanManage($user, $collection->getOwner());
+        $this->denyUnlessCanManage($user, $collection->getOwnerId());
 
         try {
             $item = $itemService->create($dto, $collection);
@@ -306,7 +306,7 @@ final class ItemController extends AbstractApiController
             return $this->notFound('Item not found');
         }
 
-        $this->denyUnlessCanManage($user, $item->getCollection()->getOwner());
+        $this->denyUnlessCanManage($user, $item->getCollection()->getOwnerId());
 
         if (!$dto->hasChanges()) {
             return $this->unprocessable('At least one field must be provided for update');
@@ -352,7 +352,7 @@ final class ItemController extends AbstractApiController
             return $this->notFound('Item not found');
         }
 
-        $this->denyUnlessCanManage($user, $item->getCollection()->getOwner());
+        $this->denyUnlessCanManage($user, $item->getCollection()->getOwnerId());
 
         $itemService->delete($item);
 

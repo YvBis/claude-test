@@ -11,6 +11,7 @@ use App\Domain\Collection\ValueObject\CollectionFieldId;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\FieldName;
 use App\Domain\Collection\ValueObject\FieldType;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
@@ -46,7 +47,7 @@ final class DoctrineCollectionFieldRepositoryTest extends KernelTestCase
         $em->flush();
 
         $this->collection = Collection::create(
-            owner: $this->user,
+            ownerId: OwnerId::fromBytes($this->user->getId()->toBytes()),
             name: CollectionName::fromString('Repo Test Collection'),
             theme: \App\Domain\Collection\ValueObject\Theme::books(),
         );

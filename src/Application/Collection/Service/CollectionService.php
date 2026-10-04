@@ -13,9 +13,8 @@ use App\Domain\Collection\Exception\CollectionNotFoundException;
 use App\Domain\Collection\Repository\CollectionRepositoryInterface;
 use App\Domain\Collection\ValueObject\CollectionId;
 use App\Domain\Collection\ValueObject\CollectionName;
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
-use App\Domain\User\Entity\User;
+use App\Domain\Common\ValueObject\OwnerId;
 
 final readonly class CollectionService
 {
@@ -25,10 +24,10 @@ final readonly class CollectionService
     ) {
     }
 
-    public function create(CreateCollectionDTO $dto, User $owner): Collection
+    public function create(CreateCollectionDTO $dto, OwnerId $ownerId): Collection
     {
         $collection = Collection::create(
-            owner: $owner,
+            ownerId: $ownerId,
             name: CollectionName::fromString($dto->name),
             theme: Theme::fromString($dto->theme),
             description: $dto->description,

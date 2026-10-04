@@ -10,6 +10,7 @@ use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\Comment\Entity\Comment;
 use App\Domain\Comment\Repository\CommentRepositoryInterface;
 use App\Domain\Comment\ValueObject\CommentContent;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
@@ -53,7 +54,7 @@ final class CommentPersistenceTest extends KernelTestCase
     private function createItem(User $owner): Item
     {
         $collection = Collection::create(
-            owner: $owner,
+            ownerId: OwnerId::fromBytes($owner->getId()->toBytes()),
             name: CollectionName::fromString('Comment Test Collection'),
             theme: Theme::books(),
         );
@@ -74,7 +75,7 @@ final class CommentPersistenceTest extends KernelTestCase
     {
         $owner = $this->createUser();
         $item = $this->createItem($owner);
-        $comment = Comment::create($owner, $item, CommentContent::fromString("Great **book**\nI liked it"));
+        $comment = Comment::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item, CommentContent::fromString("Great **book**\nI liked it"));
 
         $this->em->persist($comment);
         $this->em->flush();
@@ -86,9 +87,9 @@ final class CommentPersistenceTest extends KernelTestCase
         $this->assertNotNull($found);
         $this->assertSame($comment->getId()->toString(), $found->getId()->toString());
         $this->assertSame("Great **book**\nI liked it", $found->getContent()->value());
-        $this->assertSame($owner->getId()->toString(), $found->getOwner()->getId()->toString());
+        $this->assertSame($owner->getId()->toString(), $found->getOwnerId()->toString());
         $this->assertSame($item->getId()->toString(), $found->getItem()->getId()->toString());
-        $this->assertSame($owner->getId()->toString(), $found->getItem()->getCollection()->getOwner()->getId()->toString());
+        $this->assertSame($owner->getId()->toString(), $found->getItem()->getCollection()->getOwnerId()->toString());
         $this->assertSame(
             $found->getCreatedAt()->format('Y-m-d H:i:s.u'),
             $found->getUpdatedAt()->format('Y-m-d H:i:s.u'),
@@ -100,8 +101,8 @@ final class CommentPersistenceTest extends KernelTestCase
         $owner = $this->createUser();
         $item = $this->createItem($owner);
 
-        $this->em->persist(Comment::create($owner, $item, CommentContent::fromString('first')));
-        $this->em->persist(Comment::create($owner, $item, CommentContent::fromString('second')));
+        $this->em->persist(Comment::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item, CommentContent::fromString('first')));
+        $this->em->persist(Comment::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item, CommentContent::fromString('second')));
         $this->em->flush();
 
         $this->assertSame(2, $this->countRows());
@@ -111,7 +112,7 @@ final class CommentPersistenceTest extends KernelTestCase
     {
         $owner = $this->createUser();
         $item = $this->createItem($owner);
-        $this->em->persist(Comment::create($owner, $item, CommentContent::fromString('to be cascaded')));
+        $this->em->persist(Comment::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item, CommentContent::fromString('to be cascaded')));
         $this->em->flush();
 
         $this->assertSame(1, $this->countRows());
@@ -126,7 +127,7 @@ final class CommentPersistenceTest extends KernelTestCase
     {
         $owner = $this->createUser();
         $item = $this->createItem($owner);
-        $this->em->persist(Comment::create($owner, $item, CommentContent::fromString('to be cascaded')));
+        $this->em->persist(Comment::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item, CommentContent::fromString('to be cascaded')));
         $this->em->flush();
 
         $this->assertSame(1, $this->countRows());
@@ -144,7 +145,7 @@ final class CommentPersistenceTest extends KernelTestCase
 
         $owner = $this->createUser();
         $item = $this->createItem($owner);
-        $comment = Comment::create($owner, $item, CommentContent::fromString('original'));
+        $comment = Comment::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item, CommentContent::fromString('original'));
         $this->em->persist($comment);
         $this->em->flush();
 

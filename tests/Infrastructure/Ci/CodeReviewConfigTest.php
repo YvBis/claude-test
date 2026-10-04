@@ -34,12 +34,20 @@ use Symfony\Component\Yaml\Yaml;
  * Since task 5.28 the fallback provider is keyed on publication rather than on
  * the primary's exit code: a probe step runs the same detector in `--probe` mode
  * and the fallback fires unless the probe reports `published`. The probe's step
- * id, its `if`, its retry values and the output name in the condition are pinned
- * here - the retry values because the job budget assertion below reads them, and
- * the output name because the script writes it. The comparison is fail-open on
- * purpose: `missing`, `unverified` and an unwritten output all run the fallback,
- * since the action exits 0 having published nothing (PR #84, PR #87) and a lost
- * verdict is worse than an extra NVIDIA NIM call.
+ * id, its retry values and the output name in the condition are pinned here - the
+ * retry values because the job budget assertion below reads them, and the output
+ * name because the script writes it. The comparison is fail-open on purpose:
+ * `missing`, `unverified` and an unwritten output all run the fallback, since the
+ * action exits 0 having published nothing (PR #84, PR #87) and a lost verdict is
+ * worse than an extra NVIDIA NIM call.
+ *
+ * The probe runs with `if: always()`, like the detector above and for the same
+ * reason. It was previously gated on `steps.openrouter.outcome == 'success'`, on
+ * the reasoning that a failed primary has nothing worth probing; PR #132 measured
+ * that gate skipping the probe after a *successful* primary, which made the
+ * fail-open fallback fire a redundant 15-minute provider call and fail the
+ * required check. The condition is pinned to `always()` so the regression cannot
+ * come back as an "optimisation".
  *
  * Why the primary model is pinned as a literal instead of a "free tier" pattern:
  * OpenRouter rotates between free models *inside the provider* (AssumptionLog.md:680),
@@ -239,9 +247,15 @@ final class CodeReviewConfigTest extends TestCase
         );
         self::assertArrayHasKey('if', $probe);
         self::assertSame(
-            "steps.openrouter.outcome == 'success'",
+            'always()',
             $probe['if'],
-            'A failed primary published nothing, so probing it would only burn retries the fallback needs.',
+            'The probe must ask its question unconditionally. It used to be gated on '
+            ."`steps.openrouter.outcome == 'success'` on the reasoning that a failed primary has nothing to "
+            .'probe - but that condition was measured to skip the probe even when the primary had SUCCEEDED '
+            .'and published a verdict (PR #132, two runs: primary green after 8 minutes, probe skipped with '
+            .'zero duration). The fallback then fired for no reason and its 15-minute timeout failed the '
+            .'required check. A detector gated on a condition is a detector that goes blind, which is the '
+            .'same principle this file already requires of the advisory detector below.',
         );
         self::assertArrayHasKey('run', $probe);
         self::assertIsString($probe['run']);
@@ -265,11 +279,13 @@ final class CodeReviewConfigTest extends TestCase
 
         self::assertArrayHasKey('if', $fallback);
         self::assertSame(
-            "steps.openrouter.outcome == 'failure' || steps.primary_verdict.outputs.verdict != 'published'",
+            "steps.primary_verdict.outputs.verdict != 'published'",
             $fallback['if'],
             'The fallback must be keyed on publication, not on the exit code: the action exits 0 having published '
             .'nothing (PR #84, PR #87), and an exit-code condition leaves those pull requests without a verdict. '
-            .'The comparison is fail-open on purpose - `missing`, `unverified` and an unwritten output all run it.',
+            .'The comparison is fail-open on purpose - `missing`, `unverified` and an unwritten output all run it. '
+            .'There is no first disjunct on the primary outcome: the probe now always runs and always answers, so '
+            .'its output is the single source of truth, and two sources could only disagree again.',
         );
     }
 

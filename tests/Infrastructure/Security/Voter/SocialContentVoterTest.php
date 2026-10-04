@@ -10,6 +10,7 @@ use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\Comment\Entity\Comment;
 use App\Domain\Comment\ValueObject\CommentContent;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Like\Entity\Like;
 use App\Domain\User\Entity\User;
@@ -45,14 +46,14 @@ final class SocialContentVoterTest extends TestCase
 
         $collection = new Collection(
             id: CollectionId::generate()->toBytes(),
-            owner: $this->owner,
+            ownerId: OwnerId::fromBytes($this->owner->getId()->toBytes()),
             name: CollectionName::fromString('My Books'),
             theme: Theme::books(),
         );
         $item = Item::create($collection, '1984');
 
-        $this->comment = Comment::create($this->owner, $item, CommentContent::fromString('Nice'));
-        $this->like = Like::create($this->owner, $item);
+        $this->comment = Comment::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $item, CommentContent::fromString('Nice'));
+        $this->like = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $item);
     }
 
     /**

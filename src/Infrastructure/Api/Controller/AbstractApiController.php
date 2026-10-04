@@ -7,9 +7,11 @@ namespace App\Infrastructure\Api\Controller;
 use App\Application\Common\DTO\ArrayableInterface;
 use App\Application\Exception\ValidationException;
 use App\Application\Item\Service\ItemService;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Exception\ItemNotFoundException;
 use App\Domain\User\Entity\User;
+use App\Infrastructure\Security\OwnerAccess;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController as BaseAbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -161,12 +163,13 @@ abstract class AbstractApiController extends BaseAbstractController
      * resource or an administrator may manage it. Social content moderation is
      * handled by `App\Infrastructure\Security\Voter\SocialContentVoter` instead.
      *
-     * A delegate to `User::isOwnerOrAdminOf()` (fwd-14); kept as a method so the
-     * item call sites read as a guard rather than as a domain call.
+     * A delegate to `OwnerAccess::isOwnerOrAdmin()` (fwd-5, replacing fwd-14's
+     * `User::isOwnerOrAdminOf()`); kept as a method so the item call sites read as
+     * a guard rather than as a domain call.
      */
-    protected function canManage(User $user, User $owner): bool
+    protected function canManage(User $user, OwnerId $ownerId): bool
     {
-        return $user->isOwnerOrAdminOf($owner);
+        return OwnerAccess::isOwnerOrAdmin($user, $ownerId);
     }
 
     /**
@@ -176,9 +179,9 @@ abstract class AbstractApiController extends BaseAbstractController
      *
      * @throws AccessDeniedException
      */
-    protected function denyUnlessCanManage(User $user, User $owner): void
+    protected function denyUnlessCanManage(User $user, OwnerId $ownerId): void
     {
-        if (!$this->canManage($user, $owner)) {
+        if (!$this->canManage($user, $ownerId)) {
             throw new AccessDeniedException('Forbidden');
         }
     }

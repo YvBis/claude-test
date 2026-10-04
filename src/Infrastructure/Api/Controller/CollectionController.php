@@ -9,7 +9,7 @@ use App\Application\Collection\DTO\UpdateCollectionDTO;
 use App\Application\Collection\Service\CollectionService;
 use App\Application\Exception\ValidationException;
 use App\Domain\Collection\Exception\CollectionNotFoundException;
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\User\Entity\User;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -88,7 +88,7 @@ final class CollectionController extends AbstractApiController
             return $this->badRequest('Malformed request body');
         }
 
-        $collection = $collectionService->create($dto, $user);
+        $collection = $collectionService->create($dto, OwnerId::fromBytes($user->getId()->toBytes()));
 
         return new JsonResponse(
             $collectionService->toDTO($collection)->toArray(),
@@ -318,8 +318,12 @@ final class CollectionController extends AbstractApiController
             return $this->notFound('Collection not found');
         }
 
-        // Authorization: only owner can update
-        if ($collection->getOwner()->getId()->toString() !== $user->getId()->toString()) {
+        // Authorization: owner only, deliberately narrower than the owner-or-admin
+        // rule every other mutation in this controller uses. That divergence is
+        // unresolved and tracked as fwd-33; it is called out here so the next
+        // reader does not read it as an oversight and "fix" it into
+        // denyUnlessCanManage(). Do not extend this pattern to new endpoints.
+        if (!$collection->getOwnerId()->equals(OwnerId::fromBytes($user->getId()->toBytes()))) {
             throw new AccessDeniedException('Forbidden');
         }
 
@@ -374,7 +378,7 @@ final class CollectionController extends AbstractApiController
             return $this->notFound('Collection not found');
         }
 
-        $this->denyUnlessCanManage($user, $collection->getOwner());
+        $this->denyUnlessCanManage($user, $collection->getOwnerId());
 
         $collectionService->delete($collection);
 

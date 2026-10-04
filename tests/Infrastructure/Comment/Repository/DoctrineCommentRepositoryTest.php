@@ -6,12 +6,12 @@ namespace App\Tests\Infrastructure\Comment\Repository;
 
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\Comment\Entity\Comment;
 use App\Domain\Comment\Repository\CommentRepositoryInterface;
 use App\Domain\Comment\ValueObject\CommentContent;
 use App\Domain\Comment\ValueObject\CommentId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
@@ -55,7 +55,7 @@ final class DoctrineCommentRepositoryTest extends KernelTestCase
     private function createItem(User $owner): Item
     {
         $collection = Collection::create(
-            owner: $owner,
+            ownerId: OwnerId::fromBytes($owner->getId()->toBytes()),
             name: CollectionName::fromString('Comment Repo Collection'),
             theme: Theme::books(),
         );
@@ -74,7 +74,7 @@ final class DoctrineCommentRepositoryTest extends KernelTestCase
 
     private function comment(User $owner, Item $item, string $content): Comment
     {
-        $comment = Comment::create($owner, $item, CommentContent::fromString($content));
+        $comment = Comment::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item, CommentContent::fromString($content));
         $this->em->persist($comment);
 
         return $comment;
@@ -160,7 +160,7 @@ final class DoctrineCommentRepositoryTest extends KernelTestCase
 
         $this->assertCount(2, $comments);
         foreach ($comments as $comment) {
-            $this->assertSame($owner->getId()->toString(), $comment->getOwner()->getId()->toString());
+            $this->assertSame($owner->getId()->toString(), $comment->getOwnerId()->toString());
         }
         $this->assertSame(['mine 1', 'mine 2'], \array_map(
             static fn (Comment $comment): string => $comment->getContent()->value(),
@@ -171,24 +171,29 @@ final class DoctrineCommentRepositoryTest extends KernelTestCase
     /**
      * Locks the hydration invariant that `SocialContentVoter::voteOnAttribute`
      * and `CommentDTO::fromEntity` both depend on: the returned comment must
-     * carry a *hydrated* owner, not a lazy ghost.
+     * carry a hydrated *item*.
+     *
+     * fwd-5 rewrote the ownership half of this test. It used to assert a hydrated
+     * owner, because the comment held a `ManyToOne` to `User` that the voter read.
+     * Ownership is now an `owner_id` column read straight off the entity, so the
+     * remaining guarantee is that the id survives the round trip on its own and
+     * that no owner association can go stale behind it.
      *
      * `$em->clear()` forces the cold path, because `UnitOfWork::createEntity`
      * reuses an already-managed association target instead of proxying it — a
-     * join-less query would then pass only when the owner happens to be in the
+     * join-less query would then pass only when the item happens to be in the
      * identity map, and fail on the next request.
      *
      * `isUninitializedObject()` is native-lazy-aware (`UnitOfWork.php:3303`), so
      * this lock keeps working if `nativeLazyObjects` is ever enabled and a ghost
      * stops throwing.
      *
-     * Scope: this locks the `c.owner` and `c.item` joins of the shared `withAll()`
-     * helper — the two the current consumers actually read (the voter and
-     * `CommentDTO::fromEntity`). It does NOT lock `item.collection` /
-     * `collection.owner`, which no consumer reads today, and it cannot tell you
-     * that those two have become pure over-fetch while still present.
+     * Scope: this locks the `c.item` join of the shared `withAll()` helper. It
+     * does NOT lock `item.collection`, which no consumer reads today, and it
+     * cannot tell you that this one has become pure over-fetch while still
+     * present.
      */
-    public function testFindByIdHydratesTheOwnerForTheVoter(): void
+    public function testFindByIdReturnsTheOwnerIdAndAHydratedItem(): void
     {
         $owner = $this->createUser();
         $item = $this->createItem($owner);
@@ -200,12 +205,13 @@ final class DoctrineCommentRepositoryTest extends KernelTestCase
         $found = $this->repository()->findById($commentId);
 
         $this->assertNotNull($found);
+
+        // fwd-5: ownership is a column, so there is no owner association left to
+        // hydrate — the id must survive the round trip on its own, which is what
+        // SocialContentVoter and CommentDTO now read.
+        $this->assertTrue($found->getOwnerId()->equals(OwnerId::fromBytes($owner->getId()->toBytes())));
         $unitOfWork = $this->em->getUnitOfWork();
 
-        $this->assertFalse(
-            $unitOfWork->isUninitializedObject($found->getOwner()),
-            'findById must return a hydrated owner: SocialContentVoter and CommentDTO read getOwner()',
-        );
         $this->assertFalse(
             $unitOfWork->isUninitializedObject($found->getItem()),
             'findById must return a hydrated item: CommentDTO reads getItem()->getId()',

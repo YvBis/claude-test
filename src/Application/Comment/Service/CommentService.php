@@ -6,20 +6,23 @@ namespace App\Application\Comment\Service;
 
 use App\Application\Comment\DTO\CommentDTO;
 use App\Application\Common\Transaction\UnitOfWorkInterface;
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Comment\Entity\Comment;
 use App\Domain\Comment\Repository\CommentRepositoryInterface;
 use App\Domain\Comment\ValueObject\CommentContent;
 use App\Domain\Comment\ValueObject\CommentId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\User\Entity\User;
+use App\Domain\User\Repository\UserRepositoryInterface;
+use App\Domain\User\ValueObject\UserId;
 
 final readonly class CommentService
 {
     public function __construct(
         private CommentRepositoryInterface $commentRepository,
         private UnitOfWorkInterface $unitOfWork,
+        private UserRepositoryInterface $userRepository,
     ) {
     }
 
@@ -31,7 +34,7 @@ final readonly class CommentService
      */
     public function create(User $owner, Item $item, string $content): Comment
     {
-        $comment = Comment::create($owner, $item, CommentContent::fromString($content));
+        $comment = Comment::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item, CommentContent::fromString($content));
         $this->commentRepository->save($comment);
         $this->unitOfWork->flush();
 
@@ -114,21 +117,48 @@ final readonly class CommentService
         return $this->commentRepository->countByOwnerId($ownerId);
     }
 
+    /**
+     * Single-entity mapping only. It costs one name lookup for one comment, so a
+     * caller walking a list must use {@see self::toDTOList()}, which pays it once
+     * for the whole page — looping over this method is the N+1 fwd-5 removed.
+     */
     public function toDTO(Comment $comment): CommentDTO
     {
-        return CommentDTO::fromEntity($comment);
+        return CommentDTO::fromEntity($comment, $this->ownerNames([$comment])[$comment->getOwnerId()->toString()] ?? null);
     }
 
     /**
+     * fwd-5: one extra statement for the whole page, not one per comment.
+     *
      * @param array<Comment> $comments
      *
      * @return array<CommentDTO>
      */
     public function toDTOList(array $comments): array
     {
+        $names = $this->ownerNames($comments);
+
         return \array_map(
-            $this->toDTO(...),
+            static fn (Comment $comment): CommentDTO => CommentDTO::fromEntity(
+                $comment,
+                $names[$comment->getOwnerId()->toString()] ?? null,
+            ),
             $comments,
         );
+    }
+
+    /**
+     * @param array<Comment> $comments
+     *
+     * @return array<string, string>
+     */
+    private function ownerNames(array $comments): array
+    {
+        $userIds = [];
+        foreach ($comments as $comment) {
+            $userIds[] = UserId::fromBytes($comment->getOwnerId()->toBytes());
+        }
+
+        return $this->userRepository->findNamesByIds($userIds);
     }
 }

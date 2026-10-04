@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Item\Repository;
 
 use App\Domain\Collection\ValueObject\CollectionId;
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Repository\ItemRepositoryInterface;
 use App\Domain\Item\ValueObject\ItemId;
@@ -40,7 +40,7 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
     #[\Override]
     public function findById(ItemId $id): ?Item
     {
-        $item = $this->withCollectionAndOwner($this->createQueryBuilder('i'))
+        $item = $this->withCollection($this->createQueryBuilder('i'))
             ->where('i.id = :id')
             ->setParameter('id', $id->toBytes(), 'binary')
             ->getQuery()
@@ -58,7 +58,7 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
     #[\Override]
     public function findByCollectionId(CollectionId $collectionId, int $limit = 50, int $offset = 0, ?string $name = null, array $tagNames = []): array
     {
-        $queryBuilder = $this->withCollectionAndOwner($this->createQueryBuilder('i'))
+        $queryBuilder = $this->withCollection($this->createQueryBuilder('i'))
             // IDENTITY avoids loading the related entity just to compare its id;
             // the binary UUID compares directly against the FK column.
             ->where('IDENTITY(i.collection) = :collectionId')
@@ -82,15 +82,15 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
     #[\Override]
     public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0, ?string $name = null, array $tagNames = []): array
     {
-        $queryBuilder = $this->withCollectionAndOwner($this->createQueryBuilder('i'))
-            ->where('IDENTITY(collection.owner) = :ownerId')
+        $queryBuilder = $this->withCollection($this->createQueryBuilder('i'))
+            ->where('collection.ownerId = :ownerId')
             ->setParameter('ownerId', $ownerId->toBytes(), 'binary');
         $this->applyFilters($queryBuilder, $name, $tagNames);
 
         $items = $queryBuilder
             ->orderBy('i.createdAt', \SortDirection::Ascending)
             // fwd-27: same direction as the primary sort. No covering index
-            // exists here (the filter joins on collection.owner), so this key
+            // exists here (the filter joins on the collection's owner column), so this key
             // buys determinism, not index service — filesort stays, accepted.
             ->addOrderBy('i.id', \SortDirection::Ascending)
             ->setMaxResults($limit)
@@ -141,12 +141,11 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
             ->getResult();
     }
 
-    private function withCollectionAndOwner(QueryBuilder $qb): QueryBuilder
+    private function withCollection(QueryBuilder $qb): QueryBuilder
     {
         return $qb
             ->innerJoin('i.collection', 'collection')
-            ->innerJoin('collection.owner', 'owner')
-            ->addSelect('collection', 'owner');
+            ->addSelect('collection');
     }
 
     /**

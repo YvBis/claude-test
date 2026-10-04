@@ -46,15 +46,20 @@ TaskFlow — REST API для управления личными коллекц�
 
 | Компонент | Путь | Описание |
 |-----------|------|----------|
-| `Collection` | `Entity/Collection.php` | Коллекция (id, owner, name, theme, description, image) |
+| `Collection` | `Entity/Collection.php` | Коллекция (id, ownerId, name, theme, description, image) |
 | `CollectionField` | `Entity/CollectionField.php` | Динамическое поле (id, collection, name, type, slotIndex) |
 | `CollectionId` | `ValueObject/CollectionId.php` | Бинарный UUID |
 | `CollectionName` | `ValueObject/CollectionName.php` | Название коллекции |
 | `Theme` | `ValueObject/Theme.php` | Тема (Books, Games, Movies, Drinks) |
 | `FieldType` | `ValueObject/FieldType.php` | Тип поля (text, number, date, bool) |
 | `FieldName` | `ValueObject/FieldName.php` | Название поля |
-| `OwnerId` | `ValueObject/OwnerId.php` | ID владельца (бинарный UUID); типизирует query/DTO-слой вместо `User\UserId` (review-6) |
+| `OwnerId` | `Common/ValueObject/OwnerId.php` | ID владельца (бинарный UUID); лежит в `Domain\Common`, а не в `Domain\Collection`, потому что им пользуются `Collection`, `Like`, `Comment` и `Item` — иначе fwd-5 убрал бы одну междоменную связь и создал бы пять (review-6, fwd-5) |
 | `CollectionFieldRepositoryInterface` | `Repository/CollectionFieldRepositoryInterface.php` | Интерфейс репозитория |
+
+**Владение (fwd-5).** `Collection.owner` — не ассоциация, а колонка `owner_id BINARY(16)`
+с аксессором `getOwnerId(): OwnerId`. FK на `users(id)` с `ON DELETE CASCADE` сохранён
+в схеме, но объявлен вручную в базовой миграции: ORM о нём не знает, поэтому
+`doctrine:schema:update` его снёс бы. Домен `Collection` больше не зависит от `User`.
 
 **Бизнес-правила:**
 - Каждая коллекция принадлежит одному пользователю (owner)
@@ -97,7 +102,7 @@ TaskFlow — REST API для управления личными коллекц�
 
 | Компонент | Путь | Описание |
 |-----------|------|----------|
-| `Like` | `Entity/Like.php` | Отметка «нравится» (id, owner, item, createdAt); owner/item — `ManyToOne` с `ON DELETE CASCADE` |
+| `Like` | `Entity/Like.php` | Отметка «нравится» (id, ownerId, item, createdAt); **owner** — колонка `owner_id` (FK `ON DELETE CASCADE` объявлен вручную в миграции, ORM-ассоциации нет), **item** — `ManyToOne` с `ON DELETE CASCADE` |
 | `LikeId` | `ValueObject/LikeId.php` | Бинарный UUID |
 | `LikeRepositoryInterface` | `Repository/LikeRepositoryInterface.php` | Интерфейс репозитория (`save`, `remove`, `findById`, `findByOwnerAndItem`, `findByItemId`, `countByItemId`) |
 
@@ -110,7 +115,7 @@ TaskFlow — REST API для управления личными коллекц�
 
 | Компонент | Путь | Описание |
 |-----------|------|----------|
-| `Comment` | `Entity/Comment.php` | Комментарий (id, owner, item, content, createdAt, updatedAt); owner/item — `ManyToOne` с `ON DELETE CASCADE` |
+| `Comment` | `Entity/Comment.php` | Комментарий (id, ownerId, item, content, createdAt, updatedAt); **owner** — колонка `owner_id` (FK `ON DELETE CASCADE` объявлен вручную в миграции, ORM-ассоциации нет), **item** — `ManyToOne` с `ON DELETE CASCADE` |
 | `CommentId` | `ValueObject/CommentId.php` | Бинарный UUID |
 | `CommentContent` | `ValueObject/CommentContent.php` | Markdown-текст (длина 1..3000; нормализация `\r\n`→`\n`, strip control-символов кроме `\n`/`\t`, trim краёв; внутренние пробелы/переносы сохраняются) |
 | `CommentRepositoryInterface` | `Repository/CommentRepositoryInterface.php` | Интерфейс репозитория (`save`, `remove`, `findById`, `findByItemId`, `findByOwnerId`, `countByItemId`, `countByOwnerId`) |
@@ -162,6 +167,12 @@ Item 1 ──── * Comment
 - `CommentRequestDTO` — content (Application/Comment/DTO; тонкий, валидация в `CommentContent` → 422) 
 - `ItemDetailDTO` — `ItemDTO::toArray()` + likes_count, comments_count, liked_by_me (только `GET /api/items/{id}`)
 
+`owner_name` в `LikeDTO` и `CommentDTO` — `?string` (fwd-5): после перехода владения
+на колонку имя владельца резолвится отдельным батчем
+(`UserRepositoryInterface::findNamesByIds()`), и отсутствие строки представимо
+впервые. FK на `users(id)` гарантирует, что на реальных данных `null` не бывает,
+так что ни один ответ не меняется.
+
 ## Авторизация
 
 Авторизация в проекте **не централизована**, и это важно понимать перед чтением
@@ -171,13 +182,17 @@ Item 1 ──── * Comment
 | Механизм | Где живёт | Что покрывает |
 |----------|-----------|------------|
 | Voter через `AccessDecisionManager` | `SocialContentVoter` | `SOCIAL_EDIT` / `SOCIAL_DELETE` для `Comment` и `Like`; плюс всё, что проходит через `access_control` и `#[IsGranted]` |
-| `canManage` / `denyUnlessCanManage` | `AbstractApiController` | owner-or-admin для айтемов **и удаления коллекции** — делегат к `User::isOwnerOrAdminOf()` (fwd-14) |
+| `canManage` / `denyUnlessCanManage` | `AbstractApiController` | owner-or-admin для айтемов **и удаления коллекции** — делегат к `OwnerAccess::isOwnerOrAdmin()` (fwd-14 → fwd-5) |
 | Инлайновая проверка в контроллере | `CollectionController::update` | **owner-only** (без админа) для `PATCH` — единственный оставшийся выход из правила, открытый вопрос `fwd-33` |
 
 **Все мутации коллекций и айтимов — owner-or-admin через один предикат**
-(`User::isOwnerOrAdminOf()`, fwd-14). Единственное исключение — `PATCH
+(`OwnerAccess::isOwnerOrAdmin()`, fwd-5; до него был `User::isOwnerOrAdminOf()`,
+fwd-14). Предикат живёт в Infrastructure, а не в `Domain\User`, потому что
+сравнивает залогиненного пользователя с сырым `OwnerId`, а сущности больше не
+носят загруженного владельца — перенести его в домен значило бы снова
+инвертировать зависимость. Единственное исключение — `PATCH
 /api/collections/{id}`, где осталась инлайновая owner-only проверка: это
-решение владельца ещё не принято (`fwd-17`), и оно тем заметнее, что удаление
+решение владельца ещё не принято (`fwd-33`), и оно тем заметнее, что удаление
 уже owner-or-admin. Новый код не должен писать owner-сравнение инлайн — путь
 через `denyUnlessCanManage()`.
 
@@ -208,13 +223,14 @@ Item 1 ──── * Comment
 | `ItemController` | `src/Infrastructure/Api/Controller/ItemController.php` | CRUD айтемов + списки: `POST /api/collections/{id}/items`, `GET /api/collections/{id}/items` и `GET /api/items` (свои) с фильтрами `?name` (LIKE, ci) и `?tags[]` (AND), `GET/PATCH/DELETE /api/items/{id}`. Чтение — любой аутентифицированный (D1 Этапа 5); запись — владелец+админ; слоты/теги `\InvalidArgumentException` → 400. `GET /api/items/{id}` отдаёт `ItemDetailDTO` (+`likes_count`/`comments_count`/`liked_by_me`). Карта ошибок (5.9, единая через хелперы): нет токена → 401, id/не найдено → 404, не автор/не админ → 403, битый JSON или `limit`/`offset` → 400, семантически невалидный контент (слот/пустой PATCH) → 422. Не-скалярный query-параметр (`?name[]=x`, `?tags=x`, `?limit[]=1`) отдаёт 400 нашим конвертом — чтение идёт через сырой массив `$request->query->all()`, потому что `InputBag::get()` бросает фреймворковый `BadRequestException` (fwd-25); `ApiExceptionSubscriber` мини-этапа 5A не перемапливает 400 на query-параметрах |
 | `LikeController` | `src/Infrastructure/Api/Controller/LikeController.php` | Лайки: `POST`/`DELETE /api/items/{id}/likes` (идемпотентно, `{likes_count}`), `GET /api/items/{id}/likes` (пагинация), `GET /api/likes` (свои, пагинация), `DELETE /api/likes/{id}` — автор или админ (PRD 118) |
 | `CommentController` | `src/Infrastructure/Api/Controller/CommentController.php` | Комментарии: `POST`/`GET /api/items/{id}/comments`, `GET /api/comments` (свои), `PATCH`/`DELETE /api/comments/{id}` и вложенный `DELETE /api/items/{itemId}/comments/{id}` — автор или админ (PRD 117). Карта ошибок: id → 404, контент → 422, тело → 400 (`CommentRequestDTO` в Application) |
-| `DoctrineUserRepository` | `src/Infrastructure/User/Repository/DoctrineUserRepository.php` | Реализация репозитория User |
+| `DoctrineUserRepository` | `src/Infrastructure/User/Repository/DoctrineUserRepository.php` | Реализация репозитория User; `findNamesByIds()` — батч-выборка отображаемых имён по списку id (fwd-5), один запрос на страницу лайков/комментариев вместо одного на строку |
+| `OwnerAccess` | `src/Infrastructure/Security/OwnerAccess.php` | Единственный предикат owner-or-admin (fwd-5, заменил `User::isOwnerOrAdminOf()`). Сравнивает id побайтно, admin-шорткат — здесь; пользуются `AbstractApiController` и `SocialContentVoter` |
 | `DoctrineCollectionFieldRepository` | `src/Infrastructure/Collection/Repository/DoctrineCollectionFieldRepository.php` | Реализация репозитория CollectionField |
 | `DoctrineTagRepository` | `src/Infrastructure/Tag/Repository/DoctrineTagRepository.php` | Реализация репозитория Tag; `getOrCreate` — атомарный MySQL upsert; `search` — подстрока `LIKE` (ci, wildcards-escaped), `ORDER BY name` |
 | `TagController` | `src/Infrastructure/Api/Controller/TagController.php` | `GET /api/tags` — список/поиск тегов (?search ci-подстрока, ?limit, ?offset); auth-only, bare `TagDTO[]`; non-scalar `?search` returns 400 with the API envelope (fwd-25); `ApiExceptionSubscriber` мини-этапа 5A не перемапливает 400 на query-параметрах |
-| `DoctrineItemRepository` | `src/Infrastructure/Item/Repository/DoctrineItemRepository.php` | Реализация репозитория Item; все read-методы JOIN FETCH `i.collection -> collection.owner` (final-сущности не проксируются ORM 3); `IDENTITY`-сравнение бинарного UUID; теги (to-many LAZY) **не** джойнятся — `leftJoin` раздувает строки и ломает пагинацию, вместо этого `initializeTags()` делает второй запрос по id страницы (fwd-6): чтение стоит не более двух запросов вместо одного на айтем |
+| `DoctrineItemRepository` | `src/Infrastructure/Item/Repository/DoctrineItemRepository.php` | Реализация репозитория Item; все read-методы JOIN FETCH `i.collection` (final-сущности не проксируются ORM 3) — owner с fwd-5 не джойнится, это колонка; фильтр по владельцу — `collection.ownerId` с бинарным биндингом; теги (to-many LAZY) **не** джойнятся — `leftJoin` раздувает строки и ломает пагинацию, вместо этого `initializeTags()` делает второй запрос по id страницы (fwd-6): чтение стоит не более двух запросов вместо одного на айтем |
 | `UserProvider` | `src/Infrastructure/Security/UserProvider.php` | Symfony Security user provider |
-| `SocialContentVoter` | `src/Infrastructure/Security/Voter/SocialContentVoter.php` | Модерация соц. контента: `SOCIAL_EDIT`/`SOCIAL_DELETE` для `Comment`/`Like`, автор или админ; `Like`+`SOCIAL_EDIT` запрещён всем. Регистрируется autoconfigure (тег `security.voter`). Требует гидрированный `owner` (репозитории JOIN FETCH). Отказ конвертируется `ApiExceptionSubscriber` в 403-конверт (ручных JSON-403 в контроллерах нет; `LoginController:125` «аккаунт деактивирован» — бизнес-факт, остаётся ручным) |
+| `SocialContentVoter` | `src/Infrastructure/Security/Voter/SocialContentVoter.php` | Модерация соц. контента: `SOCIAL_EDIT`/`SOCIAL_DELETE` для `Comment`/`Like`, автор или админ; `Like`+`SOCIAL_EDIT` запрещён всем. Регистрируется autoconfigure (тег `security.voter`). Требует лишь `getOwnerId()` на субъекте — гидрировать владельца не нужно (до fwd-5 репозитории JOIN FETCH'или `owner`). Отказ конвертируется `ApiExceptionSubscriber` в 403-конверт (ручных JSON-403 в контроллерах нет; `LoginController:125` «аккаунт деактивирован» — бизнес-факт, остаётся ручным) |
 | `JwtAuthenticationFailureSubscriber` | `src/Infrastructure/Api/EventSubscriber/JwtAuthenticationFailureSubscriber.php` | Единый 401-конверт для трёх путей отказа Lexik (`JWT_NOT_FOUND`/`JWT_INVALID`/`JWT_EXPIRED`): `{error: 'Unauthorized', message: <текст Lexik>}`, заголовок `WWW-Authenticate: Bearer` сохраняется. Два пути из трёх не доходят до `kernel.exception` (аутентификатор возвращает готовый `Response`), поэтому это единственная точка покрытия всех трёх |
 | `ApiExceptionSubscriber` | `src/Infrastructure/Api/EventSubscriber/ApiExceptionSubscriber.php` | Единый конверт для `/api`-ошибок на `kernel.exception`, приоритет **-10** (после security-`ExceptionListener` (1) и `logKernelException` (0), до рендера страницы ошибки (-128); ответ останавливает распространение через `setResponse()`). `AccessDeniedHttpException` → 403-конверт (generic, без `getMessage()`); прочий `HttpExceptionInterface` и уже отвеченные события — no-op; остальное → голый 500-конверт без `message` и без своего лога (логирует фреймворк). Только пути `^/api`, кроме `/api/doc*` (документация сохраняет фреймворковое поведение) |
 | `ClockInjectListener` | `src/Infrastructure/Doctrine/Listener/ClockInjectListener.php` | Автоинъекция Clock в сущности |
@@ -254,6 +270,7 @@ GitHub Actions
 └── AI Code Review — OpenRabbit, summary + inline comments (PR only, non-draft; таймаут 35 мин: худший путь 12 + 15 + 2 + 3 = 32, запас ~2.5 мин; пошаговые границы есть и у обоих API-шагов — 5.29; `cancel-in-progress: true` — ревьюится только последний head, `cancelled` = вердикта нет):
     OpenRouter free pool (`openrouter/free`, секрет `LLM_API_KEY`) — основной, фолбэк — NVIDIA NIM (`openai/gpt-oss-20b`, https://integrate.api.nvidia.com/v1, секрет `NVIDIA_API_KEY`). Оба провайдера — **один и тот же экшен** `aryanbrite/openrabbit@v0.8.7`, меняются только ключ, эндпоинт и модель, поэтому режим отказа «экшен молча ничего не публикует» наследуется фолбэком; спасает не другой код, а другой провайдер и ключ.
     Шаг `Check whether the primary provider published a verdict` (5.28) — probe-режим того же скрипта: пишет `published|missing|unverified` в `$GITHUB_OUTPUT` и комментариев не пишет; фолбэк запускается по `!= 'published'` (fail-open: `missing`, `unverified`, незаписанный output), потому что экшен умеет выйти с кодом 0, ничего не опубликовав (PR #84, #87) — до 5.28 условие смотрело на код выхода, и NIM не запускался ни разу
+    **Probe идёт с `if: always()`, и это не косметика.** Изначально он был загейчен на `steps.openrouter.outcome == 'success'` — «упавший основной публиковать нечего, проба лишь сожжёт ретраи», — и на этом допущении держалась вся схема фолбэка. На PR #132 замерено: основной провайдер **успешен** за 8 мин и публикует вердикт, а проба всё равно `skipped` (нулевая длительность). Раз `$GITHUB_OUTPUT` не записан, fail-open условие истинно по пустому значению → фолбэк NIM запускается без причины, висит 15 мин и роняет required-чек `OpenRabbit Review`. Воспроизведено на двух прогонах подряд, то есть не флук. Теперь условие фолбэка — только вывод пробы (`steps.primary_verdict.outputs.verdict != 'published'`), первый дизъюнкт по `outcome` удалён: источник истины один, и два источника снова могут разойтись. Гард `CodeReviewConfigTest` пинит `always()` с записанным наблюдением, чтобы правка не вернулась под видом «оптимизации»
     Финальный шаг `Verify a verdict was published for this head` (5.19A) — advisory: проверяет, что review бота существует на текущем head SHA, иначе sticky-комментарий + `::warning::`; job не роняет, потому что `### Verdict` не контракт с третьей стороной, а required-чек, упавший на дрейфе формулировки, не позеленеет никогда (детекция `cancelled`/`timed_out` изнутри job'а невозможна, и не нужна: такие прогоны роняют required-чек `OpenRabbit Review` — 5.19B закрыта как устаревшая 2026-09-25)
     Наблюдаемая структура затрат — только в PRD/5.20-review-timing-measurement.md (канон, 30 прогонов 2026-09-25…27): обычный job — десятки секунд, хвост даёт фолбэк NIM, run-level максимум — очередь раннера. Повторный замер: `bash scripts/review-timing-report.sh <run-id>`
 ```

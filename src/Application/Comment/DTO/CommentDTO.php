@@ -12,7 +12,7 @@ final readonly class CommentDTO implements ArrayableInterface
     public function __construct(
         public string $id,
         public string $ownerId,
-        public string $ownerName,
+        public ?string $ownerName,
         public string $itemId,
         public string $content,
         public \DateTimeImmutable $createdAt,
@@ -20,12 +20,18 @@ final readonly class CommentDTO implements ArrayableInterface
     ) {
     }
 
-    public static function fromEntity(Comment $comment): self
+    /**
+     * fwd-5: `ownerName` is resolved by the caller through a batch lookup rather
+     * than read off the entity, so it is nullable here. The `users(id)` foreign key
+     * means it is always present in practice; nullable describes the code, not an
+     * observed response.
+     */
+    public static function fromEntity(Comment $comment, ?string $ownerName): self
     {
         return new self(
             id: $comment->getId()->toString(),
-            ownerId: $comment->getOwner()->getId()->toString(),
-            ownerName: $comment->getOwner()->getName(),
+            ownerId: $comment->getOwnerId()->toString(),
+            ownerName: $ownerName,
             itemId: $comment->getItem()->getId()->toString(),
             content: $comment->getContent()->value(),
             createdAt: $comment->getCreatedAt(),
@@ -33,7 +39,7 @@ final readonly class CommentDTO implements ArrayableInterface
         );
     }
 
-    /** @return array{id: string, owner_id: string, owner_name: string, item_id: string, content: string, created_at: string, updated_at: string} */
+    /** @return array{id: string, owner_id: string, owner_name: ?string, item_id: string, content: string, created_at: string, updated_at: string} */
     #[\Override]
     public function toArray(): array
     {

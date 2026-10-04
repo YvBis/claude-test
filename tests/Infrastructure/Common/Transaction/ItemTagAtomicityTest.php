@@ -12,6 +12,7 @@ use App\Application\Tag\Service\TagService;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Repository\ItemRepositoryInterface;
 use App\Domain\Tag\Repository\TagRepositoryInterface;
 use App\Domain\Tag\ValueObject\TagName;
@@ -48,7 +49,11 @@ final class ItemTagAtomicityTest extends KernelTestCase
             passwordHash: PasswordHash::createFromPlain('Pass123!'),
         );
         $this->em->persist($user);
-        $collection = Collection::create($user, CollectionName::fromString('Atomic Coll'), Theme::books());
+        $collection = Collection::create(
+            OwnerId::fromBytes($user->getId()->toBytes()),
+            CollectionName::fromString('Atomic Coll'),
+            Theme::books(),
+        );
         $this->em->persist($collection);
         $this->em->flush();
 

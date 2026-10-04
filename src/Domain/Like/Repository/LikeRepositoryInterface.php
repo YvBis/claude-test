@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Like\Repository;
 
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\Like\Entity\Like;
 use App\Domain\Like\ValueObject\LikeId;

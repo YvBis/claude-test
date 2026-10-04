@@ -9,8 +9,8 @@ use App\Application\Item\Service\ItemSlotMapper;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\FieldType;
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Repository\ItemRepositoryInterface;
 use App\Domain\Tag\Entity\Tag;
@@ -53,7 +53,7 @@ final class DoctrineItemRepositoryTest extends KernelTestCase
     private function createCollection(User $user, string $name): Collection
     {
         $collection = Collection::create(
-            owner: $user,
+            ownerId: OwnerId::fromBytes($user->getId()->toBytes()),
             name: CollectionName::fromString($name),
             theme: Theme::books(),
         );

@@ -11,12 +11,8 @@ use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\Comment\Entity\Comment;
 use App\Domain\Comment\ValueObject\CommentContent;
 use App\Domain\Comment\ValueObject\CommentId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
-use App\Domain\User\Entity\User;
-use App\Domain\User\ValueObject\Email;
-use App\Domain\User\ValueObject\PasswordHash;
-use App\Domain\User\ValueObject\Role;
-use App\Domain\User\ValueObject\UserId;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Clock\Clock;
 use Symfony\Component\Clock\MockClock;
@@ -24,7 +20,7 @@ use Symfony\Component\Clock\MockClock;
 final class CommentTest extends TestCase
 {
     private MockClock $clock;
-    private User $owner;
+    private OwnerId $ownerId;
     private Item $item;
 
     protected function setUp(): void
@@ -32,17 +28,11 @@ final class CommentTest extends TestCase
         $this->clock = new MockClock('2026-01-01 10:00:00');
         Clock::set($this->clock);
 
-        $this->owner = new User(
-            UserId::generate()->toBytes(),
-            'Comment Author',
-            Email::fromString('author@example.com'),
-            PasswordHash::createFromPlain('password123'),
-            Role::fromString('user')
-        );
+        $this->ownerId = OwnerId::generate();
 
         $collection = new Collection(
             id: CollectionId::generate()->toBytes(),
-            owner: $this->owner,
+            ownerId: $this->ownerId,
             name: CollectionName::fromString('My Books'),
             theme: Theme::books(),
         );
@@ -57,10 +47,10 @@ final class CommentTest extends TestCase
 
     public function testCreateFactoryCreatesEntity(): void
     {
-        $comment = Comment::create($this->owner, $this->item, CommentContent::fromString('Nice'));
+        $comment = Comment::create($this->ownerId, $this->item, CommentContent::fromString('Nice'));
 
         $this->assertInstanceOf(CommentId::class, $comment->getId());
-        $this->assertSame($this->owner, $comment->getOwner());
+        $this->assertTrue($comment->getOwnerId()->equals($this->ownerId));
         $this->assertSame($this->item, $comment->getItem());
         $this->assertSame('Nice', $comment->getContent()->value());
         $this->assertSame($comment->getCreatedAt(), $comment->getUpdatedAt());
@@ -68,15 +58,15 @@ final class CommentTest extends TestCase
 
     public function testCreateGeneratesUniqueIds(): void
     {
-        $a = Comment::create($this->owner, $this->item, CommentContent::fromString('a'));
-        $b = Comment::create($this->owner, $this->item, CommentContent::fromString('b'));
+        $a = Comment::create($this->ownerId, $this->item, CommentContent::fromString('a'));
+        $b = Comment::create($this->ownerId, $this->item, CommentContent::fromString('b'));
 
         $this->assertFalse($a->getId()->equals($b->getId()));
     }
 
     public function testChangeContentUpdatesContentAndTimestamp(): void
     {
-        $comment = Comment::create($this->owner, $this->item, CommentContent::fromString('first'));
+        $comment = Comment::create($this->ownerId, $this->item, CommentContent::fromString('first'));
         $createdAt = $comment->getCreatedAt();
 
         $this->clock->modify('+1 minute');
@@ -89,7 +79,7 @@ final class CommentTest extends TestCase
 
     public function testChangeContentWithSameContentIsNoOp(): void
     {
-        $comment = Comment::create($this->owner, $this->item, CommentContent::fromString('same'));
+        $comment = Comment::create($this->ownerId, $this->item, CommentContent::fromString('same'));
         $updatedAt = $comment->getUpdatedAt();
 
         $this->clock->modify('+1 minute');
@@ -100,7 +90,7 @@ final class CommentTest extends TestCase
 
     public function testChangeContentWithNormalizedEqualContentIsNoOp(): void
     {
-        $comment = Comment::create($this->owner, $this->item, CommentContent::fromString('  hello  '));
+        $comment = Comment::create($this->ownerId, $this->item, CommentContent::fromString('  hello  '));
         $updatedAt = $comment->getUpdatedAt();
 
         $this->clock->modify('+1 minute');
@@ -112,7 +102,7 @@ final class CommentTest extends TestCase
 
     public function testTouchUpdatesUpdatedAt(): void
     {
-        $comment = Comment::create($this->owner, $this->item, CommentContent::fromString('text'));
+        $comment = Comment::create($this->ownerId, $this->item, CommentContent::fromString('text'));
         $createdAt = $comment->getCreatedAt();
         $updatedAt = $comment->getUpdatedAt();
 

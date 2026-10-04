@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Comment\Repository;
 
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Comment\Entity\Comment;
 use App\Domain\Comment\Repository\CommentRepositoryInterface;
 use App\Domain\Comment\ValueObject\CommentId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\ValueObject\ItemId;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
@@ -63,7 +63,7 @@ final class DoctrineCommentRepository extends ServiceEntityRepository implements
     public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array
     {
         return $this->withAll($this->createQueryBuilder('c'))
-            ->where('IDENTITY(c.owner) = :ownerId')
+            ->where('c.ownerId = :ownerId')
             ->setParameter('ownerId', $ownerId->toBytes(), 'binary')
             ->orderBy('c.createdAt', \SortDirection::Ascending)
             ->addOrderBy('c.id', \SortDirection::Ascending)
@@ -89,23 +89,24 @@ final class DoctrineCommentRepository extends ServiceEntityRepository implements
     {
         return (int) $this->createQueryBuilder('c')
             ->select('COUNT(c.id)')
-            ->where('IDENTITY(c.owner) = :ownerId')
+            ->where('c.ownerId = :ownerId')
             ->setParameter('ownerId', $ownerId->toBytes(), 'binary')
             ->getQuery()
             ->getSingleScalarResult();
     }
 
     /**
-     * Hydrates owner and the item's full chain inline (final classes are not
-     * proxiable in ORM 3, so every read joins the chain to avoid ghost proxies).
+     * Hydrates the item's chain inline (final classes are not proxiable in ORM 3,
+     * so every read joins the chain to avoid ghost proxies). The comment's and
+     * the collection's owner are not part of it: since fwd-5 both are `owner_id`
+     * columns rather than associations, and nothing on this read path needs a
+     * `User`.
      */
     private function withAll(QueryBuilder $qb): QueryBuilder
     {
         return $qb
-            ->innerJoin('c.owner', 'owner')
             ->innerJoin('c.item', 'item')
             ->innerJoin('item.collection', 'collection')
-            ->innerJoin('collection.owner', 'collectionOwner')
-            ->addSelect('owner', 'item', 'collection', 'collectionOwner');
+            ->addSelect('item', 'collection');
     }
 }

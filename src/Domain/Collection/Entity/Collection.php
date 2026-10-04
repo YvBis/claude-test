@@ -7,7 +7,7 @@ namespace App\Domain\Collection\Entity;
 use App\Domain\Collection\ValueObject\CollectionId;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\Theme;
-use App\Domain\User\Entity\User;
+use App\Domain\Common\ValueObject\OwnerId;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Clock\ClockAwareTrait;
@@ -30,10 +30,17 @@ final class Collection
     #[ORM\Column(name: 'id', type: 'binary', length: 16)]
     private string $id;
 
-    #[ORM\ManyToOne(targetEntity: User::class, fetch: 'LAZY')]
-    #[ORM\JoinColumn(name: 'owner_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
-    #[Assert\NotNull]
-    private User $owner;
+    /**
+     * The owner as an id, not as an association.
+     *
+     * fwd-5: this was a `ManyToOne User`, which made the Collection domain
+     * depend on the User domain. The foreign key to `users(id)` still exists in
+     * the database — see the squashed baseline migration — so referential
+     * integrity and the ON DELETE CASCADE cleanup are unchanged; only the PHP
+     * type is now the id this collection is owned by.
+     */
+    #[ORM\Column(name: 'owner_id', type: 'binary', length: 16)]
+    private string $ownerId;
 
     #[ORM\Embedded(class: CollectionName::class, columnPrefix: false)]
     #[Assert\Valid]
@@ -62,14 +69,14 @@ final class Collection
      */
     public function __construct(
         string $id,
-        User $owner,
+        OwnerId $ownerId,
         CollectionName $name,
         Theme $theme,
         ?string $description = null,
         ?string $image = null,
     ) {
         $this->id = $id;
-        $this->owner = $owner;
+        $this->ownerId = $ownerId->toBytes();
         $this->name = $name;
         $this->theme = $theme;
         $this->description = $this->normalizeDescription($description);
@@ -79,7 +86,7 @@ final class Collection
     }
 
     public static function create(
-        User $owner,
+        OwnerId $ownerId,
         CollectionName $name,
         Theme $theme,
         ?string $description = null,
@@ -87,7 +94,7 @@ final class Collection
     ): self {
         return new self(
             id: CollectionId::generate()->toBytes(),
-            owner: $owner,
+            ownerId: $ownerId,
             name: $name,
             theme: $theme,
             description: $description,
@@ -100,9 +107,9 @@ final class Collection
         return CollectionId::fromBytes($this->id);
     }
 
-    public function getOwner(): User
+    public function getOwnerId(): OwnerId
     {
-        return $this->owner;
+        return OwnerId::fromBytes($this->ownerId);
     }
 
     public function getName(): CollectionName
@@ -179,12 +186,6 @@ final class Collection
         $image = \trim($image);
 
         return '' === $image ? null : $image;
-    }
-
-    public function reassignOwner(User $owner): void
-    {
-        $this->owner = $owner;
-        $this->touch();
     }
 
     // Note: updatedAt is updated via explicit touch() calls from domain mutators

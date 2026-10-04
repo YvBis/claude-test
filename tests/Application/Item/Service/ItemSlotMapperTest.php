@@ -10,10 +10,8 @@ use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\FieldType;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
-use App\Domain\User\Entity\User;
-use App\Domain\User\ValueObject\Email;
-use App\Domain\User\ValueObject\PasswordHash;
 use PHPUnit\Framework\TestCase;
 
 final class ItemSlotMapperTest extends TestCase
@@ -27,13 +25,8 @@ final class ItemSlotMapperTest extends TestCase
 
     private function createItem(): Item
     {
-        $user = User::register(
-            name: 'Slot Mapper Test',
-            email: Email::fromString('slot_mapper_test@example.com'),
-            passwordHash: PasswordHash::createFromPlain('Pass123!'),
-        );
         $collection = Collection::create(
-            owner: $user,
+            ownerId: OwnerId::generate(),
             name: CollectionName::fromString('Slot Mapper Collection'),
             theme: Theme::books(),
         );
