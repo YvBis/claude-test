@@ -7,8 +7,8 @@ namespace App\Tests\Infrastructure\Collection\Repository;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\Repository\CollectionRepositoryInterface;
 use App\Domain\Collection\ValueObject\CollectionName;
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
@@ -54,7 +54,7 @@ final class DoctrineCollectionRepositoryTest extends KernelTestCase
             $owner = $this->createUser('tiebreak');
             foreach (['First', 'Second', 'Third', 'Fourth'] as $name) {
                 $collection = Collection::create(
-                    owner: $owner,
+                    ownerId: OwnerId::fromBytes($owner->getId()->toBytes()),
                     name: CollectionName::fromString($name.' '.\uniqid()),
                     theme: Theme::books(),
                 );

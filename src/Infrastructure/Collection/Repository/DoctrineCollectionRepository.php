@@ -7,7 +7,7 @@ namespace App\Infrastructure\Collection\Repository;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\Repository\CollectionRepositoryInterface;
 use App\Domain\Collection\ValueObject\CollectionId;
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -37,8 +37,6 @@ final class DoctrineCollectionRepository extends ServiceEntityRepository impleme
     public function findById(CollectionId $id): ?Collection
     {
         return $this->createQueryBuilder('c')
-            ->innerJoin('c.owner', 'owner')
-            ->addSelect('owner')
             ->where('c.id = :id')
             ->setParameter('id', $id->toBytes(), 'binary')
             ->getQuery()
@@ -49,9 +47,7 @@ final class DoctrineCollectionRepository extends ServiceEntityRepository impleme
     public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array
     {
         return $this->createQueryBuilder('c')
-            ->leftJoin('c.owner', 'owner')
-            ->addSelect('owner')
-            ->where('IDENTITY(c.owner) = :ownerId')
+            ->where('c.ownerId = :ownerId')
             ->setParameter('ownerId', $ownerId->toBytes(), 'binary')
             ->orderBy('c.createdAt', \SortDirection::Descending)
             // fwd-27: tie-breaker direction follows the primary sort (DESC), so
@@ -67,8 +63,6 @@ final class DoctrineCollectionRepository extends ServiceEntityRepository impleme
     public function findAll(int $limit = 50, int $offset = 0): array
     {
         return $this->createQueryBuilder('c')
-            ->leftJoin('c.owner', 'owner')
-            ->addSelect('owner')
             ->orderBy('c.createdAt', \SortDirection::Descending)
             // fwd-27: same direction-following tie-breaker for determinism.
             // No owner filter, so idx_collection_owner_list cannot serve the

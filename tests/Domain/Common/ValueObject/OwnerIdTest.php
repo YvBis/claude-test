@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace App\Tests\Domain\Collection\ValueObject;
+namespace App\Tests\Domain\Common\ValueObject;
 
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 use PHPUnit\Framework\TestCase;
 
 final class OwnerIdTest extends TestCase

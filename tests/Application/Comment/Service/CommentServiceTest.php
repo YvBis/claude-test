@@ -8,15 +8,16 @@ use App\Application\Comment\Service\CommentService;
 use App\Application\Common\Transaction\UnitOfWorkInterface;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\Comment\Entity\Comment;
 use App\Domain\Comment\Repository\CommentRepositoryInterface;
 use App\Domain\Comment\ValueObject\CommentContent;
 use App\Domain\Comment\ValueObject\CommentId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\User\Entity\User;
+use App\Domain\User\Repository\UserRepositoryInterface;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -28,6 +29,7 @@ final class CommentServiceTest extends TestCase
 {
     private CommentRepositoryInterface&MockObject $commentRepository;
     private UnitOfWorkInterface&MockObject $unitOfWork;
+    private UserRepositoryInterface&MockObject $userRepository;
     private CommentService $service;
     private User $author;
     private Item $item;
@@ -36,7 +38,8 @@ final class CommentServiceTest extends TestCase
     {
         $this->commentRepository = $this->createMock(CommentRepositoryInterface::class);
         $this->unitOfWork = $this->createMock(UnitOfWorkInterface::class);
-        $this->service = new CommentService($this->commentRepository, $this->unitOfWork);
+        $this->userRepository = $this->createMock(UserRepositoryInterface::class);
+        $this->service = new CommentService($this->commentRepository, $this->unitOfWork, $this->userRepository);
 
         $this->author = User::register(
             name: 'Comment Service Test',
@@ -45,7 +48,7 @@ final class CommentServiceTest extends TestCase
         );
 
         $collection = Collection::create(
-            owner: $this->author,
+            ownerId: OwnerId::fromBytes($this->author->getId()->toBytes()),
             name: CollectionName::fromString('Comment Service Collection'),
             theme: Theme::books(),
         );
@@ -55,7 +58,7 @@ final class CommentServiceTest extends TestCase
 
     private function comment(string $content = 'Great read'): Comment
     {
-        return Comment::create($this->author, $this->item, CommentContent::fromString($content));
+        return Comment::create(OwnerId::fromBytes($this->author->getId()->toBytes()), $this->item, CommentContent::fromString($content));
     }
 
     public function testCreateSavesAndFlushes(): void
@@ -64,7 +67,7 @@ final class CommentServiceTest extends TestCase
             ->expects($this->once())
             ->method('save')
             ->with($this->callback(
-                fn (Comment $comment): bool => $comment->getOwner() === $this->author
+                fn (Comment $comment): bool => $comment->getOwnerId()->equals(OwnerId::fromBytes($this->author->getId()->toBytes()))
                     && $comment->getItem() === $this->item
                     && 'Great read' === $comment->getContent()->value(),
             ));
@@ -72,7 +75,7 @@ final class CommentServiceTest extends TestCase
 
         $comment = $this->service->create($this->author, $this->item, 'Great read');
 
-        $this->assertSame($this->author, $comment->getOwner());
+        $this->assertTrue($comment->getOwnerId()->equals(OwnerId::fromBytes($this->author->getId()->toBytes())));
         $this->assertSame($this->item, $comment->getItem());
         $this->assertSame('Great read', $comment->getContent()->value());
     }
@@ -251,6 +254,12 @@ final class CommentServiceTest extends TestCase
 
     public function testToDTOMapsComment(): void
     {
+        // fwd-5: the name comes from a batch lookup, so the repository mock has to
+        // answer before toDTO can map it.
+        $this->userRepository->expects($this->once())
+            ->method('findNamesByIds')
+            ->willReturn([$this->author->getId()->toString() => $this->author->getName()]);
+
         $dto = $this->service->toDTO($this->comment('Nice one'));
 
         $this->assertSame('Nice one', $dto->content);
@@ -258,12 +267,17 @@ final class CommentServiceTest extends TestCase
         $this->assertSame($this->item->getId()->toString(), $dto->itemId);
     }
 
-    public function testToDTOListMapsEveryComment(): void
+    public function testToDTOListResolvesNamesInOneCall(): void
     {
+        $this->userRepository->expects($this->once())
+            ->method('findNamesByIds')
+            ->willReturn([$this->author->getId()->toString() => $this->author->getName()]);
+
         $dtos = $this->service->toDTOList([$this->comment('One'), $this->comment('Two')]);
 
         $this->assertCount(2, $dtos);
         $this->assertSame('One', $dtos[0]->content);
         $this->assertSame('Two', $dtos[1]->content);
+        $this->assertSame('Comment Service Test', $dtos[0]->ownerName);
     }
 }

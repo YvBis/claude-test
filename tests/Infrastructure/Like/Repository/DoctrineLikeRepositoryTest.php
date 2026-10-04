@@ -6,8 +6,8 @@ namespace App\Tests\Infrastructure\Like\Repository;
 
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Like\Entity\Like;
 use App\Domain\Like\Repository\LikeRepositoryInterface;
@@ -43,7 +43,7 @@ final class DoctrineLikeRepositoryTest extends KernelTestCase
     private function createItem(User $owner): Item
     {
         $collection = Collection::create(
-            owner: $owner,
+            ownerId: OwnerId::fromBytes($owner->getId()->toBytes()),
             name: CollectionName::fromString('Like Repo Collection'),
             theme: Theme::books(),
         );
@@ -62,7 +62,7 @@ final class DoctrineLikeRepositoryTest extends KernelTestCase
 
     private function like(User $owner, Item $item): Like
     {
-        $like = Like::create($owner, $item);
+        $like = Like::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item);
         $this->em->persist($like);
 
         return $like;
@@ -79,7 +79,7 @@ final class DoctrineLikeRepositoryTest extends KernelTestCase
         $found = $repo->findByOwnerAndItem($this->ownerId($owner), $item->getId());
 
         $this->assertNotNull($found);
-        $this->assertSame($owner->getId()->toString(), $found->getOwner()->getId()->toString());
+        $this->assertSame($owner->getId()->toString(), $found->getOwnerId()->toString());
         $this->assertSame($item->getId()->toString(), $found->getItem()->getId()->toString());
     }
 
@@ -120,8 +120,8 @@ final class DoctrineLikeRepositoryTest extends KernelTestCase
         $page = $repo->findByItemId($item->getId(), limit: 2, offset: 1);
 
         $this->assertCount(2, $page);
-        $this->assertSame($second->getId()->toString(), $page[0]->getOwner()->getId()->toString());
-        $this->assertSame($third->getId()->toString(), $page[1]->getOwner()->getId()->toString());
+        $this->assertSame($second->getId()->toString(), $page[0]->getOwnerId()->toString());
+        $this->assertSame($third->getId()->toString(), $page[1]->getOwnerId()->toString());
     }
 
     public function testRemoveLike(): void
@@ -182,24 +182,29 @@ final class DoctrineLikeRepositoryTest extends KernelTestCase
     /**
      * Locks the hydration invariant that `SocialContentVoter::voteOnAttribute`
      * and `LikeDTO::fromEntity` both depend on: the returned like must carry a
-     * *hydrated* owner, not a lazy ghost.
+     * hydrated *item*.
+     *
+     * fwd-5 rewrote the ownership half of this test. It used to assert a hydrated
+     * owner, because the like held a `ManyToOne` to `User` that the voter read.
+     * Ownership is now an `owner_id` column read straight off the entity, so the
+     * remaining guarantee is that the id survives the round trip on its own and
+     * that no owner association can go stale behind it.
      *
      * `$em->clear()` forces the cold path, because `UnitOfWork::createEntity`
      * reuses an already-managed association target instead of proxying it — a
-     * join-less query would then pass only when the owner happens to be in the
+     * join-less query would then pass only when the item happens to be in the
      * identity map, and fail on the next request.
      *
      * `isUninitializedObject()` is native-lazy-aware (`UnitOfWork.php:3303`), so
      * this lock keeps working if `nativeLazyObjects` is ever enabled and a ghost
      * stops throwing.
      *
-     * Scope: this locks the `l.owner` and `l.item` joins of the shared `withAll()`
-     * helper — the two the current consumers actually read (the voter and
-     * `LikeDTO::fromEntity`). It does NOT lock `item.collection` /
-     * `collection.owner`, which no consumer reads today, and it cannot tell you
-     * that those two have become pure over-fetch while still present.
+     * Scope: this locks the `l.item` join of the shared `withAll()` helper. It
+     * does NOT lock `item.collection`, which no consumer reads today, and it
+     * cannot tell you that this one has become pure over-fetch while still
+     * present.
      */
-    public function testFindByIdHydratesTheOwnerForTheVoter(): void
+    public function testFindByIdReturnsTheOwnerIdAndAHydratedItem(): void
     {
         $owner = $this->createUser();
         $item = $this->createItem($owner);
@@ -212,12 +217,13 @@ final class DoctrineLikeRepositoryTest extends KernelTestCase
         $found = $repo->findById($likeId);
 
         $this->assertNotNull($found);
+
+        // fwd-5: ownership is a column, so there is no owner association left to
+        // hydrate — the id must survive the round trip on its own, which is what
+        // SocialContentVoter and LikeDTO now read.
+        $this->assertTrue($found->getOwnerId()->equals(OwnerId::fromBytes($owner->getId()->toBytes())));
         $unitOfWork = $this->em->getUnitOfWork();
 
-        $this->assertFalse(
-            $unitOfWork->isUninitializedObject($found->getOwner()),
-            'findById must return a hydrated owner: SocialContentVoter and LikeDTO read getOwner()',
-        );
         $this->assertFalse(
             $unitOfWork->isUninitializedObject($found->getItem()),
             'findById must return a hydrated item: LikeDTO reads getItem()->getId()',

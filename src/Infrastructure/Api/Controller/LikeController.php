@@ -6,7 +6,7 @@ namespace App\Infrastructure\Api\Controller;
 
 use App\Application\Item\Service\ItemService;
 use App\Application\Like\Service\LikeService;
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Like\Entity\Like;
 use App\Domain\User\Entity\User;

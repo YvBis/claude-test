@@ -11,7 +11,7 @@ use App\Application\Item\DTO\UpdateItemDTO;
 use App\Application\Tag\Service\TagService;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionId;
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Exception\ItemNotFoundException;
 use App\Domain\Item\Repository\ItemRepositoryInterface;

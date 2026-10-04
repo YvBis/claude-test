@@ -8,13 +8,14 @@ use App\Application\Common\Transaction\UnitOfWorkInterface;
 use App\Application\Like\Service\LikeService;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Like\Entity\Like;
 use App\Domain\Like\Repository\LikeRepositoryInterface;
 use App\Domain\Like\ValueObject\LikeId;
 use App\Domain\User\Entity\User;
+use App\Domain\User\Repository\UserRepositoryInterface;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -26,6 +27,7 @@ final class LikeServiceTest extends TestCase
 {
     private LikeRepositoryInterface&MockObject $likeRepository;
     private UnitOfWorkInterface&MockObject $unitOfWork;
+    private UserRepositoryInterface&MockObject $userRepository;
     private LikeService $service;
     private User $owner;
     private Item $item;
@@ -34,7 +36,8 @@ final class LikeServiceTest extends TestCase
     {
         $this->likeRepository = $this->createMock(LikeRepositoryInterface::class);
         $this->unitOfWork = $this->createMock(UnitOfWorkInterface::class);
-        $this->service = new LikeService($this->likeRepository, $this->unitOfWork);
+        $this->userRepository = $this->createMock(UserRepositoryInterface::class);
+        $this->service = new LikeService($this->likeRepository, $this->unitOfWork, $this->userRepository);
 
         $this->owner = User::register(
             name: 'Like Service Test',
@@ -43,7 +46,7 @@ final class LikeServiceTest extends TestCase
         );
 
         $collection = Collection::create(
-            owner: $this->owner,
+            ownerId: OwnerId::fromBytes($this->owner->getId()->toBytes()),
             name: CollectionName::fromString('Like Service Collection'),
             theme: Theme::books(),
         );
@@ -67,19 +70,19 @@ final class LikeServiceTest extends TestCase
             ->expects($this->once())
             ->method('save')
             ->with($this->callback(
-                fn (Like $like): bool => $like->getOwner() === $this->owner && $like->getItem() === $this->item,
+                fn (Like $like): bool => $like->getOwnerId()->equals(OwnerId::fromBytes($this->owner->getId()->toBytes())) && $like->getItem() === $this->item,
             ));
         $this->unitOfWork->expects($this->once())->method('flush');
 
         $like = $this->service->like($this->owner, $this->item);
 
-        $this->assertSame($this->owner, $like->getOwner());
+        $this->assertTrue($like->getOwnerId()->equals(OwnerId::fromBytes($this->owner->getId()->toBytes())));
         $this->assertSame($this->item, $like->getItem());
     }
 
     public function testLikeIsIdempotentWhenAlreadyLiked(): void
     {
-        $existing = Like::create($this->owner, $this->item);
+        $existing = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
         $this->likeRepository->method('findByOwnerAndItem')->willReturn($existing);
         $this->likeRepository->expects($this->never())->method('save');
         $this->unitOfWork->expects($this->never())->method('flush');
@@ -89,7 +92,7 @@ final class LikeServiceTest extends TestCase
 
     public function testUnlikeRemovesAndFlushes(): void
     {
-        $existing = Like::create($this->owner, $this->item);
+        $existing = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
         $this->likeRepository->method('findByOwnerAndItem')->willReturn($existing);
         $this->likeRepository->expects($this->once())->method('remove')->with($existing);
         $this->unitOfWork->expects($this->once())->method('flush');
@@ -113,7 +116,7 @@ final class LikeServiceTest extends TestCase
             ->expects($this->once())
             ->method('save')
             ->with($this->callback(
-                fn (Like $like): bool => $like->getOwner() === $this->owner && $like->getItem() === $this->item,
+                fn (Like $like): bool => $like->getOwnerId()->equals(OwnerId::fromBytes($this->owner->getId()->toBytes())) && $like->getItem() === $this->item,
             ));
         $this->unitOfWork->expects($this->once())->method('flush');
 
@@ -122,7 +125,7 @@ final class LikeServiceTest extends TestCase
 
     public function testToggleUnlikesWhenLiked(): void
     {
-        $existing = Like::create($this->owner, $this->item);
+        $existing = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
         $this->likeRepository->method('findByOwnerAndItem')->willReturn($existing);
         $this->likeRepository->expects($this->once())->method('remove')->with($existing);
         $this->unitOfWork->expects($this->once())->method('flush');
@@ -132,7 +135,7 @@ final class LikeServiceTest extends TestCase
 
     public function testIsLikedByTrueWhenLiked(): void
     {
-        $this->likeRepository->method('findByOwnerAndItem')->willReturn(Like::create($this->owner, $this->item));
+        $this->likeRepository->method('findByOwnerAndItem')->willReturn(Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item));
 
         $this->assertTrue($this->service->isLikedBy($this->owner, $this->item));
     }
@@ -169,7 +172,7 @@ final class LikeServiceTest extends TestCase
 
     public function testGetByIdDelegatesAndReturnsLike(): void
     {
-        $like = Like::create($this->owner, $this->item);
+        $like = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
         $this->likeRepository
             ->expects($this->once())
             ->method('findById')
@@ -199,7 +202,7 @@ final class LikeServiceTest extends TestCase
 
     public function testListByItemDelegates(): void
     {
-        $like = Like::create($this->owner, $this->item);
+        $like = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
         $this->likeRepository
             ->expects($this->once())
             ->method('findByItemId')
@@ -230,7 +233,7 @@ final class LikeServiceTest extends TestCase
 
     public function testListByOwnerDelegatesWithOwnerIdAndPagination(): void
     {
-        $like = Like::create($this->owner, $this->item);
+        $like = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
         $ownerId = OwnerId::fromBytes($this->owner->getId()->toBytes());
         $this->likeRepository
             ->expects($this->once())
@@ -261,7 +264,7 @@ final class LikeServiceTest extends TestCase
 
     public function testRemoveLikeRemovesAndFlushes(): void
     {
-        $like = Like::create($this->owner, $this->item);
+        $like = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
         $this->likeRepository->expects($this->once())->method('remove')->with($like);
         $this->unitOfWork->expects($this->once())->method('flush');
 
@@ -270,7 +273,13 @@ final class LikeServiceTest extends TestCase
 
     public function testToDTOMappingAndToArray(): void
     {
-        $like = Like::create($this->owner, $this->item);
+        $like = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
+
+        // fwd-5: the name is resolved by a batch lookup, so the repository mock
+        // has to answer before toDTO can.
+        $this->userRepository->expects($this->once())
+            ->method('findNamesByIds')
+            ->willReturn([$this->owner->getId()->toString() => $this->owner->getName()]);
 
         $dto = $this->service->toDTO($like);
 
@@ -291,11 +300,33 @@ final class LikeServiceTest extends TestCase
         );
     }
 
-    public function testToDTOListMapsAllLikes(): void
+    public function testToDTOMapsANullNameWhenTheRepositoryHasNoSuchUser(): void
+    {
+        $like = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
+
+        $this->userRepository->expects($this->once())
+            ->method('findNamesByIds')
+            ->willReturn([]);
+
+        $dto = $this->service->toDTO($like);
+
+        $this->assertNull($dto->ownerName);
+    }
+
+    public function testToDTOListResolvesNamesInOneCall(): void
     {
         $other = $this->secondUser();
-        $first = Like::create($this->owner, $this->item);
-        $second = Like::create($other, $this->item);
+        $first = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
+        $second = Like::create(OwnerId::fromBytes($other->getId()->toBytes()), $this->item);
+
+        // One statement for the whole page: a per-row lookup would show up as
+        // more than one call here.
+        $this->userRepository->expects($this->once())
+            ->method('findNamesByIds')
+            ->willReturn([
+                $this->owner->getId()->toString() => $this->owner->getName(),
+                $other->getId()->toString() => $other->getName(),
+            ]);
 
         $dtos = $this->service->toDTOList([$first, $second]);
 
@@ -304,5 +335,7 @@ final class LikeServiceTest extends TestCase
         $this->assertSame($second->getId()->toString(), $dtos[1]->id);
         $this->assertSame($this->owner->getId()->toString(), $dtos[0]->ownerId);
         $this->assertSame($other->getId()->toString(), $dtos[1]->ownerId);
+        $this->assertSame($this->owner->getName(), $dtos[0]->ownerName);
+        $this->assertSame($other->getName(), $dtos[1]->ownerName);
     }
 }

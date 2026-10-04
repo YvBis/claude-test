@@ -7,6 +7,7 @@ namespace App\Infrastructure\Security\Voter;
 use App\Domain\Comment\Entity\Comment;
 use App\Domain\Like\Entity\Like;
 use App\Domain\User\Entity\User;
+use App\Infrastructure\Security\OwnerAccess;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 
@@ -19,9 +20,9 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
  * block (autoconfigure), which is picked up by the security bundle as a
  * `security.voter`.
  *
- * Note: the decision reads `$subject->getOwner()`, so callers must pass an
- * entity whose owner association is already hydrated (the repositories do this
- * via JOIN FETCH — final entities cannot be lazy ghost proxies in ORM 3).
+ * Note: the decision reads `$subject->getOwnerId()`, an `owner_id` column rather
+ * than an association since fwd-5, so callers no longer have to pass an entity
+ * whose owner is hydrated and repositories no longer JOIN FETCH the author.
  *
  * @extends Voter<string, Comment|Like>
  */
@@ -76,10 +77,12 @@ final class SocialContentVoter extends Voter
         // `@extends Voter<string, Comment|Like>` template above), so `$subject`
         // is `Comment|Like` by construction and the call below is type-safe.
         //
-        // The admin short-circuit lives inside `User::isOwnerOrAdminOf()`
-        // (fwd-14) and is deliberately not repeated here: a second copy of
-        // "admin implies allowed" is exactly the divergence this predicate was
-        // unified to remove.
-        return $user->isOwnerOrAdminOf($subject->getOwner());
+        // The admin short-circuit lives inside `OwnerAccess::isOwnerOrAdmin()`
+        // and is deliberately not repeated here: a second copy of "admin
+        // implies allowed" is exactly the divergence this predicate was unified
+        // to remove. Since fwd-5 the subjects carry an `OwnerId` rather than a
+        // hydrated `User`, so the rule also no longer depends on any repository
+        // JOIN FETCHing the author.
+        return OwnerAccess::isOwnerOrAdmin($user, $subject->getOwnerId());
     }
 }

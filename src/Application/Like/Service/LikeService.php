@@ -6,19 +6,22 @@ namespace App\Application\Like\Service;
 
 use App\Application\Common\Transaction\UnitOfWorkInterface;
 use App\Application\Like\DTO\LikeDTO;
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\Like\Entity\Like;
 use App\Domain\Like\Repository\LikeRepositoryInterface;
 use App\Domain\Like\ValueObject\LikeId;
 use App\Domain\User\Entity\User;
+use App\Domain\User\Repository\UserRepositoryInterface;
+use App\Domain\User\ValueObject\UserId;
 
 final readonly class LikeService
 {
     public function __construct(
         private LikeRepositoryInterface $likeRepository,
         private UnitOfWorkInterface $unitOfWork,
+        private UserRepositoryInterface $userRepository,
     ) {
     }
 
@@ -39,7 +42,7 @@ final readonly class LikeService
             return $existing;
         }
 
-        $like = Like::create($owner, $item);
+        $like = Like::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item);
         $this->likeRepository->save($like);
         $this->unitOfWork->flush();
 
@@ -75,7 +78,7 @@ final readonly class LikeService
             return false;
         }
 
-        $this->likeRepository->save(Like::create($owner, $item));
+        $this->likeRepository->save(Like::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item));
         $this->unitOfWork->flush();
 
         return true;
@@ -132,22 +135,49 @@ final readonly class LikeService
         $this->unitOfWork->flush();
     }
 
+    /**
+     * Single-entity mapping only. It costs one name lookup for one like, so a
+     * caller walking a list must use {@see self::toDTOList()}, which pays it once
+     * for the whole page — looping over this method is the N+1 fwd-5 removed.
+     */
     public function toDTO(Like $like): LikeDTO
     {
-        return LikeDTO::fromEntity($like);
+        return LikeDTO::fromEntity($like, $this->ownerNames([$like])[$like->getOwnerId()->toString()] ?? null);
     }
 
     /**
+     * fwd-5: one extra statement for the whole page, not one per like.
+     *
      * @param array<Like> $likes
      *
      * @return array<LikeDTO>
      */
     public function toDTOList(array $likes): array
     {
+        $names = $this->ownerNames($likes);
+
         return \array_map(
-            $this->toDTO(...),
+            static fn (Like $like): LikeDTO => LikeDTO::fromEntity(
+                $like,
+                $names[$like->getOwnerId()->toString()] ?? null,
+            ),
             $likes,
         );
+    }
+
+    /**
+     * @param array<Like> $likes
+     *
+     * @return array<string, string>
+     */
+    private function ownerNames(array $likes): array
+    {
+        $userIds = [];
+        foreach ($likes as $like) {
+            $userIds[] = UserId::fromBytes($like->getOwnerId()->toBytes());
+        }
+
+        return $this->userRepository->findNamesByIds($userIds);
     }
 
     private function findLike(User $owner, Item $item): ?Like

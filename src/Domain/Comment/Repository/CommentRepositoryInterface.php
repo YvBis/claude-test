@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Comment\Repository;
 
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Comment\Entity\Comment;
 use App\Domain\Comment\ValueObject\CommentId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\ValueObject\ItemId;
 
 interface CommentRepositoryInterface

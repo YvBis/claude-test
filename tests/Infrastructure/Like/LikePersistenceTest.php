@@ -7,6 +7,7 @@ namespace App\Tests\Infrastructure\Like;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Like\Entity\Like;
 use App\Domain\Like\Repository\LikeRepositoryInterface;
@@ -43,7 +44,7 @@ final class LikePersistenceTest extends KernelTestCase
     private function createItem(User $owner): Item
     {
         $collection = Collection::create(
-            owner: $owner,
+            ownerId: OwnerId::fromBytes($owner->getId()->toBytes()),
             name: CollectionName::fromString('Like Test Collection'),
             theme: Theme::books(),
         );
@@ -64,7 +65,7 @@ final class LikePersistenceTest extends KernelTestCase
     {
         $owner = $this->createUser();
         $item = $this->createItem($owner);
-        $like = Like::create($owner, $item);
+        $like = Like::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item);
 
         $this->em->persist($like);
         $this->em->flush();
@@ -74,7 +75,7 @@ final class LikePersistenceTest extends KernelTestCase
 
         $this->assertNotNull($found);
         $this->assertSame($like->getId()->toString(), $found->getId()->toString());
-        $this->assertSame($owner->getId()->toString(), $found->getOwner()->getId()->toString());
+        $this->assertSame($owner->getId()->toString(), $found->getOwnerId()->toString());
         $this->assertSame($item->getId()->toString(), $found->getItem()->getId()->toString());
         $this->assertSame($item->getCollection()->getId()->toString(), $found->getItem()->getCollection()->getId()->toString());
     }
@@ -84,8 +85,8 @@ final class LikePersistenceTest extends KernelTestCase
         $owner = $this->createUser();
         $item = $this->createItem($owner);
 
-        $this->em->persist(Like::create($owner, $item));
-        $this->em->persist(Like::create($owner, $item));
+        $this->em->persist(Like::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item));
+        $this->em->persist(Like::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item));
 
         $this->expectException(UniqueConstraintViolationException::class);
         $this->em->flush();
@@ -95,7 +96,7 @@ final class LikePersistenceTest extends KernelTestCase
     {
         $owner = $this->createUser();
         $item = $this->createItem($owner);
-        $this->em->persist(Like::create($owner, $item));
+        $this->em->persist(Like::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item));
         $this->em->flush();
 
         $this->assertSame(1, $this->countRows());

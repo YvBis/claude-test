@@ -8,29 +8,23 @@ use App\Application\Like\DTO\LikeDTO;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Like\Entity\Like;
-use App\Domain\User\Entity\User;
-use App\Domain\User\ValueObject\Email;
-use App\Domain\User\ValueObject\PasswordHash;
 use PHPUnit\Framework\TestCase;
 
 final class LikeDTOTest extends TestCase
 {
-    private User $owner;
+    private OwnerId $ownerId;
 
     private Item $item;
 
     protected function setUp(): void
     {
-        $this->owner = User::register(
-            name: 'John Doe',
-            email: Email::fromString('like_dto_test@example.com'),
-            passwordHash: PasswordHash::createFromPlain('Pass123!'),
-        );
+        $this->ownerId = OwnerId::generate();
 
         $collection = Collection::create(
-            owner: $this->owner,
+            ownerId: $this->ownerId,
             name: CollectionName::fromString('Like DTO Collection'),
             theme: Theme::books(),
         );
@@ -40,22 +34,34 @@ final class LikeDTOTest extends TestCase
 
     public function testFromEntityMapsFields(): void
     {
-        $like = Like::create($this->owner, $this->item);
+        $like = Like::create($this->ownerId, $this->item);
 
-        $dto = LikeDTO::fromEntity($like);
+        // fwd-5: the display name is no longer read off the entity — the caller
+        // resolves it through the user repository and hands it in.
+        $dto = LikeDTO::fromEntity($like, 'John Doe');
 
         $this->assertSame($like->getId()->toString(), $dto->id);
-        $this->assertSame($this->owner->getId()->toString(), $dto->ownerId);
+        $this->assertSame($this->ownerId->toString(), $dto->ownerId);
         $this->assertSame('John Doe', $dto->ownerName);
         $this->assertSame($this->item->getId()->toString(), $dto->itemId);
         $this->assertSame($like->getCreatedAt(), $dto->createdAt);
     }
 
+    public function testFromEntityAcceptsAMissingOwnerName(): void
+    {
+        $like = Like::create($this->ownerId, $this->item);
+
+        $dto = LikeDTO::fromEntity($like, null);
+
+        $this->assertNull($dto->ownerName);
+        $this->assertNull($dto->toArray()['owner_name']);
+    }
+
     public function testToArrayShape(): void
     {
-        $like = Like::create($this->owner, $this->item);
+        $like = Like::create($this->ownerId, $this->item);
 
-        $array = LikeDTO::fromEntity($like)->toArray();
+        $array = LikeDTO::fromEntity($like, 'John Doe')->toArray();
 
         $this->assertSame(
             ['id', 'owner_id', 'owner_name', 'item_id', 'created_at'],

@@ -9,25 +9,18 @@ use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\FieldType;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Tag\Entity\Tag;
 use App\Domain\Tag\ValueObject\TagName;
-use App\Domain\User\Entity\User;
-use App\Domain\User\ValueObject\Email;
-use App\Domain\User\ValueObject\PasswordHash;
 use PHPUnit\Framework\TestCase;
 
 final class ItemDTOTest extends TestCase
 {
     private function createItem(): Item
     {
-        $user = User::register(
-            name: 'Item DTO Test',
-            email: Email::fromString('item_dto_test@example.com'),
-            passwordHash: PasswordHash::createFromPlain('Pass123!'),
-        );
         $collection = Collection::create(
-            owner: $user,
+            ownerId: OwnerId::generate(),
             name: CollectionName::fromString('Item DTO Collection'),
             theme: Theme::games(),
         );

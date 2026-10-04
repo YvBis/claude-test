@@ -61,7 +61,12 @@ nelmio_api_doc:
                     properties:
                         id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
                         owner_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
-                        owner_name: { type: string, example: 'John Doe' }
+                        # fwd-5: resolved by a batch user lookup instead of read off
+                        # the entity, so "absent" is representable in code for the
+                        # first time. The users(id) foreign key means it is always
+                        # present in practice, hence nullable rather than optional:
+                        # the key stays required, only its value may be null.
+                        owner_name: { type: string, nullable: true, example: 'John Doe' }
                         item_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
                         created_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
                 Comment:
@@ -70,7 +75,7 @@ nelmio_api_doc:
                     properties:
                         id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
                         owner_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
-                        owner_name: { type: string, example: 'John Doe' }
+                        owner_name: { type: string, nullable: true, example: 'John Doe' }
                         item_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
                         content: { type: string, maxLength: 3000, example: 'Great read! ## Notes' }
                         created_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }

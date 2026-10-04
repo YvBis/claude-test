@@ -6,7 +6,7 @@ namespace App\Domain\Collection\Repository;
 
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionId;
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 
 interface CollectionRepositoryInterface
 {

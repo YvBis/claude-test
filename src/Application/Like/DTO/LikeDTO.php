@@ -12,24 +12,30 @@ final readonly class LikeDTO implements ArrayableInterface
     public function __construct(
         public string $id,
         public string $ownerId,
-        public string $ownerName,
+        public ?string $ownerName,
         public string $itemId,
         public \DateTimeImmutable $createdAt,
     ) {
     }
 
-    public static function fromEntity(Like $like): self
+    /**
+     * fwd-5: `ownerName` is resolved by the caller through a batch lookup rather
+     * than read off the entity, so it is nullable here. The `users(id)` foreign
+     * key means it is always present in practice; nullable describes the code,
+     * not an observed response.
+     */
+    public static function fromEntity(Like $like, ?string $ownerName): self
     {
         return new self(
             id: $like->getId()->toString(),
-            ownerId: $like->getOwner()->getId()->toString(),
-            ownerName: $like->getOwner()->getName(),
+            ownerId: $like->getOwnerId()->toString(),
+            ownerName: $ownerName,
             itemId: $like->getItem()->getId()->toString(),
             createdAt: $like->getCreatedAt(),
         );
     }
 
-    /** @return array{id: string, owner_id: string, owner_name: string, item_id: string, created_at: string} */
+    /** @return array{id: string, owner_id: string, owner_name: ?string, item_id: string, created_at: string} */
     #[\Override]
     public function toArray(): array
     {

@@ -7,9 +7,7 @@ namespace App\Tests\Domain\Collection\Entity;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\Theme;
-use App\Domain\User\Entity\User;
-use App\Domain\User\ValueObject\Email;
-use App\Domain\User\ValueObject\PasswordHash;
+use App\Domain\Common\ValueObject\OwnerId;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Clock\Clock;
 use Symfony\Component\Clock\MockClock;
@@ -31,15 +29,15 @@ final class CollectionTest extends TestCase
 
     public function testCreateWithDefaults(): void
     {
-        $owner = $this->createUser();
+        $ownerId = OwnerId::generate();
         $collection = Collection::create(
-            owner: $owner,
+            ownerId: $ownerId,
             name: CollectionName::fromString('My Books'),
             theme: Theme::books(),
         );
 
         $this->assertInstanceOf(Collection::class, $collection);
-        $this->assertSame($owner, $collection->getOwner());
+        $this->assertTrue($collection->getOwnerId()->equals($ownerId));
         $this->assertSame('My Books', $collection->getName()->value());
         $this->assertTrue($collection->getTheme()->isBooks());
         $this->assertNull($collection->getImage());
@@ -54,9 +52,8 @@ final class CollectionTest extends TestCase
 
     public function testCreateWithDescriptionAndImage(): void
     {
-        $owner = $this->createUser();
         $collection = Collection::create(
-            owner: $owner,
+            ownerId: OwnerId::generate(),
             name: CollectionName::fromString('My Books'),
             theme: Theme::books(),
             description: 'A reading list.',
@@ -164,14 +161,11 @@ final class CollectionTest extends TestCase
         $this->assertSame('https://example.com/x.png', $collection->getImage());
     }
 
-    public function testReassignOwnerSwitchesOwnership(): void
+    public function testGetOwnerIdSurvivesTheRoundTripThroughBytes(): void
     {
         $collection = $this->createCollection();
-        $newOwner = $this->createUser('new-owner@example.com');
 
-        $collection->reassignOwner($newOwner);
-
-        $this->assertSame($newOwner, $collection->getOwner());
+        $this->assertSame(16, \strlen($collection->getOwnerId()->toBytes()));
     }
 
     public function testGetIdReturnsCollectionId(): void
@@ -183,19 +177,10 @@ final class CollectionTest extends TestCase
         $this->assertSame(16, \strlen($id->toBytes()));
     }
 
-    private function createUser(string $emailAddress = 'owner@example.com'): User
-    {
-        return User::register(
-            name: 'Owner',
-            email: Email::fromString($emailAddress),
-            passwordHash: PasswordHash::createFromPlain('password123'),
-        );
-    }
-
     private function createCollection(?string $description = null, ?string $image = null): Collection
     {
         return Collection::create(
-            owner: $this->createUser(),
+            ownerId: OwnerId::generate(),
             name: CollectionName::fromString('My Books'),
             theme: Theme::books(),
             description: $description,

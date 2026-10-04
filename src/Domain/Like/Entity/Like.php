@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Like\Entity;
 
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Like\ValueObject\LikeId;
-use App\Domain\User\Entity\User;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Clock\ClockAwareTrait;
@@ -27,10 +27,15 @@ final class Like
     #[ORM\Column(name: 'id', type: 'binary', length: 16)]
     private string $id;
 
-    #[ORM\ManyToOne(targetEntity: User::class, fetch: 'LAZY')]
-    #[ORM\JoinColumn(name: 'owner_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
-    #[Assert\NotNull]
-    private User $owner;
+    /**
+     * The liker as an id, not as an association.
+     *
+     * fwd-5, same reasoning as `Collection::$ownerId`: the `users(id)` foreign key
+     * and its ON DELETE CASCADE live in the schema (written by hand into the
+     * squashed baseline migration), not in this mapping.
+     */
+    #[ORM\Column(name: 'owner_id', type: 'binary', length: 16)]
+    private string $ownerId;
 
     #[ORM\ManyToOne(targetEntity: Item::class, fetch: 'LAZY')]
     #[ORM\JoinColumn(name: 'item_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
@@ -46,20 +51,20 @@ final class Like
      */
     public function __construct(
         string $id,
-        User $owner,
+        OwnerId $ownerId,
         Item $item,
     ) {
         $this->id = $id;
-        $this->owner = $owner;
+        $this->ownerId = $ownerId->toBytes();
         $this->item = $item;
         $this->createdAt = $this->clockNow();
     }
 
-    public static function create(User $owner, Item $item): self
+    public static function create(OwnerId $ownerId, Item $item): self
     {
         return new self(
             id: LikeId::generate()->toBytes(),
-            owner: $owner,
+            ownerId: $ownerId,
             item: $item,
         );
     }
@@ -69,9 +74,9 @@ final class Like
         return LikeId::fromBytes($this->id);
     }
 
-    public function getOwner(): User
+    public function getOwnerId(): OwnerId
     {
-        return $this->owner;
+        return OwnerId::fromBytes($this->ownerId);
     }
 
     public function getItem(): Item

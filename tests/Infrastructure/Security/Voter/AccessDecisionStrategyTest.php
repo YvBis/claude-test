@@ -8,6 +8,7 @@ use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionId;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Like\Entity\Like;
 use App\Domain\User\Entity\User;
@@ -60,12 +61,12 @@ final class AccessDecisionStrategyTest extends TestCase
 
         $collection = new Collection(
             id: CollectionId::generate()->toBytes(),
-            owner: $this->admin,
+            ownerId: OwnerId::fromBytes($this->admin->getId()->toBytes()),
             name: CollectionName::fromString('My Books'),
             theme: Theme::books(),
         );
 
-        $this->like = Like::create($this->admin, Item::create($collection, '1984'));
+        $this->like = Like::create(OwnerId::fromBytes($this->admin->getId()->toBytes()), Item::create($collection, '1984'));
         $this->token = new UsernamePasswordToken($this->admin, 'main', $this->admin->getRoles());
     }
 

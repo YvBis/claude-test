@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace App\Domain\Item\Repository;
 
 use App\Domain\Collection\ValueObject\CollectionId;
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\ValueObject\ItemId;
 
 /**
- * Read methods hydrate the Item together with its collection and the collection
- * owner (JOIN FETCH). Do not add read paths that load an Item without them:
- * Item.collection and Collection.owner are LAZY associations to final entities,
- * which Doctrine ORM 3 cannot ghost-proxy.
+ * Read methods hydrate the Item together with its collection (JOIN FETCH). Do not
+ * add read paths that load an Item without it: Item.collection is a LAZY
+ * association to a final entity, which Doctrine ORM 3 cannot ghost-proxy.
+ *
+ * The collection's owner is not among them, and stopped being part of this
+ * contract in fwd-5: `Collection.owner` is a plain `owner_id` column, so there is
+ * no association left to hydrate and no row to fetch for it.
  *
  * Tags are pre-initialized too (fwd-6), in a second batch query rather than a
  * fetch join: joining the to-many side would inflate rows and break

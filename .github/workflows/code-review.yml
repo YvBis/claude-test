@@ -57,12 +57,23 @@ jobs:
       # the only question that matters - is there a verdict for this head? - and
       # the fallback below is keyed on its answer rather than on the exit code.
       #
-      # It is skipped when the primary already failed, because there is nothing to
-      # publish in that case: an empty `steps.primary_verdict.outputs.verdict` makes
-      # the fallback condition true on its own, so no retries are wasted.
+      # It runs with `always()`, not `steps.openrouter.outcome == 'success'`.
+      # That condition was measured to skip the probe even when the primary had
+      # SUCCEEDED and published a real verdict (PR #132, two consecutive runs):
+      # the primary went green in 8 minutes, the probe was skipped with zero
+      # duration, and the fallback condition below - which is fail-open on an
+      # unwritten output - then fired the second provider for no reason, where it
+      # hung for 15 minutes and failed the required check. The workflow's own
+      # comment claimed the probe is skipped only on a primary failure, and the
+      # whole fallback design rests on that claim being true.
+      #
+      # Skipping a detector on a condition has been disproven here; asking the
+      # question unconditionally is what makes the answer dependable. On a failed
+      # primary the API call costs one bounded round trip instead of nothing, which
+      # is cheap next to the 15-minute provider call it saves.
       - name: Check whether the primary provider published a verdict
         id: primary_verdict
-        if: steps.openrouter.outcome == 'success'
+        if: always()
         # This step calls the GitHub API with retries, so it gets its own bound
         # (task 5.29): a hung API call must fail the step instead of eating the
         # job budget.
@@ -101,13 +112,12 @@ jobs:
       # "run the fallback". The probe keeps them apart for the log and for any
       # future gating, not because this condition distinguishes them.
       #
-      # The first disjunct is redundant today - a failed primary skips the probe,
-      # and a skipped step's output is empty, which the second disjunct already
-      # catches - but it is kept so the failure path does not depend on that
-      # output semantics, and so an edit cannot quietly reduce this condition back
-      # to exit-code keying. CodeReviewConfigTest pins the whole string.
+      # The fallback is keyed on the probe's answer alone. It used to carry a
+      # first disjunct on the primary's outcome; that is gone because the probe now
+      # always runs and always answers, so the output is the single source of
+      # truth. CodeReviewConfigTest pins the whole string.
       - name: Run AI Code Review (NVIDIA NIM fallback)
-        if: steps.openrouter.outcome == 'failure' || steps.primary_verdict.outputs.verdict != 'published'
+        if: steps.primary_verdict.outputs.verdict != 'published'
         timeout-minutes: 15
         uses: aryanbrite/openrabbit@v0.8.7
         with:

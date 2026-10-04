@@ -141,25 +141,6 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->isActive;
     }
 
-    /**
-     * The single owner-or-admin predicate (fwd-14), previously written twice:
-     * in `AbstractApiController::canManage` for item and collection mutations
-     * and in `SocialContentVoter::voteOnAttribute` for social content.
-     *
-     * Named for both of its rules rather than for one: `canManage($user)` on a
-     * user reads like "may administer this account", which is not what it says.
-     *
-     * Identity is compared by id, not by object reference, so a rehydrated owner
-     * matches its author. Deactivation is deliberately absent: it is enforced
-     * when a bearer token is read (fwd-31), and layering it here would make one
-     * rule responsible for two things.
-     */
-    public function isOwnerOrAdminOf(self $owner): bool
-    {
-        return $this->role->isAdmin()
-            || $this->id === $owner->id;
-    }
-
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;

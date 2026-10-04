@@ -13,11 +13,7 @@ use App\Domain\Collection\ValueObject\FieldName;
 use App\Domain\Collection\ValueObject\FieldType;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\Common\Constant\SlotLimits;
-use App\Domain\User\Entity\User;
-use App\Domain\User\ValueObject\Email;
-use App\Domain\User\ValueObject\PasswordHash;
-use App\Domain\User\ValueObject\Role;
-use App\Domain\User\ValueObject\UserId;
+use App\Domain\Common\ValueObject\OwnerId;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Clock\Clock;
 use Symfony\Component\Clock\MockClock;
@@ -34,17 +30,9 @@ final class CollectionFieldTest extends TestCase
         $this->clock = new MockClock('2026-01-01 10:00:00');
         Clock::set($this->clock);
 
-        $user = new User(
-            UserId::generate()->toBytes(),
-            'Test User',
-            Email::fromString('test@example.com'),
-            PasswordHash::createFromPlain('password123'),
-            Role::fromString('user')
-        );
-
         $this->collection = new Collection(
             id: CollectionId::generate()->toBytes(),
-            owner: $user,
+            ownerId: OwnerId::generate(),
             name: CollectionName::fromString('My Books'),
             theme: Theme::books(),
         );
@@ -108,16 +96,9 @@ final class CollectionFieldTest extends TestCase
 
     public function testReassignToCollectionUpdatesAssociation(): void
     {
-        $user = new User(
-            UserId::generate()->toBytes(),
-            'Other User',
-            Email::fromString('other@example.com'),
-            PasswordHash::createFromPlain('password123'),
-            Role::fromString('user')
-        );
         $otherCollection = new Collection(
             id: CollectionId::generate()->toBytes(),
-            owner: $user,
+            ownerId: OwnerId::generate(),
             name: CollectionName::fromString('Other'),
             theme: Theme::games(),
         );

@@ -13,9 +13,8 @@ use App\Domain\Collection\Exception\CollectionNotFoundException;
 use App\Domain\Collection\Repository\CollectionRepositoryInterface;
 use App\Domain\Collection\ValueObject\CollectionId;
 use App\Domain\Collection\ValueObject\CollectionName;
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
-use App\Domain\User\Entity\User;
+use App\Domain\Common\ValueObject\OwnerId;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 
@@ -25,14 +24,14 @@ final class CollectionServiceTest extends TestCase
     private CollectionRepositoryInterface $collectionRepository;
     private UnitOfWorkInterface $unitOfWork;
     private CollectionService $service;
-    private User $owner;
+    private OwnerId $ownerId;
 
     protected function setUp(): void
     {
         $this->collectionRepository = $this->createMock(CollectionRepositoryInterface::class);
         $this->unitOfWork = $this->createMock(UnitOfWorkInterface::class);
         $this->service = new CollectionService($this->collectionRepository, $this->unitOfWork);
-        $this->owner = User::register('Test User', \App\Domain\User\ValueObject\Email::fromString('test@example.com'), \App\Domain\User\ValueObject\PasswordHash::createFromPlain('password123'));
+        $this->ownerId = OwnerId::generate();
     }
 
     public function testCreateSavesCollection(): void
@@ -47,26 +46,26 @@ final class CollectionServiceTest extends TestCase
                     && 'books' === $collection->getTheme()->value()
                     && 'A test collection' === $collection->getDescription()
                     && 'image.jpg' === $collection->getImage()
-                    && $collection->getOwner()->getId()->toString() === $this->owner->getId()->toString();
+                    && $collection->getOwnerId()->equals($this->ownerId);
             }));
 
         $this->unitOfWork->expects($this->once())->method('flush');
 
-        $collection = $this->service->create($dto, $this->owner);
+        $collection = $this->service->create($dto, $this->ownerId);
 
         $this->assertInstanceOf(Collection::class, $collection);
         $this->assertSame('My Collection', $collection->getName()->value());
         $this->assertSame('books', $collection->getTheme()->value());
         $this->assertSame('A test collection', $collection->getDescription());
         $this->assertSame('image.jpg', $collection->getImage());
-        $this->assertSame($this->owner->getId()->toString(), $collection->getOwner()->getId()->toString());
+        $this->assertTrue($collection->getOwnerId()->equals($this->ownerId));
     }
 
     public function testUpdateModifiesCollection(): void
     {
         $collectionId = CollectionId::generate();
         $collection = Collection::create(
-            owner: $this->owner,
+            ownerId: $this->ownerId,
             name: CollectionName::fromString('Old Name'),
             theme: Theme::fromString('books'),
             description: 'Old description',
@@ -121,10 +120,9 @@ final class CollectionServiceTest extends TestCase
 
     public function testListByOwnerIdReturnsCollections(): void
     {
-        $otherOwner = User::register('Other User', \App\Domain\User\ValueObject\Email::fromString('other@example.com'), \App\Domain\User\ValueObject\PasswordHash::createFromPlain('password123'));
-        $ownerId = OwnerId::fromBytes($otherOwner->getId()->toBytes());
+        $ownerId = OwnerId::generate();
         $collection = Collection::create(
-            owner: $otherOwner,
+            ownerId: $ownerId,
             name: CollectionName::fromString('Other Collection'),
             theme: Theme::fromString('movies'),
         );
@@ -144,12 +142,12 @@ final class CollectionServiceTest extends TestCase
     public function testListAllReturnsCollections(): void
     {
         $collection1 = Collection::create(
-            owner: $this->owner,
+            ownerId: $this->ownerId,
             name: CollectionName::fromString('Collection 1'),
             theme: Theme::fromString('books')
         );
         $collection2 = Collection::create(
-            owner: $this->owner,
+            ownerId: $this->ownerId,
             name: CollectionName::fromString('Collection 2'),
             theme: Theme::fromString('games')
         );
@@ -169,7 +167,7 @@ final class CollectionServiceTest extends TestCase
     public function testDeleteRemovesCollection(): void
     {
         $collection = Collection::create(
-            owner: $this->owner,
+            ownerId: $this->ownerId,
             name: CollectionName::fromString('To Delete'),
             theme: Theme::fromString('books')
         );
@@ -188,7 +186,7 @@ final class CollectionServiceTest extends TestCase
     public function testToDTOConvertsCollection(): void
     {
         $collection = Collection::create(
-            owner: $this->owner,
+            ownerId: $this->ownerId,
             name: CollectionName::fromString('Test Collection'),
             theme: Theme::fromString('books'),
             description: 'Test description',
@@ -202,7 +200,7 @@ final class CollectionServiceTest extends TestCase
         $this->assertSame($collection->getTheme()->value(), $dto->theme);
         $this->assertSame($collection->getDescription(), $dto->description);
         $this->assertSame($collection->getImage(), $dto->image);
-        $this->assertSame($collection->getOwner()->getId()->toString(), $dto->ownerId->toString());
+        $this->assertTrue($dto->ownerId->equals($collection->getOwnerId()));
         $this->assertSame($collection->getCreatedAt(), $dto->createdAt);
         $this->assertSame($collection->getUpdatedAt(), $dto->updatedAt);
     }
@@ -210,12 +208,12 @@ final class CollectionServiceTest extends TestCase
     public function testToDTOListConvertsCollectionArray(): void
     {
         $collection1 = Collection::create(
-            owner: $this->owner,
+            ownerId: $this->ownerId,
             name: CollectionName::fromString('Collection 1'),
             theme: Theme::fromString('books')
         );
         $collection2 = Collection::create(
-            owner: $this->owner,
+            ownerId: $this->ownerId,
             name: CollectionName::fromString('Collection 2'),
             theme: Theme::fromString('games')
         );

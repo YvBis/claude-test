@@ -14,17 +14,14 @@ use App\Application\Tag\Service\TagService;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\FieldType;
-use App\Domain\Collection\ValueObject\OwnerId;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Exception\ItemNotFoundException;
 use App\Domain\Item\Repository\ItemRepositoryInterface;
 use App\Domain\Tag\Entity\Tag;
 use App\Domain\Tag\Repository\TagRepositoryInterface;
 use App\Domain\Tag\ValueObject\TagName;
-use App\Domain\User\Entity\User;
-use App\Domain\User\ValueObject\Email;
-use App\Domain\User\ValueObject\PasswordHash;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 
@@ -55,14 +52,8 @@ final class ItemServiceTest extends TestCase
 
     private function createCollection(): Collection
     {
-        $user = User::register(
-            name: 'Item Service Test',
-            email: Email::fromString('item_service_test@example.com'),
-            passwordHash: PasswordHash::createFromPlain('Pass123!'),
-        );
-
         return Collection::create(
-            owner: $user,
+            ownerId: OwnerId::generate(),
             name: CollectionName::fromString('Item Service Collection'),
             theme: Theme::books(),
         );
@@ -195,7 +186,7 @@ final class ItemServiceTest extends TestCase
     {
         $collection = $this->createCollection();
         $item = $this->createItem();
-        $ownerId = OwnerId::fromBytes($collection->getOwner()->getId()->toBytes());
+        $ownerId = $collection->getOwnerId();
         $this->itemRepo->expects($this->once())
             ->method('findByOwnerId')
             ->with($ownerId, 10, 5, null, [])
@@ -223,7 +214,7 @@ final class ItemServiceTest extends TestCase
     {
         $collection = $this->createCollection();
         $item = $this->createItem();
-        $ownerId = OwnerId::fromBytes($collection->getOwner()->getId()->toBytes());
+        $ownerId = $collection->getOwnerId();
         $this->itemRepo->expects($this->once())
             ->method('findByOwnerId')
             ->with($ownerId, 10, 5, null, ['Books'])

@@ -9,6 +9,7 @@ use App\Domain\User\Repository\UserRepositoryInterface;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\UserId;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
@@ -57,6 +58,44 @@ final class DoctrineUserRepository extends ServiceEntityRepository implements Us
             ->orderBy('u.createdAt', \SortDirection::Descending)
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * fwd-5: a projection, not entities — like and comment listings only need the
+     * display name, so selecting id and name avoids hydrating a `User` per row and
+     * keeps a page of social content to one statement.
+     *
+     * The `id` comes back as raw bytes over PDO, so the keys are normalised to
+     * the textual form the callers hold. Ids with no matching user are simply
+     * absent from the map.
+     *
+     * @param array<UserId> $userIds
+     *
+     * @return array<string, string>
+     */
+    #[\Override]
+    public function findNamesByIds(array $userIds): array
+    {
+        if ([] === $userIds) {
+            return [];
+        }
+
+        $bytes = \array_map(static fn (UserId $userId): string => $userId->toBytes(), $userIds);
+
+        /** @var array<int, array{id: string, name: string}> $rows */
+        $rows = $this->createQueryBuilder('u')
+            ->select('u.id AS id, u.name AS name')
+            ->where('u.id IN (:ids)')
+            ->setParameter('ids', $bytes, ArrayParameterType::BINARY)
+            ->getQuery()
+            ->getArrayResult();
+
+        $names = [];
+        foreach ($rows as $row) {
+            $names[UserId::fromBytes($row['id'])->toString()] = $row['name'];
+        }
+
+        return $names;
     }
 
     #[\Override]

@@ -6,7 +6,7 @@ namespace App\Application\Collection\DTO;
 
 use App\Application\Common\DTO\ArrayableInterface;
 use App\Domain\Collection\ValueObject\CollectionId;
-use App\Domain\Collection\ValueObject\OwnerId;
+use App\Domain\Common\ValueObject\OwnerId;
 
 final readonly class CollectionDTO implements ArrayableInterface
 {
@@ -30,7 +30,7 @@ final readonly class CollectionDTO implements ArrayableInterface
             theme: $collection->getTheme()->value(),
             description: $collection->getDescription(),
             image: $collection->getImage(),
-            ownerId: OwnerId::fromBytes($collection->getOwner()->getId()->toBytes()),
+            ownerId: $collection->getOwnerId(),
             createdAt: $collection->getCreatedAt(),
             updatedAt: $collection->getUpdatedAt(),
         );

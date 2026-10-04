@@ -7,6 +7,7 @@ namespace App\Tests\Infrastructure\Tag;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\Tag\Entity\Tag;
 use App\Domain\Tag\Repository\TagRepositoryInterface;
@@ -38,7 +39,7 @@ final class TagPersistenceTest extends KernelTestCase
         );
 
         $collection = Collection::create(
-            owner: $user,
+            ownerId: OwnerId::fromBytes($user->getId()->toBytes()),
             name: CollectionName::fromString('Tag Test Collection'),
             theme: Theme::books(),
         );
@@ -71,10 +72,12 @@ final class TagPersistenceTest extends KernelTestCase
 
         $this->em->clear();
 
-        // Join and hydrate the final Collection -> User association chain inline —
-        // Doctrine ORM 3 cannot lazy-ghost-proxy final entities.
+        // Join and hydrate the final Collection entity inline — Doctrine ORM 3
+        // cannot lazy-ghost-proxy final entities. fwd-5 removed the
+        // Collection -> User hop: ownership is a column now, so the chain stops
+        // at the collection.
         $reloaded = $this->em->createQuery(
-            'SELECT i, c, o FROM App\Domain\Item\Entity\Item i JOIN i.collection c JOIN c.owner o WHERE i.id = :id'
+            'SELECT i, c FROM App\Domain\Item\Entity\Item i JOIN i.collection c WHERE i.id = :id'
         )
             ->setParameter('id', $itemId->toBytes())
             ->getOneOrNullResult();
