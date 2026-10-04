@@ -181,20 +181,29 @@ Item 1 ──── * Comment
 
 | Механизм | Где живёт | Что покрывает |
 |----------|-----------|------------|
-| Voter через `AccessDecisionManager` | `SocialContentVoter` | `SOCIAL_EDIT` / `SOCIAL_DELETE` для `Comment` и `Like`; плюс всё, что проходит через `access_control` и `#[IsGranted]` |
-| `canManage` / `denyUnlessCanManage` | `AbstractApiController` | owner-or-admin для айтемов **и удаления коллекции** — делегат к `OwnerAccess::isOwnerOrAdmin()` (fwd-14 → fwd-5) |
-| Инлайновая проверка в контроллере | `CollectionController::update` | **owner-only** (без админа) для `PATCH` — единственный оставшийся выход из правила, открытый вопрос `fwd-33` |
+| Voter через `AccessDecisionManager` | `SocialContentVoter` | `SOCIAL_EDIT` / `SOCIAL_DELETE` для `Comment` и `Like` — решение по атрибуту над загруженной сущностью |
+| `canManage` / `denyUnlessCanManage` | `AbstractApiController` | owner-or-admin для **всех** мутаций айтемов и коллекций — делегат к `OwnerAccess::isOwnerOrAdmin()` (fwd-14 → fwd-5); сравнение сырых id, **вне** ADM |
+| `access_control` через `AccessDecisionManager` | `config/packages/security.yaml` | гейт по URL+method — `IS_AUTHENTICATED_FULLY` / `PUBLIC_ACCESS` / `IS_AUTHENTICATED_REMEMBERED`; никакой бизнес-логики |
 
 **Все мутации коллекций и айтимов — owner-or-admin через один предикат**
 (`OwnerAccess::isOwnerOrAdmin()`, fwd-5; до него был `User::isOwnerOrAdminOf()`,
 fwd-14). Предикат живёт в Infrastructure, а не в `Domain\User`, потому что
 сравнивает залогиненного пользователя с сырым `OwnerId`, а сущности больше не
 носят загруженного владельца — перенести его в домен значило бы снова
-инвертировать зависимость. Единственное исключение — `PATCH
-/api/collections/{id}`, где осталась инлайновая owner-only проверка: это
-решение владельца ещё не принято (`fwd-33`), и оно тем заметнее, что удаление
-уже owner-or-admin. Новый код не должен писать owner-сравнение инлайн — путь
-через `denyUnlessCanManage()`.
+инвертировать зависимость. **Исключений нет** (fwd-33 закрыл последнее):
+`PATCH /api/collections/{id}` был owner-only инлайном, хотя
+`artifacts/prd-taskflow-ru.md:114` уже требовал «Администратор может
+модифицировать коллекцию любого пользователя», и после fwd-32 админ мог удалить
+чужую коллекцию, но не переименовать её. Новый код не должен писать
+owner-сравнение инлайн — путь через `denyUnlessCanManage()`.
+
+**Три механизма — три разных вопроса, а не три способа сделать одно и то же.**
+Voter отвечает «как этот атрибут правится для этой сущности», `denyUnlessCanManage` —
+«владелец ли ты (или админ)», `access_control` — «кому вообще открыт этот URL».
+Поэтому стратегия ADM на owner-or-admin не влияет: тот идёт мимо неё, и смешивать
+пути значило бы вернуть `OwnerId` в `Domain\User` — инверсию, которую убрал fwd-5.
+Эндпоинты «свой-при-создании» (`POST` коллекции, лайка, комментарий) отдельной
+проверки не требуют: владелец там тождественен вызывающему по построению.
 
 
 **Стратегия `access_decision_manager` — `unanimous`, задана явно (fwd-15).**
@@ -208,18 +217,21 @@ fwd-14). Предикат живёт в Infrastructure, а не в `Domain\User`
 атрибутах. `allow_if_all_abstain` намеренно не задан: дефолт `false` означает,
 что «все воздержались» = «запрещено».
 
-Стратегия **не** покрывает инлайновую проверку в `CollectionController::update`
-— она не доходит до ADM и остаётся отдельным решением (трек `fwd-33`).
+Стратегия **не** покрывает owner-or-admin проверки
+(`OwnerAccess::isOwnerOrAdmin()`) — они идут мимо ADM. На фоне fwd-33 это больше
+не расхождение, а разные механизмы: ADM отвечает за решения вида «атрибут/роль», а
+владелец-или-админ — сравнение сырых id, и смешивать их в одном пути значило бы
+тащить `OwnerId` в `Domain\User` обратно.
 
 ## Infrastructure
 
 | Компонент | Путь | Описание |
 |-----------|------|----------|
 | `LoginController` | `src/Infrastructure/Api/Controller/LoginController.php` | POST /api/login |
-| `AbstractApiController` | `src/Infrastructure/Api/Controller/AbstractApiController.php` | Базовый класс API-контроллеров: `deserializeAndValidate`, `createValidationErrorResponse` (тонкий делегат `unprocessable('Validation failed', …)` — литерал централизован в нём, форма байт-в-байт равна прямому вызову), `toArrayPayload`, `findItemOrNull`, `parsePagination`, хелперы конвертов ошибок (`errorResponse`, `unauthorized`, `notFound`, `forbidden`, `badRequest`, `unprocessable`, `conflict`), `canManage` + `denyUnlessCanManage` (бросает `AccessDeniedException`; owner-or-admin для Item; соцконтент — через Voter + `denyAccessUnlessGranted`) |
+| `AbstractApiController` | `src/Infrastructure/Api/Controller/AbstractApiController.php` | Базовый класс API-контроллеров: `deserializeAndValidate`, `createValidationErrorResponse` (тонкий делегат `unprocessable('Validation failed', …)` — литерал централизован в нём, форма байт-в-байт равна прямому вызову), `toArrayPayload`, `findItemOrNull`, `parsePagination`, хелперы конвертов ошибок (`errorResponse`, `unauthorized`, `notFound`, `forbidden`, `badRequest`, `unprocessable`, `conflict`), `canManage` + `denyUnlessCanManage` (бросает `AccessDeniedException`; owner-or-admin для айтемов **и коллекций**; соцконтент — через Voter + `denyAccessUnlessGranted`) |
 | `LogoutController` | `src/Infrastructure/Api/Controller/LogoutController.php` | POST /api/logout |
 | `RegistrationController` | `src/Infrastructure/Api/Controller/RegistrationController.php` | POST /api/register |
-| `CollectionController` | `src/Infrastructure/Api/Controller/CollectionController.php` | CRUD коллекций; `GET /api/collections` с `?owner={uuid}` (чужие коллекции, двоичный UUID через `IDENTITY`); `GET /api/collections/{id}` — любой аутентифицированный (D1); non-scalar `?owner` (`?owner[]=x`) returns 400 with the API envelope (fwd-25); `ApiExceptionSubscriber` мини-этапа 5A не перемапливает 400 на query-параметрах |
+| `CollectionController` | `src/Infrastructure/Api/Controller/CollectionController.php` | CRUD коллекций; **все мутации — owner-or-admin через `denyUnlessCanManage`** (fwd-33 закрыл последнее исключение, `PATCH` больше не owner-only); `GET /api/collections` с `?owner={uuid}` (чужие коллекции, двоичный UUID через `IDENTITY`); `GET /api/collections/{id}` — любой аутентифицированный (D1); non-scalar `?owner` (`?owner[]=x`) returns 400 with the API envelope (fwd-25); `ApiExceptionSubscriber` мини-этапа 5A не перемапливает 400 на query-параметрах |
 | `ItemController` | `src/Infrastructure/Api/Controller/ItemController.php` | CRUD айтемов + списки: `POST /api/collections/{id}/items`, `GET /api/collections/{id}/items` и `GET /api/items` (свои) с фильтрами `?name` (LIKE, ci) и `?tags[]` (AND), `GET/PATCH/DELETE /api/items/{id}`. Чтение — любой аутентифицированный (D1 Этапа 5); запись — владелец+админ; слоты/теги `\InvalidArgumentException` → 400. `GET /api/items/{id}` отдаёт `ItemDetailDTO` (+`likes_count`/`comments_count`/`liked_by_me`). Карта ошибок (5.9, единая через хелперы): нет токена → 401, id/не найдено → 404, не автор/не админ → 403, битый JSON или `limit`/`offset` → 400, семантически невалидный контент (слот/пустой PATCH) → 422. Не-скалярный query-параметр (`?name[]=x`, `?tags=x`, `?limit[]=1`) отдаёт 400 нашим конвертом — чтение идёт через сырой массив `$request->query->all()`, потому что `InputBag::get()` бросает фреймворковый `BadRequestException` (fwd-25); `ApiExceptionSubscriber` мини-этапа 5A не перемапливает 400 на query-параметрах |
 | `LikeController` | `src/Infrastructure/Api/Controller/LikeController.php` | Лайки: `POST`/`DELETE /api/items/{id}/likes` (идемпотентно, `{likes_count}`), `GET /api/items/{id}/likes` (пагинация), `GET /api/likes` (свои, пагинация), `DELETE /api/likes/{id}` — автор или админ (PRD 118) |
 | `CommentController` | `src/Infrastructure/Api/Controller/CommentController.php` | Комментарии: `POST`/`GET /api/items/{id}/comments`, `GET /api/comments` (свои), `PATCH`/`DELETE /api/comments/{id}` и вложенный `DELETE /api/items/{itemId}/comments/{id}` — автор или админ (PRD 117). Карта ошибок: id → 404, контент → 422, тело → 400 (`CommentRequestDTO` в Application) |

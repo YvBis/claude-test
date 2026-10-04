@@ -11,9 +11,8 @@ security:
     # decision manager, which is wider than social moderation — `access_control`
     # rows (AccessListener:78) and #[IsGranted] (LogoutController:17) pass
     # through it too. It does NOT govern the owner-or-admin checks, which run
-    # outside the ADM as User::isOwnerOrAdminOf() via canManage/denyUnlessCanManage
-    # (and inline in CollectionController::update) — see ARCHITECTURE.md,
-    # "Authorization".
+    # outside the ADM as OwnerAccess::isOwnerOrAdmin() via
+    # canManage/denyUnlessCanManage — see ARCHITECTURE.md, "Authorization".
     access_decision_manager:
         strategy: unanimous
         # allow_if_all_abstain stays at its default (false): all voters abstained
