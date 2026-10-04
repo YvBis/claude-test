@@ -682,6 +682,71 @@ final class CollectionControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(404);
     }
 
+    public function testStrangerCannotUpdateCollection(): void
+    {
+        // Updating a collection follows the owner-or-admin rule like every other
+        // mutation. Note what this test does and does not pin: a stranger is denied
+        // under owner-only too, so it guards "authorization is present" and not the
+        // fwd-33 rule change itself. testAdminCanUpdateForeignCollection is the half
+        // that fails if the inline owner-only check comes back.
+        $foreign = $this->registerUser();
+        $id = $this->createCollectionId($foreign['token']);
+        $stranger = $this->registerUser();
+
+        $this->client->request('PATCH', '/api/collections/'.$id, [], [], $this->authHeaders($stranger['token']), \json_encode([
+            'name' => 'Hijacked',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(403);
+        // The envelope must be the standard 403, so assert the body too: a future
+        // change to the guard must not leak the exception message or bypass
+        // ApiExceptionSubscriber.
+        $this->assertSame(
+            ['error' => 'Forbidden', 'message' => 'Forbidden'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR),
+        );
+
+        // A 403 alone does not prove the guard ran before the mutation. Assert the
+        // collection is untouched.
+        $this->client->request('GET', '/api/collections/'.$id, [], [], $this->authHeaders());
+        $this->assertResponseStatusCodeSame(200);
+        $this->assertStringStartsWith(
+            'Disposable ',
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)['name'],
+        );
+    }
+
+    public function testAdminCanUpdateForeignCollection(): void
+    {
+        // The discriminating half of the fwd-33 pair: under the old owner-only
+        // inline check this was 403. An admin could delete a foreign collection
+        // outright yet not rename it.
+        $foreign = $this->registerUser();
+        $id = $this->createCollectionId($foreign['token']);
+        $admin = $this->registerUser();
+        $this->promoteToAdmin($admin['id']);
+
+        $this->client->request('PATCH', '/api/collections/'.$id, [], [], $this->authHeaders($admin['token']), \json_encode([
+            'name' => 'Moderated name',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(200);
+        $this->assertSame(
+            'Moderated name',
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)['name'],
+        );
+
+        // Read back rather than trusting the PATCH response alone: the write must
+        // be durable, not just echoed. Mirrors the persistence check the stranger
+        // test performs in the other direction.
+        $this->client->request('GET', '/api/collections/'.$id, [], [], $this->authHeaders());
+        $this->assertResponseStatusCodeSame(200);
+        $this->assertSame(
+            'Moderated name',
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)['name'],
+        );
+    }
+
     private function createCollectionId(string $token): string
     {
         $this->client->request('POST', '/api/collections', [], [], $this->authHeaders($token), \json_encode([

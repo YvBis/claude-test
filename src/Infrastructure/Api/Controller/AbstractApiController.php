@@ -173,7 +173,7 @@ abstract class AbstractApiController extends BaseAbstractController
     }
 
     /**
-     * Owner-or-admin guard for item mutations: throws `AccessDeniedException`
+     * Owner-or-admin guard for item and collection mutations: throws `AccessDeniedException`
      * instead of answering 403 inline, so the `kernel.exception` subscriber
      * renders the single 403 envelope. The rule itself is unchanged.
      *

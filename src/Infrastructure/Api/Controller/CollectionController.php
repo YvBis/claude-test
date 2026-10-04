@@ -16,7 +16,6 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Serializer\Exception\NotEncodableValueException;
 use Symfony\Component\Serializer\Exception\NotNormalizableValueException;
 use Symfony\Component\Serializer\SerializerInterface;
@@ -249,7 +248,7 @@ final class CollectionController extends AbstractApiController
         path: '/api/collections/{id}',
         security: [['Bearer' => []]],
         summary: 'Update a collection',
-        description: 'Updates an existing collection (only name, description, image can be changed).',
+        description: 'Updates an existing collection (only name, description, image can be changed). Requires the caller to own the collection or to be an administrator.',
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -318,14 +317,7 @@ final class CollectionController extends AbstractApiController
             return $this->notFound('Collection not found');
         }
 
-        // Authorization: owner only, deliberately narrower than the owner-or-admin
-        // rule every other mutation in this controller uses. That divergence is
-        // unresolved and tracked as fwd-33; it is called out here so the next
-        // reader does not read it as an oversight and "fix" it into
-        // denyUnlessCanManage(). Do not extend this pattern to new endpoints.
-        if (!$collection->getOwnerId()->equals(OwnerId::fromBytes($user->getId()->toBytes()))) {
-            throw new AccessDeniedException('Forbidden');
-        }
+        $this->denyUnlessCanManage($user, $collection->getOwnerId());
 
         if (!$dto->hasChanges()) {
             return $this->unprocessable('At least one field must be provided for update');
