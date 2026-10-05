@@ -140,6 +140,16 @@ User 1 ──── * Comment
 Item 1 ──── * Comment
 ```
 
+**Про три ребра от `User` (fwd-5b).** `Collection`/`Like`/`Comment` хранят владельца
+колонкой `owner_id BINARY(16)`, а не ORM-ассоциацией: сущности отдают
+`getOwnerId(): OwnerId`, а FK на `users(id) ON DELETE CASCADE` объявлен вручную в
+миграции, потому что ORM о нём не знает. Поэтому эти три ребра — та же доменная связь,
+выраженная колонкой, а не `ManyToOne`: на диаграмме они нарисованы одной нотацией с
+ассоциациями ради читаемости. Остальные рёбра
+(`Collection → CollectionField/Item`, `Item → Tag/Like/Comment`) — настоящие ассоциации
+Doctrine. Подробности: «Владение (fwd-5)» в разделе `Collection` и «Доменные сущности»
+для `Like`/`Comment`.
+
 ## Application Services
 
 | Сервис | Путь | Use Case |
