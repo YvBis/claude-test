@@ -22,16 +22,19 @@ interface LikeRepositoryInterface
     public function remove(Like $like): void;
 
     /**
-     * Finds a like by id. The returned like has owner and item (with its
-     * collection and collection owner) hydrated — final classes are not
-     * proxiable in ORM 3, so every read joins the full chain.
+     * Finds a like by id. The returned like has its item and the item's
+     * collection hydrated — final classes are not proxiable in ORM 3, so the
+     * object hydrator has to resolve `Item.collection` while loading the item
+     * and would throw instead of deferring it.
+     *
+     * fwd-6b: that join is load-bearing for hydration, not for a reader. Do
+     * not remove it on the grounds that nothing reads `getCollection()`.
      */
     public function findById(LikeId $id): ?Like;
 
     /**
-     * Finds a like by owner and item. The returned like has owner and item
-     * (with its collection and collection owner) hydrated — final classes are
-     * not proxiable in ORM 3, so every read joins the full chain.
+     * Finds a like by owner and item. The returned like has its item and the
+     * item's collection hydrated — see {@see self::findById()} for why.
      */
     public function findByOwnerAndItem(OwnerId $ownerId, ItemId $itemId): ?Like;
 
