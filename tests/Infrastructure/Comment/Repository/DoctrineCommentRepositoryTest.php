@@ -188,10 +188,27 @@ final class DoctrineCommentRepositoryTest extends KernelTestCase
      * this lock keeps working if `nativeLazyObjects` is ever enabled and a ghost
      * stops throwing.
      *
-     * Scope: this locks the `c.item` join of the shared `withAll()` helper. It
-     * does NOT lock `item.collection`, which no consumer reads today, and it
-     * cannot tell you that this one has become pure over-fetch while still
-     * present.
+     * Scope: this locks BOTH joins of the shared `withAll()` helper — `c.item`
+     * and `item.collection`. The collection join earns its keep through
+     * hydration rather than through a reader: when the object hydrator loads an
+     * item it must resolve `Item.collection`, and `Collection` is `final` (the
+     * review-6 decision), so a lazy ghost cannot be generated and Doctrine
+     * throws `Cannot generate lazy ghost` instead of deferring the fetch.
+     *
+     * What guards the join today is not this assertion: it is that the query
+     * throws inside hydration when the join is missing. `Collection` is final,
+     * so today it can never be an uninitialized ghost and this assert cannot
+     * fail on its own — the lock gains teeth only if `nativeLazyObjects` is ever
+     * enabled, which is why it is here rather than left to that migration.
+     *
+     * fwd-6b measured the join: removing it produced 4 hydration errors plus 21
+     * cascading failures across `CommentControllerTest`. This side does have a
+     * genuine cold reader: `CommentPersistenceTest` clears the EM and then reads
+     * `getItem()->getCollection()`, so it would fail without the join. The
+     * Like-side equivalent omits the clear and would not. The honest scope of
+     * this lock is therefore "the query must succeed", plus the item assertion
+     * above. What it cannot tell you is the reverse — that the join became pure
+     * over-fetch while still being present.
      */
     public function testFindByIdReturnsTheOwnerIdAndAHydratedItem(): void
     {
@@ -215,6 +232,13 @@ final class DoctrineCommentRepositoryTest extends KernelTestCase
         $this->assertFalse(
             $unitOfWork->isUninitializedObject($found->getItem()),
             'findById must return a hydrated item: CommentDTO reads getItem()->getId()',
+        );
+        $this->assertFalse(
+            $unitOfWork->isUninitializedObject($found->getItem()->getCollection()),
+            'findById must return a hydrated collection: ORM 3 cannot proxy the final '
+            .'Collection class, so the object hydrator needs the join to resolve it while '
+            .'loading the item (fwd-6b). This assert only matters if nativeLazyObjects is '
+            .'ever enabled; today the query succeeding is what guards the join.',
         );
     }
 

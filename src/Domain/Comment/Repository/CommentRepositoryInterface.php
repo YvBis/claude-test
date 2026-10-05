@@ -22,9 +22,13 @@ interface CommentRepositoryInterface
     public function remove(Comment $comment): void;
 
     /**
-     * Finds a comment by id. The returned comment has owner and item (with its
-     * collection and collection owner) hydrated — final classes are not
-     * proxiable in ORM 3, so every read joins the full chain.
+     * Finds a comment by id. The returned comment has its item and the item's
+     * collection hydrated — final classes are not proxiable in ORM 3, so the
+     * object hydrator has to resolve `Item.collection` while loading the item
+     * and would throw instead of deferring it.
+     *
+     * fwd-6b: that join is load-bearing for hydration, not for a reader. Do
+     * not remove it on the grounds that nothing reads `getCollection()`.
      */
     public function findById(CommentId $id): ?Comment;
 
@@ -38,8 +42,8 @@ interface CommentRepositoryInterface
 
     /**
      * Lists comments authored by an owner ordered by createdAt ASC (id as
-     * deterministic tiebreaker). The returned comments have owner and item
-     * (with its collection and collection owner) hydrated.
+     * deterministic tiebreaker). The returned comments have their item and the
+     * item's collection hydrated — see {@see self::findById()} for why.
      *
      * @return array<Comment>
      */
