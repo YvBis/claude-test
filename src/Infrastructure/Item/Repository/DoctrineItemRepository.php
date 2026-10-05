@@ -89,9 +89,15 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
 
         $items = $queryBuilder
             ->orderBy('i.createdAt', \SortDirection::Ascending)
-            // fwd-27: same direction as the primary sort. No covering index
-            // exists here (the filter joins on the collection's owner column), so this key
-            // buys determinism, not index service — filesort stays, accepted.
+            // fwd-27: same direction as the primary sort. No covering index exists
+            // here — the filter reads the collections.owner_id column through the
+            // collection alias that withCollection() joins for hydration, and nothing
+            // joins for the owner (it is a column since fwd-5) — so this key buys
+            // determinism, not index service. Filesort stays, accepted; it also does not
+            // stop at the page — every item the owner owns is materialized before
+            // the first 50 are taken, so the cost is linear in their total count.
+            // Tracked as review-8, triggered by a measured cost over 50 ms; the
+            // measurements and their limits live in the log, not here.
             ->addOrderBy('i.id', \SortDirection::Ascending)
             ->setMaxResults($limit)
             ->setFirstResult($offset)
