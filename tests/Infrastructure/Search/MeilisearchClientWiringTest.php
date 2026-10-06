@@ -20,8 +20,8 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  * The client is private in every environment. A public alias under a distinct id
  * in `when@test` makes it reachable here: the alias marks the target as
  * connected, so the removal pass keeps a service that nothing consumes yet,
- * without a production-public vendor service. Drop the alias in 6.2, when the
- * adapter injects the client for real.
+ * without a production-public vendor service. Drop the alias in 6.4, when the
+ * adapter is wired to the port and becomes a real consumer.
  *
  * No assertion is made on the configured host: it is the compose service name
  * inside Docker and 127.0.0.1 on a host runner.
