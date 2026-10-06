@@ -1,0 +1,39 @@
+services:
+    # The Meilisearch client requires a PSR-18 client and PSR-17 factories.
+    # They are wired explicitly rather than discovered: with null arguments the
+    # constructor runs discovery, which can throw while *building* the service
+    # when it cannot resolve the installed combination — that would break the
+    # container rather than the first search.
+    Nyholm\Psr7\Factory\Psr17Factory: ~
+
+    # Files in config/packages do NOT inherit _defaults from services.yaml, so
+    # without an explicit $responseFactory this service is not autowired and
+    # its constructor picks the PSR-17 factories itself. Its fallback chain
+    # happens to work today (nyholm/psr7 is a direct requirement), but relying
+    # on the order of that chain is not a contract.
+    Symfony\Component\HttpClient\Psr18Client:
+        arguments:
+            $responseFactory: '@Nyholm\Psr7\Factory\Psr17Factory'
+
+    Meilisearch\Client:
+        arguments:
+            $url: '%env(MEILISEARCH_URL)%'
+            $apiKey: '%env(MEILISEARCH_KEY)%'
+            $httpClient: '@Symfony\Component\HttpClient\Psr18Client'
+            $requestFactory: '@Nyholm\Psr7\Factory\Psr17Factory'
+            $streamFactory: '@Nyholm\Psr7\Factory\Psr17Factory'
+
+# Nothing consumes the client until 6.2 wires the adapter, and an unreferenced
+# private service is removed from the container — which would leave the wiring
+# test unable to reach it. A public *alias* keeps the target alive (the
+# removal pass treats a publicly aliased id as connected) without making the
+# service itself public in production.
+#
+# The alias MUST use a distinct id: redefining the same id in when@test
+# REPLACES the definition instead of merging it, silently dropping the
+# constructor arguments (verified: ArgumentCountError, 0 passed).
+when@test:
+    services:
+        test.meilisearch_client:
+            alias: 'Meilisearch\Client'
+            public: true

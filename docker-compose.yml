@@ -57,7 +57,10 @@ services:
       - redis_data:/data
 
   meilisearch:
-    image: getmeili/meilisearch:v1.6
+    # v1.6 (Feb 2024) is ~48 minors behind and outside upstream's security
+    # window: only the latest minor receives patches. Bumped in 6.1
+    # (ADR/0001-search-engine.md). Drift of this tag is tracked by review-9.
+    image: getmeili/meilisearch:v1.54
     container_name: taskflow_meilisearch
     environment:
       - MEILI_MASTER_KEY=masterKey123
