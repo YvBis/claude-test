@@ -161,6 +161,18 @@ jobs:
         ports:
           - 6379:6379
         options: --health-cmd="redis-cli ping" --health-interval=5s --health-timeout=5s --health-retries=10
+      # Task 6.3: the search tests run against a real engine. Same minor tag as
+      # docker-compose.yml (ADR pin policy); the master key is hardcoded like
+      # the mysql credentials above — there is no production yet, and a secret
+      # would break fork PRs without adding security.
+      meilisearch:
+        image: getmeili/meilisearch:v1.54
+        env:
+          MEILI_MASTER_KEY: masterKey123
+          MEILI_NO_ANALYTICS: 'true'
+        ports:
+          - 7700:7700
+        options: --health-cmd="wget -qO- http://127.0.0.1:7700/health | grep -q available" --health-interval=5s --health-timeout=5s --health-retries=10
     steps:
       - name: Checkout
         uses: actions/checkout@v4

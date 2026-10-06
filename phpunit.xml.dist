@@ -63,5 +63,17 @@
         -->
         <env name="MEILISEARCH_URL" value="http://127.0.0.1:7700"/>
         <env name="MEILISEARCH_KEY" value="masterKey123"/>
+        <!--
+            Test index namespace. FORCED on purpose: these are engine-visible
+            names, and the Docker .env value must not win when `docker compose
+            exec app` runs the suite — engine-backed tests must never touch the
+            production-named `items`/`collections` indexes. No .env file sets
+            these today, so force is forward-looking insurance for the day 6.4
+            adds real index names to .env. Fixed names, not per-run: the CI
+            engine is per-job ephemeral and locally two stable test indexes
+            beat accumulating garbage.
+        -->
+        <env name="MEILISEARCH_ITEMS_INDEX" value="items_test" force="true"/>
+        <env name="MEILISEARCH_COLLECTIONS_INDEX" value="collections_test" force="true"/>
     </php>
 </phpunit>
