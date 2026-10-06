@@ -53,5 +53,15 @@
         <env name="KERNEL_CLASS" value="App\Kernel"/>
         <env name="DEFAULT_URI" value="http://localhost"/>
         <env name="JWT_PASSPHRASE" value="test_passphrase"/>
+        <!--
+            Meilisearch is addressed differently depending on where the suite runs:
+            inside Docker (the compose service name) and on a host runner
+            (CI, or PHPUnit with host PHP — where services sit on host ports).
+            A single value cannot serve both, and `force` would override the
+            Docker env_file value that is already correct locally, so the
+            fallback applies only when nothing else has set the variable.
+        -->
+        <env name="MEILISEARCH_URL" value="http://127.0.0.1:7700"/>
+        <env name="MEILISEARCH_KEY" value="masterKey123"/>
     </php>
 </phpunit>
