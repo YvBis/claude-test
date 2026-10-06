@@ -23,11 +23,12 @@ services:
             $requestFactory: '@Nyholm\Psr7\Factory\Psr17Factory'
             $streamFactory: '@Nyholm\Psr7\Factory\Psr17Factory'
 
-# Nothing consumes the client until 6.2 wires the adapter, and an unreferenced
-# private service is removed from the container — which would leave the wiring
-# test unable to reach it. A public *alias* keeps the target alive (the
-# removal pass treats a publicly aliased id as connected) without making the
-# service itself public in production.
+# Nothing consumes the client until 6.4 wires the port to the adapter, and an
+# unreferenced private service is removed from the container — which would leave
+# the wiring test unable to reach it. 6.2 added the adapter but did not connect
+# it to anything, so the client would still be pruned. A public *alias* keeps the
+# target alive (the removal pass treats a publicly aliased id as connected)
+# without making the service itself public in production.
 #
 # The alias MUST use a distinct id: redefining the same id in when@test
 # REPLACES the definition instead of merging it, silently dropping the
