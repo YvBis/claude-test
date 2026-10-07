@@ -100,6 +100,18 @@ docker compose exec app composer phpunit:no-coverage
 > в `items_test`/`collections_test` (forced в `phpunit.xml.dist`), продовые `items`/`collections`
 > не трогаются. Если движок остановлен, падают только engine-backed тесты — остальной сьют зелёный.
 
+### Поиск: перестроение индекса
+
+Создание, изменение и удаление айтема индексируется сразу после коммита. Если движок был
+недоступен (fail-open: запись в БД проходит, документ теряется) или индекс пустой, перестройте:
+
+```bash
+docker compose exec app php bin/console search:reindex                 # пачками по 100
+docker compose exec app php bin/console search:reindex --batch-size=500
+```
+
+Команда идемпотентна: создаёт индексы и настройки, если их нет, затем upsert всех айтемов.
+
 Для запуска тестов с покрытием (Xdebug включается через `XDEBUG_MODE=coverage`; `composer coverage:check` делает это автоматически):
 ```bash
 docker compose exec app composer coverage:check

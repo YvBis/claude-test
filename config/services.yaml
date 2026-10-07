@@ -63,3 +63,27 @@ services:
     Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor:
         tags:
             - { name: 'property_info.type_extractor', priority: -1001 }
+
+    # Task 6.4: search wiring. MUST stay in this file, after the
+    # App\Infrastructure\ resource block: the prototype redefines every class it
+    # discovers, so arguments declared earlier (e.g. in config/packages/) are
+    # silently dropped and the adapter would fall back to its production index
+    # names — tests would then write to `items`/`collections`, killing the 6.3
+    # isolation with no red test.
+    #
+    # `default:` falls back to the parameter when the env var is absent (dev and
+    # prod .env do not set it); phpunit forces the *_test names. %env()% is
+    # resolved at runtime, so building the container needs no engine.
+    # Guarded by MeilisearchClientWiringTest::testAdapterUsesTheForcedTestIndexNames
+    # — a clobbered definition reddens it.
+    App\Application\Search\SearchIndexerInterface:
+        alias: App\Infrastructure\Search\MeilisearchSearchAdapter
+
+    App\Infrastructure\Search\MeilisearchSearchAdapter:
+        arguments:
+            $itemsIndex: '%env(default:search.items_index:MEILISEARCH_ITEMS_INDEX)%'
+            $collectionsIndex: '%env(default:search.collections_index:MEILISEARCH_COLLECTIONS_INDEX)%'
+
+parameters:
+    search.items_index: items
+    search.collections_index: collections

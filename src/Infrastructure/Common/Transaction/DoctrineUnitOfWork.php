@@ -25,4 +25,10 @@ final readonly class DoctrineUnitOfWork implements UnitOfWorkInterface
     {
         return $this->entityManager->wrapInTransaction($callback);
     }
+
+    #[\Override]
+    public function clear(): void
+    {
+        $this->entityManager->clear();
+    }
 }

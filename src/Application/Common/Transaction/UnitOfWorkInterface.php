@@ -27,4 +27,11 @@ interface UnitOfWorkInterface
      * @return T
      */
     public function transactional(callable $callback): mixed;
+
+    /**
+     * Detaches every managed entity. Bulk walks over large tables call it
+     * between pages so memory stays flat; entities read before the call must
+     * not be used after it (they become detached).
+     */
+    public function clear(): void;
 }

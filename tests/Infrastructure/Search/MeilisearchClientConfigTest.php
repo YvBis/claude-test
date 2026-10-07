@@ -127,20 +127,25 @@ final class MeilisearchClientConfigTest extends TestCase
         );
     }
 
-    public function testClientIsPrivateAndReachableThroughATestOnlyAlias(): void
+    public function testClientIsPrivateAndCarriesNoTestOnlyAlias(): void
     {
-        /** @var array{services: array<string, array<string, mixed>>, when@test: array{services: array<string, array<string, mixed>>}} $config */
+        /** @var array{services: array<string, array<string, mixed>>, when@test?: array<string, mixed>} $config */
         $config = Yaml::parseFile($this->projectRoot.'/config/packages/meilisearch.yaml');
 
         self::assertArrayNotHasKey(
             'public',
             $config['services'][Client::class],
-            'A vendor service must not be public in production; the test-only alias covers testability.',
+            'A vendor service must not be public in production.',
         );
-        self::assertSame(
-            ['test.meilisearch_client' => ['alias' => Client::class, 'public' => true]],
-            $config['when@test']['services'] ?? null,
-            'The alias must stay public and keep a distinct id — redefining the client id in when@test replaces its definition and drops the constructor arguments.',
+        // Since 6.4 the adapter injects the client, so it survives pruning and
+        // tests reach it through the test container's private locator. A
+        // when@test block here would either be dead weight (a distinct-id
+        // alias) or destructive (redefining the client id replaces its
+        // definition and drops the constructor arguments).
+        self::assertArrayNotHasKey(
+            'when@test',
+            $config,
+            'No test-only service overrides: the client is reachable without them since the adapter consumes it.',
         );
     }
 
@@ -157,6 +162,29 @@ final class MeilisearchClientConfigTest extends TestCase
             '@Nyholm\Psr7\Factory\Psr17Factory',
             $config['services'][Psr18Client::class]['arguments']['$responseFactory'] ?? null,
         );
+    }
+
+    public function testEngineTransportFailsFast(): void
+    {
+        /** @var array{services: array<string, array<string, mixed>>} $config */
+        $config = Yaml::parseFile($this->projectRoot.'/config/packages/meilisearch.yaml');
+
+        // Since 6.4 every item mutation calls the engine. Measured against an
+        // unreachable host: 21.4 s per request with the default client, 2.0 s
+        // with timeout: 2. Without a bound, fail-open becomes slow-open.
+        self::assertSame(
+            '@meilisearch.http_client',
+            $config['services'][Psr18Client::class]['arguments']['$client'] ?? null,
+            'The PSR-18 client must wrap the dedicated, time-bounded HTTP client.',
+        );
+
+        /** @var array{arguments: array<int, array<string, int>>} $httpClient */
+        $httpClient = $config['services']['meilisearch.http_client'] ?? [];
+        $options = $httpClient['arguments'][0] ?? [];
+
+        self::assertArrayHasKey('timeout', $options);
+        self::assertLessThanOrEqual(5, $options['timeout'], 'A dead engine must not hold a request for long.');
+        self::assertArrayHasKey('max_duration', $options);
     }
 
     public function testTestEnvironmentSuppliesMeilisearchVariables(): void

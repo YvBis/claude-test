@@ -8,6 +8,8 @@ use App\Application\Common\Transaction\UnitOfWorkInterface;
 use App\Application\Item\DTO\CreateItemDTO;
 use App\Application\Item\DTO\ItemDTO;
 use App\Application\Item\DTO\UpdateItemDTO;
+use App\Application\Search\ItemDocument;
+use App\Application\Search\SearchIndexerInterface;
 use App\Application\Tag\Service\TagService;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionId;
@@ -25,12 +27,23 @@ final readonly class ItemService
         private UnitOfWorkInterface $unitOfWork,
         private TagService $tagService,
         private ItemSlotMapper $slotMapper,
+        private SearchIndexerInterface $searchIndexer,
     ) {
     }
 
+    /**
+     * Indexing runs after transactional() has returned, i.e. after commit:
+     * calling it inside the closure would leave a ghost document behind if the
+     * transaction rolled back. No try/catch here — fail-open is the adapter's
+     * job (see SearchIndexerInterface).
+     *
+     * Never wrap these methods in an outer transaction: the inner one would
+     * become a savepoint, indexing would run before the real commit, and an
+     * outer rollback would leave exactly the ghost this placement prevents.
+     */
     public function create(CreateItemDTO $dto, Collection $collection): Item
     {
-        return $this->unitOfWork->transactional(function () use ($dto, $collection): Item {
+        $item = $this->unitOfWork->transactional(function () use ($dto, $collection): Item {
             $item = Item::create($collection, $dto->name);
             $this->slotMapper->applySlots($item, $dto->slots);
 
@@ -42,6 +55,10 @@ final readonly class ItemService
 
             return $item;
         });
+
+        $this->searchIndexer->indexItem(ItemDocument::fromEntity($item));
+
+        return $item;
     }
 
     public function getById(string $id): Item
@@ -58,7 +75,7 @@ final readonly class ItemService
 
     public function update(UpdateItemDTO $dto, Item $item): Item
     {
-        return $this->unitOfWork->transactional(function () use ($dto, $item): Item {
+        $item = $this->unitOfWork->transactional(function () use ($dto, $item): Item {
             if (null !== $dto->name) {
                 $item->changeName($dto->name);
             }
@@ -75,12 +92,25 @@ final readonly class ItemService
 
             return $item;
         });
+
+        $this->searchIndexer->indexItem(ItemDocument::fromEntity($item));
+
+        return $item;
     }
 
+    /**
+     * No surrounding transaction: the DELETE autocommits on flush(), so the
+     * index is touched only after it. If flush() throws, removeItem() never
+     * runs and the document stays — matching a delete that did not happen.
+     */
     public function delete(Item $item): void
     {
+        $id = $item->getId();
+
         $this->itemRepository->remove($item);
         $this->unitOfWork->flush();
+
+        $this->searchIndexer->removeItem($id);
     }
 
     /**

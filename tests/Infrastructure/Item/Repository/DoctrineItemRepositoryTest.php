@@ -411,6 +411,49 @@ final class DoctrineItemRepositoryTest extends KernelTestCase
         return \array_map(static fn (Item $item): string => $item->getId()->toString(), $items);
     }
 
+    public function testFindAllWalksEveryItemInStablePagesWithTagsInitialized(): void
+    {
+        // 6.4: the reindex walk. Frozen clock so createdAt ties and the id
+        // tie-breaker alone decides the order — pages must not reshuffle, or the
+        // reindex would skip rows. Filtered to this test's ids: findAll spans
+        // the whole table.
+        Clock::set(new MockClock('2026-10-07 10:00:00'));
+        try {
+            $collection = $this->createCollection($this->createUser('walk'), 'Walk');
+            $tag = Tag::create(TagName::fromString('Walk_'.\uniqid()));
+            $this->em->persist($tag);
+            foreach (['One', 'Two', 'Three'] as $name) {
+                $item = Item::create($collection, $name);
+                $item->addTag($tag);
+                $this->em->persist($item);
+            }
+            $this->em->flush();
+            $this->em->clear();
+
+            $mine = static fn (array $items): array => \array_values(\array_filter(
+                $items,
+                static fn (Item $item): bool => 'Walk' === $item->getCollection()->getName()->value(),
+            ));
+
+            $all = $mine($this->repo->findAll(1000));
+            $expected = $this->idsOf($all);
+            $sorted = $expected;
+            \sort($sorted);
+
+            $this->assertCount(3, $all);
+            $this->assertSame($sorted, $expected, 'findAll must order equal createdAt by id.');
+
+            foreach ($all as $item) {
+                // Checked through reflection before getTags(): calling the
+                // getter would trigger the very lazy load under test.
+                $this->assertTrue($this->tagsAreInitialized($item), 'Tags must be pre-initialized, not lazy (fwd-6).');
+                $this->assertCount(1, $item->getTags());
+            }
+        } finally {
+            Clock::set(new NativeClock());
+        }
+    }
+
     public function testRemoveDeletesItem(): void
     {
         $collection = $this->createCollection($this->createUser('rm'), 'Remove');

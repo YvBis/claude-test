@@ -10,6 +10,8 @@ use App\Application\Item\DTO\ItemSlotDTO;
 use App\Application\Item\DTO\UpdateItemDTO;
 use App\Application\Item\Service\ItemService;
 use App\Application\Item\Service\ItemSlotMapper;
+use App\Application\Search\ItemDocument;
+use App\Application\Search\SearchIndexerInterface;
 use App\Application\Tag\Service\TagService;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
@@ -31,6 +33,7 @@ final class ItemServiceTest extends TestCase
     private ItemRepositoryInterface $itemRepo;
     private UnitOfWorkInterface $uow;
     private TagRepositoryInterface $tagRepo;
+    private SearchIndexerInterface $searchIndexer;
     private ItemService $service;
 
     protected function setUp(): void
@@ -40,6 +43,7 @@ final class ItemServiceTest extends TestCase
         $this->uow->method('transactional')
             ->willReturnCallback(static fn (callable $callback) => $callback());
         $this->tagRepo = $this->createMock(TagRepositoryInterface::class);
+        $this->searchIndexer = $this->createMock(SearchIndexerInterface::class);
         $tagService = new TagService($this->tagRepo);
 
         $this->service = new ItemService(
@@ -47,6 +51,7 @@ final class ItemServiceTest extends TestCase
             $this->uow,
             $tagService,
             new ItemSlotMapper(),
+            $this->searchIndexer,
         );
     }
 
@@ -168,6 +173,82 @@ final class ItemServiceTest extends TestCase
         $this->uow->expects($this->once())->method('flush');
 
         $this->service->delete($item);
+    }
+
+    public function testCreateIndexesTheCommittedItem(): void
+    {
+        $this->searchIndexer->expects($this->once())
+            ->method('indexItem')
+            ->with($this->callback(static fn (ItemDocument $d): bool => '1984' === $d->name));
+
+        $this->service->create(new CreateItemDTO('1984'), $this->createCollection());
+    }
+
+    public function testCreateDoesNotIndexWhenTheTransactionFails(): void
+    {
+        $uow = $this->createMock(UnitOfWorkInterface::class);
+        $uow->method('transactional')->willThrowException(new \RuntimeException('rolled back'));
+        $indexer = $this->createMock(SearchIndexerInterface::class);
+        $indexer->expects($this->never())->method('indexItem');
+
+        $service = new ItemService($this->itemRepo, $uow, new TagService($this->tagRepo), new ItemSlotMapper(), $indexer);
+
+        $this->expectException(\RuntimeException::class);
+        $service->create(new CreateItemDTO('1984'), $this->createCollection());
+    }
+
+    public function testUpdateReindexesWithTheNewTags(): void
+    {
+        $item = $this->createItem();
+        $this->tagRepo->method('getOrCreate')
+            ->willReturnCallback(static fn (TagName $name): Tag => Tag::create($name));
+
+        $this->searchIndexer->expects($this->once())
+            ->method('indexItem')
+            ->with($this->callback(static fn (ItemDocument $d): bool => ['Fresh'] === $d->tags));
+
+        $this->service->update(new UpdateItemDTO(tags: ['Fresh']), $item);
+    }
+
+    public function testUpdateDoesNotIndexWhenTheTransactionFails(): void
+    {
+        $uow = $this->createMock(UnitOfWorkInterface::class);
+        $uow->method('transactional')->willThrowException(new \RuntimeException('rolled back'));
+        $indexer = $this->createMock(SearchIndexerInterface::class);
+        $indexer->expects($this->never())->method('indexItem');
+
+        $service = new ItemService($this->itemRepo, $uow, new TagService($this->tagRepo), new ItemSlotMapper(), $indexer);
+
+        $this->expectException(\RuntimeException::class);
+        $service->update(new UpdateItemDTO(name: 'x'), $this->createItem());
+    }
+
+    public function testDeleteRemovesFromTheIndexAfterFlush(): void
+    {
+        $item = $this->createItem();
+        $calls = [];
+        $this->uow->method('flush')->willReturnCallback(static function () use (&$calls): void {
+            $calls[] = 'flush';
+        });
+        $this->searchIndexer->expects($this->once())
+            ->method('removeItem')
+            ->with($item->getId())
+            ->willReturnCallback(static function () use (&$calls): void {
+                $calls[] = 'removeItem';
+            });
+
+        $this->service->delete($item);
+
+        $this->assertSame(['flush', 'removeItem'], $calls);
+    }
+
+    public function testDeleteDoesNotTouchTheIndexWhenFlushFails(): void
+    {
+        $this->uow->method('flush')->willThrowException(new \RuntimeException('flush failed'));
+        $this->searchIndexer->expects($this->never())->method('removeItem');
+
+        $this->expectException(\RuntimeException::class);
+        $this->service->delete($this->createItem());
     }
 
     public function testListByCollectionDelegatesToRepository(): void

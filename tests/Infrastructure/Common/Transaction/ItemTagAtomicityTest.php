@@ -8,6 +8,7 @@ use App\Application\Common\Transaction\UnitOfWorkInterface;
 use App\Application\Item\DTO\CreateItemDTO;
 use App\Application\Item\Service\ItemService;
 use App\Application\Item\Service\ItemSlotMapper;
+use App\Application\Search\SearchIndexerInterface;
 use App\Application\Tag\Service\TagService;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
@@ -63,6 +64,7 @@ final class ItemTagAtomicityTest extends KernelTestCase
             $this->uow,
             new TagService(self::getContainer()->get(TagRepositoryInterface::class)),
             new ItemSlotMapper(),
+            self::getContainer()->get(SearchIndexerInterface::class),
         );
         $item = $itemService->create(new CreateItemDTO('Atomic Item', tags: [$tagName]), $collection);
 
