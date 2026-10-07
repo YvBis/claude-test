@@ -411,6 +411,31 @@ final class DoctrineItemRepositoryTest extends KernelTestCase
         return \array_map(static fn (Item $item): string => $item->getId()->toString(), $items);
     }
 
+    public function testFindIdsByCollectionIdReturnsEveryIdWithoutHydrating(): void
+    {
+        $collection = $this->createCollection($this->createUser('ids'), 'Ids');
+        foreach (['One', 'Two'] as $name) {
+            $this->em->persist(Item::create($collection, $name));
+        }
+        $this->em->flush();
+        $this->em->clear();
+
+        // The delete path: scalar ids only, so nothing is loaded into the
+        // identity map and a later clear() cannot detach the collection.
+        $ids = $this->repo->findIdsByCollectionId($collection->getId());
+
+        $this->assertCount(2, $ids);
+        foreach ($ids as $id) {
+            $this->assertInstanceOf(\App\Domain\Item\ValueObject\ItemId::class, $id);
+        }
+
+        $expected = $this->idsOf($this->repo->findByCollectionId($collection->getId()));
+        $actual = \array_map(static fn ($id) => $id->toString(), $ids);
+        \sort($actual);
+        \sort($expected);
+        $this->assertSame($expected, $actual);
+    }
+
     public function testFindAllWalksEveryItemInStablePagesWithTagsInitialized(): void
     {
         // 6.4: the reindex walk. Frozen clock so createdAt ties and the id

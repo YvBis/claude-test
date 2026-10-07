@@ -29,6 +29,13 @@ interface CollectionRepositoryInterface
     /** @return array<Collection> ordered by createdAt DESC */
     public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array;
 
-    /** @return array<Collection> */
+    /**
+     * Every collection, page by page — the search reindex walk. Ordered by
+     * createdAt DESC then id DESC so pages are stable (the tie-breaker follows
+     * the primary direction, fwd-27); offset drift under concurrent writes is
+     * accepted because the reindex is idempotent.
+     *
+     * @return array<Collection>
+     */
     public function findAll(int $limit = 50, int $offset = 0): array;
 }

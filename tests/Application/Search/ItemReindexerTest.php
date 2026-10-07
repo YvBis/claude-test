@@ -90,4 +90,60 @@ final class ItemReindexerTest extends TestCase
             $this->createStub(SearchIndexerInterface::class),
         ))->reindexAll(0);
     }
+
+    public function testReindexCollectionWalksOnlyThatCollection(): void
+    {
+        $collectionId = \App\Domain\Collection\ValueObject\CollectionId::generate();
+        $otherId = \App\Domain\Collection\ValueObject\CollectionId::generate();
+        $pages = [[$this->createItem('a')], []];
+
+        $repository = $this->createMock(ItemRepositoryInterface::class);
+        $repository->expects($this->never())->method('findAll');
+        $repository->expects($this->exactly(2))
+            ->method('findByCollectionId')
+            ->willReturnCallback(
+                static function (
+                    \App\Domain\Collection\ValueObject\CollectionId $id,
+                    int $limit,
+                    int $offset,
+                ) use ($collectionId, $pages): array {
+                    self::assertTrue($id->equals($collectionId), 'Must stay scoped to the renamed collection.');
+                    self::assertSame(1, $limit);
+
+                    return $pages[$offset] ?? [];
+                }
+            );
+
+        $events = [];
+        $unitOfWork = $this->createMock(UnitOfWorkInterface::class);
+        $unitOfWork->expects($this->once())->method('clear')
+            ->willReturnCallback(static function () use (&$events): void {
+                $events[] = 'clear';
+            });
+
+        $indexer = $this->createMock(SearchIndexerInterface::class);
+        $indexer->expects($this->once())
+            ->method('indexItem')
+            ->willReturnCallback(static function (ItemDocument $document) use (&$events): void {
+                $events[] = $document->name;
+            });
+
+        $count = (new ItemReindexer($repository, $unitOfWork, $indexer))
+            ->reindexCollection($collectionId, 1);
+
+        self::assertSame(1, $count);
+        self::assertSame(['a', 'clear'], $events);
+        self::assertFalse($collectionId->equals($otherId));
+    }
+
+    public function testReindexCollectionRejectsANonPositiveBatchSize(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ItemReindexer(
+            $this->createStub(ItemRepositoryInterface::class),
+            $this->createStub(UnitOfWorkInterface::class),
+            $this->createStub(SearchIndexerInterface::class),
+        ))->reindexCollection(\App\Domain\Collection\ValueObject\CollectionId::generate(), 0);
+    }
 }

@@ -314,9 +314,8 @@ GitHub Actions
 ## Поиск (Meilisearch)
 
 Движок, клиент и отвергнутые кандидаты зафиксированы в `ADR/0001-search-engine.md`; ниже —
-только то, что реально есть в коде на 6.4: клиент, модель документов, порт записи, адаптер,
-синхронизация айтемов и команда `search:reindex`. **Коллекции ещё не индексируются (6.5),
-поисковых эндпоинтов нет (6.6).**
+только то, что реально есть в коде на 6.5: клиент, модель документов, порт записи, адаптер,
+синхронизация айтемов и коллекций, команда `search:reindex`. **Поисковых эндпоинтов нет (6.6).**
 
 **Синхронизация айтемов (6.4).** `ItemService` вызывает `SearchIndexerInterface` строго после
 коммита: `create`/`update` — после возврата `transactional()`, `delete` — после `flush()`.
@@ -327,11 +326,19 @@ GitHub Actions
 продовые индексы из тестов). Имена индексов — `%env(default:search.items_index:MEILISEARCH_ITEMS_INDEX)%`:
 прод берёт параметр `items`/`collections`, phpunit форсирует `*_test`.
 
-**Reindex.** `search:reindex` (тонкая команда) — `ensureIndexes()`, затем `ItemReindexer`
-постранично обходит `ItemRepositoryInterface::findAll()` (стабильный порядок `createdAt, id`) и
-очищает unit of work между страницами (`UnitOfWorkInterface::clear()` — EntityManager остаётся
-внутри Doctrine-реализации). Идемпотентен; это путь починки для fail-open. Документы удалённых
-строк не вычищает.
+**Reindex.** `search:reindex` (тонкая команда) — `ensureIndexes()`, затем `ItemReindexer` и
+`CollectionReindexer` постранично обходят свои репозитории (стабильный порядок
+`createdAt, id`) и очищают unit of work между страницами (`UnitOfWorkInterface::clear()` —
+EntityManager остаётся внутри Doctrine-реализации). Идемпотентен; это путь починки для
+fail-open. Документы удалённых строк не вычищает.
+
+**Синхронизация коллекций (6.5).** `CollectionService` тоже пишет после `flush()` (транзакций
+у него нет нигде — как у `ItemService::delete`). Имя коллекции денормализовано в документ
+каждого айтема, поэтому rename запускает fan-out: `ItemReindexer::reindexCollection()`
+обходит `findByCollectionId` страницами, а не всю таблицу. Delete собирает id айтемов
+скалярным `findIdsByCollectionId` **до** `remove()`: постраничный обход с `clear()` отсоединил
+бы саму коллекцию, и `remove()` бросил бы на detached-сущности, а каскад БД удалил бы строки,
+не дав приложению их перечислить.
 
 **Клиент** (`config/packages/meilisearch.yaml`) — сервис `Meilisearch\Client` с PSR-18
 (`Symfony\Component\HttpClient\Psr18Client`) и PSR-17 (`Nyholm\Psr7\Factory\Psr17Factory`),

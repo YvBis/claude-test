@@ -110,7 +110,7 @@ docker compose exec app php bin/console search:reindex                 # пач�
 docker compose exec app php bin/console search:reindex --batch-size=500
 ```
 
-Команда идемпотентна: создаёт индексы и настройки, если их нет, затем upsert всех айтемов.
+Команда идемпотентна: создаёт индексы и настройки, если их нет, затем upsert всех айтемов и коллекций.
 
 Для запуска тестов с покрытием (Xdebug включается через `XDEBUG_MODE=coverage`; `composer coverage:check` делает это автоматически):
 ```bash
