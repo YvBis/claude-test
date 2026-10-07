@@ -87,4 +87,37 @@ final class DoctrineCollectionRepositoryTest extends KernelTestCase
     {
         return \array_map(static fn (Collection $c): string => $c->getId()->toString(), $collections);
     }
+
+    public function testFindAllOrdersEqualCreatedAtByIdDescending(): void
+    {
+        // 6.5: CollectionReindexer pages over findAll, so its order is a
+        // contract, not an implementation detail. Frozen clock so createdAt
+        // ties and the id tie-breaker alone decides — pages must not reshuffle.
+        Clock::set(new MockClock('2026-10-07 10:00:00'));
+        try {
+            $owner = $this->createUser('findall');
+            $mine = [];
+            foreach (['First', 'Second', 'Third'] as $name) {
+                $collection = Collection::create(
+                    ownerId: OwnerId::fromBytes($owner->getId()->toBytes()),
+                    name: CollectionName::fromString($name.' '.\uniqid()),
+                    theme: Theme::books(),
+                );
+                $this->repo->save($collection);
+                $mine[] = $collection->getId()->toString();
+            }
+            $this->em->flush();
+
+            $expected = \array_values(\array_intersect($this->idsOf($this->repo->findAll(1000)), $mine));
+            \rsort($expected);
+
+            $pageOne = \array_values(\array_intersect($this->idsOf($this->repo->findAll(2, 0)), $mine));
+            $pageTwo = \array_values(\array_intersect($this->idsOf($this->repo->findAll(2, 2)), $mine));
+
+            $this->assertSame(\array_slice($expected, 0, 2), $pageOne);
+            $this->assertSame(\array_slice($expected, 2), $pageTwo);
+        } finally {
+            Clock::set(new NativeClock());
+        }
+    }
 }

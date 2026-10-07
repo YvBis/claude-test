@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Application\Search;
 
 use App\Application\Common\Transaction\UnitOfWorkInterface;
+use App\Domain\Collection\ValueObject\CollectionId;
+use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Repository\ItemRepositoryInterface;
 
 /**
@@ -36,14 +38,43 @@ final readonly class ItemReindexer
      */
     public function reindexAll(int $batchSize = 100): int
     {
-        if ($batchSize < 1) {
-            throw new \InvalidArgumentException(\sprintf('Batch size must be positive, got %d.', $batchSize));
-        }
+        $this->requirePositiveBatchSize($batchSize);
 
+        return $this->walk(
+            fn (int $limit, int $offset): array => $this->itemRepository->findAll($limit, $offset),
+            $batchSize,
+        );
+    }
+
+    /**
+     * Re-sends every item of one collection — the rename fan-out path. The
+     * collection name is denormalized into each item document, so a rename
+     * must rewrite them all. Same paging and clearing discipline as
+     * reindexAll; the walk is scoped, not full-table.
+     *
+     * @return int number of items sent to the index
+     */
+    public function reindexCollection(CollectionId $collectionId, int $batchSize = 100): int
+    {
+        $this->requirePositiveBatchSize($batchSize);
+
+        return $this->walk(
+            fn (int $limit, int $offset): array => $this->itemRepository->findByCollectionId($collectionId, $limit, $offset),
+            $batchSize,
+        );
+    }
+
+    /**
+     * @param callable(int, int): array<Item> $fetchPage
+     *
+     * @return int number of items sent to the index
+     */
+    private function walk(callable $fetchPage, int $batchSize): int
+    {
         $count = 0;
         $offset = 0;
 
-        while ([] !== ($items = $this->itemRepository->findAll($batchSize, $offset))) {
+        while ([] !== ($items = $fetchPage($batchSize, $offset))) {
             foreach ($items as $item) {
                 $this->searchIndexer->indexItem(ItemDocument::fromEntity($item));
                 ++$count;
@@ -58,5 +89,12 @@ final readonly class ItemReindexer
         }
 
         return $count;
+    }
+
+    private function requirePositiveBatchSize(int $batchSize): void
+    {
+        if ($batchSize < 1) {
+            throw new \InvalidArgumentException(\sprintf('Batch size must be positive, got %d.', $batchSize));
+        }
     }
 }

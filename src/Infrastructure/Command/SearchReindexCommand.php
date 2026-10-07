@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Command;
 
+use App\Application\Search\CollectionReindexer;
 use App\Application\Search\ItemReindexer;
 use App\Infrastructure\Search\MeilisearchSearchAdapter;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -13,10 +14,10 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
- * Provisions the search indexes and rebuilds the items index from the database.
+ * Provisions the search indexes and rebuilds them from the database.
  *
  * Thin by design: provisioning lives on the adapter (it is engine-specific and
- * deliberately not on the port), the walk lives in ItemReindexer. Provisioning
+ * deliberately not on the port), the walks live in the reindexers. Provisioning
  * runs first and is idempotent, so the command is safe on a fresh engine and
  * on a populated one alike. It is also the repair path for fail-open indexing.
  */
@@ -26,6 +27,7 @@ final class SearchReindexCommand extends Command
     public function __construct(
         private readonly MeilisearchSearchAdapter $adapter,
         private readonly ItemReindexer $itemReindexer,
+        private readonly CollectionReindexer $collectionReindexer,
     ) {
         parent::__construct();
     }
@@ -33,7 +35,7 @@ final class SearchReindexCommand extends Command
     #[\Override]
     protected function configure(): void
     {
-        $this->addOption('batch-size', null, InputOption::VALUE_REQUIRED, 'Items fetched per page', '100');
+        $this->addOption('batch-size', null, InputOption::VALUE_REQUIRED, 'Items and collections fetched per page', '100');
     }
 
     #[\Override]
@@ -47,9 +49,10 @@ final class SearchReindexCommand extends Command
         }
 
         $this->adapter->ensureIndexes();
-        $count = $this->itemReindexer->reindexAll((int) $batchSize);
+        $items = $this->itemReindexer->reindexAll((int) $batchSize);
+        $collections = $this->collectionReindexer->reindexAll((int) $batchSize);
 
-        $output->writeln(\sprintf('Indexed %d item(s).', $count));
+        $output->writeln(\sprintf('Indexed %d item(s), %d collection(s).', $items, $collections));
 
         return Command::SUCCESS;
     }

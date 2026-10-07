@@ -65,4 +65,14 @@ interface ItemRepositoryInterface
      * @return array<Item> collection and tags initialized
      */
     public function findAll(int $limit = 50, int $offset = 0): array;
+
+    /**
+     * Ids of every item in the collection, in one scalar read — the collection
+     * delete path. No pagination and no clear(): the caller removes the
+     * collection right after, and clearing would detach it and make remove()
+     * throw. Ordered by createdAt ASC then id ASC, like findAll.
+     *
+     * @return array<ItemId>
+     */
+    public function findIdsByCollectionId(CollectionId $collectionId): array;
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Infrastructure\Command;
 
+use App\Application\Search\CollectionDocument;
 use App\Application\Search\ItemDocument;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\CollectionName;
@@ -60,13 +61,15 @@ final class SearchReindexCommandTest extends EngineBackedSearchTestCase
         $em->persist($item);
         $em->flush();
         $expected = ItemDocument::fromEntity($item)->toArray();
+        $expectedCollection = CollectionDocument::fromEntity($collection)->toArray();
 
         $tester = $this->tester();
         $tester->execute(['--batch-size' => '1']);
 
         $tester->assertCommandIsSuccessful();
-        self::assertMatchesRegularExpression('/Indexed [1-9]\d* item\(s\)\./', $tester->getDisplay());
+        self::assertMatchesRegularExpression('/Indexed [1-9]\d* item\(s\), [1-9]\d* collection\(s\)\./', $tester->getDisplay());
         self::assertEquals($expected, $this->waitForDocument($this->itemsIndex, $expected['id']));
+        self::assertEquals($expectedCollection, $this->waitForDocument($this->collectionsIndex, $expectedCollection['id']));
     }
 
     public function testRejectsANonPositiveBatchSize(): void
