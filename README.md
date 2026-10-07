@@ -94,6 +94,11 @@ docker compose exec app composer phpunit:no-coverage
 > ```
 > Короткая форма для любых test-команд консоли — `scripts/console-test.sh` (Git Bash):
 > URL берётся из `.env.test` автоматически. Локальный инструмент; путь CI не трогает.
+>
+> **Тестовый движок поиска**: с 6.3 часть сьюта идёт против настоящего Meilisearch, поэтому
+> `meilisearch` должен быть поднят (`docker compose up -d` поднимает всё). Тесты пишут только
+> в `items_test`/`collections_test` (forced в `phpunit.xml.dist`), продовые `items`/`collections`
+> не трогаются. Если движок остановлен, падают только engine-backed тесты — остальной сьют зелёный.
 
 Для запуска тестов с покрытием (Xdebug включается через `XDEBUG_MODE=coverage`; `composer coverage:check` делает это автоматически):
 ```bash
