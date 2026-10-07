@@ -6,6 +6,18 @@ services:
     # container rather than the first search.
     Nyholm\Psr7\Factory\Psr17Factory: ~
 
+    # Task 6.4 put the engine in the request path of every item mutation, so a
+    # dead engine must fail fast. Measured: against an unreachable host,
+    # indexItem() held the request 21.4 s with the default client and 2.0 s
+    # with timeout: 2. `timeout` is the idle/connect budget; max_duration caps a
+    # slow-but-alive engine. Writes only enqueue a task, so 2 s is generous;
+    # provisioning polls with many short requests, each within the budget.
+    meilisearch.http_client:
+        class: Symfony\Contracts\HttpClient\HttpClientInterface
+        factory: ['Symfony\Component\HttpClient\HttpClient', 'create']
+        arguments:
+            - { timeout: 2, max_duration: 10 }
+
     # Files in config/packages do NOT inherit _defaults from services.yaml, so
     # without an explicit $responseFactory this service is not autowired and
     # its constructor picks the PSR-17 factories itself. Its fallback chain
@@ -13,6 +25,7 @@ services:
     # on the order of that chain is not a contract.
     Symfony\Component\HttpClient\Psr18Client:
         arguments:
+            $client: '@meilisearch.http_client'
             $responseFactory: '@Nyholm\Psr7\Factory\Psr17Factory'
 
     Meilisearch\Client:
@@ -23,18 +36,9 @@ services:
             $requestFactory: '@Nyholm\Psr7\Factory\Psr17Factory'
             $streamFactory: '@Nyholm\Psr7\Factory\Psr17Factory'
 
-# Nothing consumes the client until 6.4 wires the port to the adapter, and an
-# unreferenced private service is removed from the container — which would leave
-# the wiring test unable to reach it. 6.2 added the adapter but did not connect
-# it to anything, so the client would still be pruned. A public *alias* keeps the
-# target alive (the removal pass treats a publicly aliased id as connected)
-# without making the service itself public in production.
-#
-# The alias MUST use a distinct id: redefining the same id in when@test
-# REPLACES the definition instead of merging it, silently dropping the
-# constructor arguments (verified: ArgumentCountError, 0 passed).
-when@test:
-    services:
-        test.meilisearch_client:
-            alias: 'Meilisearch\Client'
-            public: true
+# Since 6.4 the adapter injects this client, so it is a real consumer and is
+# no longer pruned; tests fetch it from the test container's private-service
+# locator (`self::getContainer()->get(Client::class)`). The 6.1–6.3 public
+# `test.meilisearch_client` alias existed only to bridge the gap before that
+# and is removed. Do not reintroduce it by redefining the same id in when@test:
+# that REPLACES the definition and drops the constructor arguments.

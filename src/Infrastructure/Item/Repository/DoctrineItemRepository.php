@@ -108,6 +108,23 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
         return $items;
     }
 
+    #[\Override]
+    public function findAll(int $limit = 50, int $offset = 0): array
+    {
+        $items = $this->withCollection($this->createQueryBuilder('i'))
+            ->orderBy('i.createdAt', \SortDirection::Ascending)
+            // fwd-27 tie-breaker: without it equal createdAt values could
+            // shuffle between pages and the reindex would skip rows.
+            ->addOrderBy('i.id', \SortDirection::Ascending)
+            ->setMaxResults($limit)
+            ->setFirstResult($offset)
+            ->getQuery()
+            ->getResult();
+        $this->initializeTags($items);
+
+        return $items;
+    }
+
     /**
      * fwd-6: pre-initialize the tag collections of a page of items in one
      * extra query.

@@ -7,7 +7,6 @@ namespace App\Tests\Infrastructure\Search;
 use App\Infrastructure\Search\MeilisearchSearchAdapter;
 use Meilisearch\Client;
 use Meilisearch\Exceptions\ExceptionInterface;
-use Psr\Log\NullLogger;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 /**
@@ -19,10 +18,10 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  * documents, awaiting each task. The indexes themselves survive between test
  * classes — only their contents are reset.
  *
- * The adapter is constructed by hand, not fetched: it is private and
- * unreferenced until 6.4 wires the port, so the container prunes it. The
- * engine client comes through the `test.meilisearch_client` alias (kept for
- * exactly this use until 6.4 removes it).
+ * Since 6.4 both the adapter and the client come from the container (the port
+ * alias keeps the adapter, and the adapter keeps the client, alive through
+ * pruning), so these tests exercise the real wiring — including the index
+ * names bound in services.yaml.
  *
  * Index names come from the forced `MEILISEARCH_*_INDEX` phpunit vars
  * (`items_test`/`collections_test`): engine-backed tests never touch the
@@ -53,15 +52,13 @@ abstract class EngineBackedSearchTestCase extends KernelTestCase
         self::assertNotEmpty($this->itemsIndex, 'MEILISEARCH_ITEMS_INDEX must be set (forced in phpunit.xml.dist).');
         self::assertNotEmpty($this->collectionsIndex, 'MEILISEARCH_COLLECTIONS_INDEX must be set (forced in phpunit.xml.dist).');
 
-        $this->client = self::getContainer()->get('test.meilisearch_client');
-        \assert($this->client instanceof Client);
+        $client = self::getContainer()->get(Client::class);
+        \assert($client instanceof Client);
+        $this->client = $client;
 
-        $this->adapter = new MeilisearchSearchAdapter(
-            $this->client,
-            new NullLogger(),
-            $this->itemsIndex,
-            $this->collectionsIndex,
-        );
+        $adapter = self::getContainer()->get(MeilisearchSearchAdapter::class);
+        \assert($adapter instanceof MeilisearchSearchAdapter);
+        $this->adapter = $adapter;
 
         $this->adapter->ensureIndexes();
         $this->wipeIndex($this->itemsIndex);

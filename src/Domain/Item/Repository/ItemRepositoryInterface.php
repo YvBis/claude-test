@@ -55,4 +55,14 @@ interface ItemRepositoryInterface
      * @return array<Item> owned via their collection, ordered by createdAt ASC
      */
     public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0, ?string $name = null, array $tagNames = []): array;
+
+    /**
+     * Every item, page by page — the search reindex walk. Ordered by
+     * createdAt ASC then id ASC so pages are stable; offset paging can skip or
+     * repeat a row under concurrent writes, which is accepted because the
+     * reindex is idempotent and a second run picks up the difference.
+     *
+     * @return array<Item> collection and tags initialized
+     */
+    public function findAll(int $limit = 50, int $offset = 0): array;
 }
