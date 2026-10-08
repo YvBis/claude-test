@@ -55,6 +55,8 @@ final class OpenApiSpecTest extends TestCase
         'GET /api/items/{itemId}/comments' => ['200', '400', '404'],
         'GET /api/items/{itemId}/likes' => ['200', '400', '404'],
         'GET /api/likes' => ['200', '400', '401'],
+        'GET /api/search/collections' => ['200', '400', '401'],
+        'GET /api/search/items' => ['200', '400', '401'],
         'GET /api/tags' => ['200', '400', '401'],
         'GET /health' => ['200'],
         'PATCH /api/collections/{id}' => ['200', '400', '401', '403', '404', '422'],
@@ -70,12 +72,14 @@ final class OpenApiSpecTest extends TestCase
     ];
 
     private const SCHEMA_REQUIRED_PATHS = [
+        'schemas.CollectionSearchHit' => ['description', 'id', 'name', 'owner_id', 'theme'],
         'schemas.Comment' => ['content', 'created_at', 'id', 'item_id', 'owner_id', 'owner_name', 'updated_at'],
         'schemas.Error' => ['error'],
         'schemas.Item' => ['collection_id', 'created_at', 'id', 'name', 'slots', 'tags', 'updated_at'],
         'schemas.Item.properties.slots.items' => ['slot', 'type', 'value'],
         'schemas.Item.properties.tags.items' => ['id', 'name'],
         'schemas.ItemDetail.allOf.1' => ['comments_count', 'liked_by_me', 'likes_count'],
+        'schemas.ItemSearchHit' => ['collection_id', 'collection_name', 'id', 'name', 'owner_id', 'tags'],
         'schemas.Like' => ['created_at', 'id', 'item_id', 'owner_id', 'owner_name'],
         'schemas.Tag' => ['id', 'name'],
     ];
@@ -96,6 +100,8 @@ final class OpenApiSpecTest extends TestCase
         'GET /api/items/{itemId}/comments' => 'get_api_comment_list_by_item',
         'GET /api/items/{itemId}/likes' => 'get_api_like_list_by_item',
         'GET /api/likes' => 'get_api_like_list_own',
+        'GET /api/search/collections' => 'get_api_search_collections',
+        'GET /api/search/items' => 'get_api_search_items',
         'GET /api/tags' => 'get_api_tag_list',
         'GET /health' => 'get_health',
         'PATCH /api/collections/{id}' => 'patch_api_collection_update',
@@ -126,6 +132,8 @@ final class OpenApiSpecTest extends TestCase
         'GET /api/items/{itemId}/comments' => ['itemId in=path req=true', 'limit in=query req=false', 'offset in=query req=false'],
         'GET /api/items/{itemId}/likes' => ['itemId in=path req=true', 'limit in=query req=false', 'offset in=query req=false'],
         'GET /api/likes' => ['limit in=query req=false', 'offset in=query req=false'],
+        'GET /api/search/collections' => ['limit in=query req=false', 'offset in=query req=false', 'owner in=query req=false', 'q in=query req=true', 'theme in=query req=false'],
+        'GET /api/search/items' => ['collection_id in=query req=false', 'limit in=query req=false', 'offset in=query req=false', 'owner in=query req=false', 'q in=query req=true', 'tags[] in=query req=false'],
         'GET /api/tags' => ['limit in=query req=false', 'offset in=query req=false', 'search in=query req=false'],
         'GET /health' => [],
         'PATCH /api/collections/{id}' => ['id in=path req=true'],

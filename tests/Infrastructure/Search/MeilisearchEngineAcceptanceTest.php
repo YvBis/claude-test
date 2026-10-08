@@ -98,4 +98,65 @@ final class MeilisearchEngineAcceptanceTest extends EngineBackedSearchTestCase
 
         return $item;
     }
+
+    public function testSearchItemsFindsTheIndexedDocument(): void
+    {
+        $document = ItemDocument::fromEntity($this->createItem());
+        $this->adapter->indexItem($document);
+
+        $hits = $this->waitForSearch(
+            fn (): array => $this->adapter->searchItems('Halo', [], 20, 0),
+            $document->id,
+        );
+
+        self::assertCount(1, $hits);
+        self::assertSame($document->id, $hits[0]->id);
+    }
+
+    public function testSearchItemsHonorsTheOwnerFilter(): void
+    {
+        $document = ItemDocument::fromEntity($this->createItem());
+        $this->adapter->indexItem($document);
+        $this->waitForSearch(
+            fn (): array => $this->adapter->searchItems('Halo', [], 20, 0),
+            $document->id,
+        );
+
+        // A filter for a foreign owner must hide the document, not error.
+        self::assertSame(
+            [],
+            $this->adapter->searchItems('Halo', ['owner_id' => OwnerId::generate()->toString()], 20, 0),
+        );
+        self::assertCount(
+            1,
+            $this->adapter->searchItems('Halo', ['owner_id' => $document->ownerId], 20, 0),
+        );
+    }
+
+    /**
+     * Search is eventually consistent (tasks enqueue); poll until the
+     * expected id surfaces or the deadline passes.
+     *
+     * @template T of object
+     *
+     * @param callable(): list<T> $search
+     *
+     * @return list<T>
+     */
+    private function waitForSearch(callable $search, string $id): array
+    {
+        $deadline = \microtime(true) + 5;
+
+        do {
+            $hits = $search();
+            foreach ($hits as $hit) {
+                if ($hit->id === $id) {
+                    return $hits;
+                }
+            }
+            \usleep(50000);
+        } while (\microtime(true) < $deadline);
+
+        self::fail(\sprintf('Document %s never surfaced in search results.', $id));
+    }
 }

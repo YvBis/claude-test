@@ -112,6 +112,12 @@ docker compose exec app php bin/console search:reindex --batch-size=500
 
 Команда идемпотентна: создаёт индексы и настройки, если их нет, затем upsert всех айтемов и коллекций.
 
+> Fresh engine: записи сами создают индексы, но НЕ пушат настройки — любой поиск
+> с фильтром на таком индексе отвечает 500 (`invalid_search_filter` движка).
+> Поэтому после поднятия чистого Meilisearch (и в CI это делает каждый тест
+> сам через `ensureIndexes()` в setUp) прогони `search:reindex` один раз до
+> приёма трафика.
+
 Для запуска тестов с покрытием (Xdebug включается через `XDEBUG_MODE=coverage`; `composer coverage:check` делает это автоматически):
 ```bash
 docker compose exec app composer coverage:check

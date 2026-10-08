@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Infrastructure\Search;
 
 use App\Application\Search\CollectionDocument;
+use App\Application\Search\CollectionSearchHit;
 use App\Application\Search\ItemDocument;
+use App\Application\Search\ItemSearchHit;
 use App\Application\Search\SearchIndexerInterface;
+use App\Application\Search\SearchReaderInterface;
 use App\Domain\Collection\ValueObject\CollectionId;
 use App\Domain\Item\ValueObject\ItemId;
 use Meilisearch\Client;
@@ -15,7 +18,9 @@ use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Log\LoggerInterface;
 
 /**
- * Meilisearch implementation of the indexing port.
+ * Meilisearch implementation of the indexing port AND the reading port: one
+ * engine, two contracts. Write methods fail open and silent (see below);
+ * search methods must NOT catch — a dead engine surfaces as an error.
  *
  * Fail-open lives here, not in the interface: an engine outage must not break
  * item or collection writes, but that is a Meilisearch-deployment property, and
@@ -38,7 +43,7 @@ use Psr\Log\LoggerInterface;
  * The constructor performs no I/O, so building this service at container
  * compile time is safe (see 6.1: the diagnostics gate boots without the engine).
  */
-final readonly class MeilisearchSearchAdapter implements SearchIndexerInterface
+final readonly class MeilisearchSearchAdapter implements SearchIndexerInterface, SearchReaderInterface
 {
     /**
      * Provisioning waits for an engine task, so the budget is generous: it runs
@@ -72,6 +77,72 @@ final readonly class MeilisearchSearchAdapter implements SearchIndexerInterface
     public function removeCollection(CollectionId $id): void
     {
         $this->write(fn () => $this->client->index($this->collectionsIndex)->deleteDocument($id->toString()));
+    }
+
+    /**
+     * @param array<string, string|array<string>> $filter
+     *
+     * @return list<ItemSearchHit>
+     */
+    #[\Override]
+    public function searchItems(string $query, array $filter, int $limit, int $offset): array
+    {
+        $hits = $this->client->index($this->itemsIndex)->search($query, [
+            'filter' => $this->buildFilter($filter, ['owner_id', 'collection_id', 'tags']),
+            'limit' => $limit,
+            'offset' => $offset,
+        ])->getHits();
+
+        return \array_map(ItemSearchHit::fromArray(...), $hits);
+    }
+
+    /**
+     * @param array<string, string|array<string>> $filter
+     *
+     * @return list<CollectionSearchHit>
+     */
+    #[\Override]
+    public function searchCollections(string $query, array $filter, int $limit, int $offset): array
+    {
+        $hits = $this->client->index($this->collectionsIndex)->search($query, [
+            'filter' => $this->buildFilter($filter, ['owner_id', 'theme']),
+            'limit' => $limit,
+            'offset' => $offset,
+        ])->getHits();
+
+        return \array_map(CollectionSearchHit::fromArray(...), $hits);
+    }
+
+    /**
+     * Translates the port filter map into a Meilisearch filter expression.
+     * Unknown keys are dropped (the port documents the supported ones);
+     * `tags` uses AND semantics like the item list endpoint. Values are
+     * escaped, not stripped: inside a quoted Meilisearch value a backslash
+     * escapes the next char, so stripping quotes alone leaves `foo\` able to
+     * swallow the closing quote and turn a valid-string tag into an engine
+     * 400 (surfaced as 500). Deliberately no catch anywhere on this path: a
+     * dead engine must surface as an error.
+     *
+     * @param array<string, string|array<string>> $filter
+     * @param array<string>                       $allowed
+     */
+    private function buildFilter(array $filter, array $allowed): ?string
+    {
+        $parts = [];
+
+        foreach ($allowed as $key) {
+            $value = $filter[$key] ?? null;
+
+            if (\is_string($value) && '' !== $value) {
+                $parts[] = \sprintf('%s = "%s"', $key, \addcslashes($value, '\\"'));
+            } elseif (\is_array($value) && [] !== $value) {
+                foreach (\array_values($value) as $tag) {
+                    $parts[] = \sprintf('%s = "%s"', $key, \addcslashes((string) $tag, '\\"'));
+                }
+            }
+        }
+
+        return [] === $parts ? null : \implode(' AND ', $parts);
     }
 
     /**

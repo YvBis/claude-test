@@ -79,6 +79,12 @@ services:
     App\Application\Search\SearchIndexerInterface:
         alias: App\Infrastructure\Search\MeilisearchSearchAdapter
 
+    # Task 6.6: the read side shares the same adapter (and its index names).
+    # Separate interfaces because the contracts differ — writes fail open and
+    # silent, reads must surface engine failures.
+    App\Application\Search\SearchReaderInterface:
+        alias: App\Infrastructure\Search\MeilisearchSearchAdapter
+
     App\Infrastructure\Search\MeilisearchSearchAdapter:
         arguments:
             $itemsIndex: '%env(default:search.items_index:MEILISEARCH_ITEMS_INDEX)%'
