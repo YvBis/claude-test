@@ -314,8 +314,8 @@ GitHub Actions
 ## Поиск (Meilisearch)
 
 Движок, клиент и отвергнутые кандидаты зафиксированы в `ADR/0001-search-engine.md`; ниже —
-только то, что реально есть в коде на 6.5: клиент, модель документов, порт записи, адаптер,
-синхронизация айтемов и коллекций, команда `search:reindex`. **Поисковых эндпоинтов нет (6.6).**
+только то, что реально есть в коде на 6.6: клиент, модель документов, порты записи и чтения,
+адаптер, синхронизация айтемов и коллекций, команда `search:reindex`, два поисковых эндпоинта.
 
 **Синхронизация айтемов (6.4).** `ItemService` вызывает `SearchIndexerInterface` строго после
 коммита: `create`/`update` — после возврата `transactional()`, `delete` — после `flush()`.
@@ -339,6 +339,15 @@ fail-open. Документы удалённых строк не вычищае�
 скалярным `findIdsByCollectionId` **до** `remove()`: постраничный обход с `clear()` отсоединил
 бы саму коллекцию, и `remove()` бросил бы на detached-сущности, а каскад БД удалил бы строки,
 не дав приложению их перечислить.
+
+**Эндпоинты (6.6).** `GET /api/search/items` + `GET /api/search/collections` через
+`Application\Search\SearchService` и read-порт (`SearchReaderInterface` — тот же адаптер,
+другой контракт: чтение не fail-open, мёртвый движок = 500). `q` обязателен, blank → 400;
+фильтры `owner` (uuid|`me`), `collection_id`, `tags[]` (AND) / `theme`; `owner=me` без
+аутентификации → 401. Ответы — engine-документы как есть (без слотов и timestamps),
+гидратации из БД нет. `security.yaml` уже держал строку `^/api/search` (PUBLIC_ACCESS);
+6.6 дописала туда HEAD — роутер отдаёт HEAD с GET-роута, а MethodRequestMatcher сравнивает
+сырой метод без свёртки, и без явного HEAD гостевой HEAD получал бы 401.
 
 **Клиент** (`config/packages/meilisearch.yaml`) — сервис `Meilisearch\Client` с PSR-18
 (`Symfony\Component\HttpClient\Psr18Client`) и PSR-17 (`Nyholm\Psr7\Factory\Psr17Factory`),

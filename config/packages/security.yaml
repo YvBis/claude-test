@@ -79,7 +79,10 @@ security:
         - { path: '^/api/collections/[^/]+/items', roles: PUBLIC_ACCESS, methods: [GET, HEAD] }
         - { path: '^/api/collections/[^/]+/items', roles: IS_AUTHENTICATED_FULLY }
         - { path: ^/api/collections, roles: PUBLIC_ACCESS, methods: [GET, HEAD] }
-        - { path: ^/api/search, roles: PUBLIC_ACCESS, methods: [GET] }
+        # HEAD is explicit because the router folds HEAD into GET while the
+        # firewall matcher compares the raw method — without it a guest HEAD
+        # on /api/search gets 401 on a public read (same trap as /api/items).
+        - { path: ^/api/search, roles: PUBLIC_ACCESS, methods: [GET, HEAD] }
         # Authenticated endpoints
         - { path: ^/api/logout, roles: IS_AUTHENTICATED_FULLY }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }

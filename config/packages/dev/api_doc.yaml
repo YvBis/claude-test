@@ -46,6 +46,27 @@ nelmio_api_doc:
                     properties:
                         id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
                         name: { type: string, example: 'Books' }
+                ItemSearchHit:
+                    type: object
+                    description: 'Engine document as-is: no slots, no timestamps (6.6)'
+                    required: [id, name, tags, collection_id, collection_name, owner_id]
+                    properties:
+                        id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        name: { type: string, example: 'Dune' }
+                        tags: { type: array, items: { type: string }, example: ['sci-fi'] }
+                        collection_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        collection_name: { type: string, example: 'Books' }
+                        owner_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                CollectionSearchHit:
+                    type: object
+                    description: 'Engine document as-is (6.6)'
+                    required: [id, name, theme, description, owner_id]
+                    properties:
+                        id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        name: { type: string, example: 'My Books' }
+                        theme: { type: string, enum: [books, games, movies, drinks], example: 'books' }
+                        description: { type: string, example: 'Everything to read' }
+                        owner_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
                 ItemDetail:
                     allOf:
                         - $ref: '#/components/schemas/Item'
