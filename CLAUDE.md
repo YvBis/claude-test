@@ -148,6 +148,7 @@
 | Безопасность | Нет уязвимостей в новом коде? Валидация входных данных, авторизация, sanitization |
 | CI/инфраструктура | CI работает стабильно? Нет warnings в логах? Тесты не flaky? |
 | Зависимости | `composer audit` — нет known vulnerabilities? Критичные пакеты не устарели? |
+| CodeGraph | Вызывался ли `codegraph_explore` хоть раз на кросс-файловые flow-вопросы этапа (callers, порт→адаптер, blast radius)? Судить по факту вызова, не по доле. Рецепт аудита (read-only): node + `node:sqlite` `DatabaseSync(readOnly)` на `~/.local/share/opencode/opencode.db`, имя инструмента в БД — `codegraph_codegraph_explore`, поле `json_extract(data,'$.tool')`, join `session` по `directory LIKE '%claude-test%'` (подробности — project-memory #44) |
 
 #### Политика исправлений
 
