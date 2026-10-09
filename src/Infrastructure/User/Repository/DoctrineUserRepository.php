@@ -52,10 +52,13 @@ final class DoctrineUserRepository extends ServiceEntityRepository implements Us
 
     /** @return array<User> */
     #[\Override]
-    public function findAll(): array
+    public function findAll(int $limit = 50, int $offset = 0): array
     {
         return $this->createQueryBuilder('u')
             ->orderBy('u.createdAt', \SortDirection::Descending)
+            ->addOrderBy('u.id', \SortDirection::Descending)
+            ->setMaxResults($limit)
+            ->setFirstResult($offset)
             ->getQuery()
             ->getResult();
     }

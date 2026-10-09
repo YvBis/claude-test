@@ -10,6 +10,7 @@ use App\Application\Common\DTO\ArrayableInterface;
 use App\Application\Item\DTO\ItemDTO;
 use App\Application\Like\DTO\LikeDTO;
 use App\Application\Tag\DTO\TagDTO;
+use App\Application\User\DTO\UserDTO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -25,6 +26,7 @@ final class ArrayableInterfaceTest extends TestCase
         yield 'tag' => [TagDTO::class];
         yield 'like' => [LikeDTO::class];
         yield 'comment' => [CommentDTO::class];
+        yield 'user' => [UserDTO::class];
     }
 
     #[DataProvider('responseDtoProvider')]

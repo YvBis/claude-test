@@ -104,6 +104,48 @@ final class DoctrineUserRepositoryTest extends KernelTestCase
         $this->assertSame(['user3@example.com', 'user2@example.com', 'user1@example.com'], $emails);
     }
 
+    public function testFindAllPaginates(): void
+    {
+        $this->clock->modify('2026-01-01 10:00:00');
+        $this->repository->save($this->createUser('user1@example.com'));
+        $this->clock->modify('+1 second');
+        $this->repository->save($this->createUser('user2@example.com'));
+        $this->clock->modify('+1 second');
+        $this->repository->save($this->createUser('user3@example.com'));
+        $this->entityManager()->flush();
+
+        $page1 = $this->repository->findAll(2, 0);
+        $page2 = $this->repository->findAll(2, 2);
+
+        $emails1 = \array_map(fn (User $u) => $u->getEmail()->value(), $page1);
+        $emails2 = \array_map(fn (User $u) => $u->getEmail()->value(), $page2);
+        self::assertSame(['user3@example.com', 'user2@example.com'], $emails1);
+        self::assertSame(['user1@example.com'], $emails2);
+    }
+
+    public function testFindAllIsStableAcrossPagesWithEqualTimestamps(): void
+    {
+        // Same frozen instant for all three: only the id tiebreak keeps pages
+        // from shuffling (fwd-27).
+        $this->clock->modify('2026-01-01 10:00:00');
+        $this->repository->save($this->createUser('user1@example.com'));
+        $this->repository->save($this->createUser('user2@example.com'));
+        $this->repository->save($this->createUser('user3@example.com'));
+        $this->entityManager()->flush();
+
+        $first = $this->repository->findAll(2, 0);
+        $second = $this->repository->findAll(2, 2);
+        $again = $this->repository->findAll(2, 0);
+
+        $ids = fn (array $users): array => \array_map(
+            static fn (User $u): string => $u->getId()->toString(),
+            $users,
+        );
+
+        self::assertCount(3, \array_unique([...$ids($first), ...$ids($second)]), 'pages must not repeat or skip rows');
+        self::assertSame($ids($first), $ids($again), 'same page must read identically twice');
+    }
+
     public function testRemove(): void
     {
         $user = $this->createUser('toremove@example.com');

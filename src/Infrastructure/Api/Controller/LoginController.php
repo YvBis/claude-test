@@ -6,6 +6,7 @@ namespace App\Infrastructure\Api\Controller;
 
 use App\Application\Exception\ValidationException;
 use App\Application\User\DTO\LoginUserDTO;
+use App\Application\User\DTO\UserDTO;
 use App\Application\User\Service\AuthenticationService;
 use App\Domain\User\Exception\InvalidCredentialsException;
 use App\Domain\User\Exception\UserDeactivatedException;
@@ -51,17 +52,7 @@ final class LoginController extends AbstractApiController
                         new OA\Property(property: 'expires_in', type: 'integer', example: 3600),
                         new OA\Property(
                             property: 'user',
-                            type: 'object',
-                            properties: [
-                                new OA\Property(property: 'id', type: 'string', format: 'uuid', example: '018f0a1b-2c3d-4e5f-6789-0123456789ab'),
-                                new OA\Property(property: 'name', type: 'string', example: 'John Doe'),
-                                new OA\Property(property: 'email', type: 'string', format: 'email', example: 'john@example.com'),
-                                new OA\Property(property: 'role', type: 'string', enum: ['user', 'admin'], example: 'user'),
-                                new OA\Property(property: 'is_active', type: 'boolean', example: true),
-                                new OA\Property(property: 'created_at', type: 'string', format: 'date-time', example: '2026-07-17T12:00:00Z'),
-                                new OA\Property(property: 'updated_at', type: 'string', format: 'date-time', example: '2026-07-17T12:00:00Z'),
-                            ],
-                            required: ['id', 'name', 'email', 'role', 'is_active', 'created_at', 'updated_at']
+                            ref: '#/components/schemas/User'
                         ),
                     ],
                     required: ['access_token', 'token_type', 'expires_in', 'user']
@@ -99,15 +90,7 @@ final class LoginController extends AbstractApiController
             'access_token' => $result->accessToken,
             'token_type' => $result->tokenType,
             'expires_in' => $result->expiresIn,
-            'user' => [
-                'id' => $result->user->getId()->toString(),
-                'name' => $result->user->getName(),
-                'email' => $result->user->getEmail()->value(),
-                'role' => $result->user->getRole()->value(),
-                'is_active' => $result->user->isActive(),
-                'created_at' => $result->user->getCreatedAt()->format(\DateTimeInterface::ATOM),
-                'updated_at' => $result->user->getUpdatedAt()->format(\DateTimeInterface::ATOM),
-            ],
+            'user' => UserDTO::fromEntity($result->user)->toArray(),
         ], Response::HTTP_OK);
     }
 }

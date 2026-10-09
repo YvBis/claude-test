@@ -29,7 +29,14 @@ interface UserRepositoryInterface
     public function findByEmail(Email $email): ?User;
 
     /** @return array<User> */
-    public function findAll(): array;
+    /**
+     * Every user, page by page — the admin list. Ordered by createdAt DESC
+     * then id DESC so pages are stable (the tiebreak follows the primary
+     * direction, fwd-27); offset drift under concurrent writes is accepted.
+     *
+     * @return array<User>
+     */
+    public function findAll(int $limit = 50, int $offset = 0): array;
 
     /**
      * Display names for a batch of users, keyed by id string.

@@ -46,6 +46,7 @@ final class OpenApiSpecTest extends TestCase
         'DELETE /api/items/{itemId}/comments/{id}' => ['204', '401', '403', '404'],
         'DELETE /api/items/{itemId}/likes' => ['204', '401', '404'],
         'DELETE /api/likes/{id}' => ['204', '401', '403', '404'],
+        'GET /api/admin/users' => ['200', '400', '401', '403'],
         'GET /api/collections' => ['200', '400'],
         'GET /api/collections/{collectionId}/items' => ['200', '400', '404'],
         'GET /api/collections/{id}' => ['200', '404'],
@@ -82,6 +83,7 @@ final class OpenApiSpecTest extends TestCase
         'schemas.ItemSearchHit' => ['collection_id', 'collection_name', 'id', 'name', 'owner_id', 'tags'],
         'schemas.Like' => ['created_at', 'id', 'item_id', 'owner_id', 'owner_name'],
         'schemas.Tag' => ['id', 'name'],
+        'schemas.User' => ['created_at', 'email', 'id', 'is_active', 'name', 'role', 'updated_at'],
     ];
 
     private const OPERATION_IDS = [
@@ -91,6 +93,7 @@ final class OpenApiSpecTest extends TestCase
         'DELETE /api/items/{itemId}/comments/{id}' => 'delete_api_comment_delete_in_item',
         'DELETE /api/items/{itemId}/likes' => 'delete_api_like_delete_own',
         'DELETE /api/likes/{id}' => 'delete_api_like_delete',
+        'GET /api/admin/users' => 'get_api_admin_user_list',
         'GET /api/collections' => 'get_api_collection_list',
         'GET /api/collections/{collectionId}/items' => 'get_api_item_list_by_collection',
         'GET /api/collections/{id}' => 'get_api_collection_get',
@@ -123,6 +126,7 @@ final class OpenApiSpecTest extends TestCase
         'DELETE /api/items/{itemId}/comments/{id}' => ['id in=path req=true', 'itemId in=path req=true'],
         'DELETE /api/items/{itemId}/likes' => ['itemId in=path req=true'],
         'DELETE /api/likes/{id}' => ['id in=path req=true'],
+        'GET /api/admin/users' => ['limit in=query req=false', 'offset in=query req=false'],
         'GET /api/collections' => ['limit in=query req=false', 'offset in=query req=false', 'owner in=query req=false'],
         'GET /api/collections/{collectionId}/items' => ['collectionId in=path req=true', 'limit in=query req=false', 'name in=query req=false', 'offset in=query req=false', 'tags[] in=query req=false'],
         'GET /api/collections/{id}' => ['id in=path req=true'],
