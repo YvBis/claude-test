@@ -59,6 +59,14 @@ final class MeilisearchClientWiringTest extends KernelTestCase
 
         self::assertSame('items_test', $itemsIndex);
         self::assertSame('collections_test', $collectionsIndex);
+
+        // The breaker is optional in the constructor (test seam), so dropping
+        // its service binding would silently run unguarded. Same protection
+        // as for the index names above.
+        self::assertNotNull(
+            (new \ReflectionProperty($adapter, 'circuitBreaker'))->getValue($adapter),
+            'Without the WriteCircuitBreaker binding in services.yaml the adapter runs without the guard.',
+        );
     }
 
     public function testTestEnvironmentResolvesTheMeilisearchVariables(): void

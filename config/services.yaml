@@ -89,7 +89,16 @@ services:
         arguments:
             $itemsIndex: '%env(default:search.items_index:MEILISEARCH_ITEMS_INDEX)%'
             $collectionsIndex: '%env(default:search.collections_index:MEILISEARCH_COLLECTIONS_INDEX)%'
+            $circuitBreaker: '@App\Infrastructure\Search\WriteCircuitBreaker'
+
+    # Task 6.7 (review-10): writes to a dead engine each cost the full transport
+    # timeout, so after the first failure further writes are skipped for this
+    # window. Reads are never guarded — they must surface engine errors.
+    App\Infrastructure\Search\WriteCircuitBreaker:
+        arguments:
+            $ttlSeconds: '%env(default:search.circuit_ttl_seconds:SEARCH_CIRCUIT_TTL_SECONDS)%'
 
 parameters:
     search.items_index: items
     search.collections_index: collections
+    search.circuit_ttl_seconds: 30
