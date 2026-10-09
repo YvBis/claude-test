@@ -4167,3 +4167,10 @@ keyset-пагинация (6.4) — при росте корпуса; трети
 **Ревью:** senior NEEDS-CHANGES (гардрил только GET → переписан на
 инспекцию атрибута; лимит min/max; login OA → ref User), architect
 SHIP-WITH-NITS, tech-lead SHIP-WITH-NITS.
+
+## 2026-10-09 — chore: stale-статусы 7.1 (внепланово, без таски)
+
+7.1 смержена (PR #149), а артефакты врали: Roadmap `todo` + «0/7», Итого
+38/49, PRD/7.1 `in progress`, CLAUDE.md без строки этапа 7. Исправлено одним
+chore-PR: 7.1→done, 1/7, 39/49, PRD→done, строка этапа 7. Нашёл синьор
+при ревью плана 7.2.
