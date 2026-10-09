@@ -4112,3 +4112,46 @@ engine 400 `invalid_search_filter` → наружу 500. Локально не �
 тестовая: на свежем прод-движке фильтрованный поиск 500ит до первого `search:reindex` —
 deploy-требование записано в README. Триггер на самопровижининг в request path: вторая жалоба
 на 500 после деплоя.
+
+## 2026-10-09 — 6.7: закрытие этапа 6 (periodic review + smoke + review-10)
+
+**Periodic review (§7).** Артефакты сверены: Roadmap 6.4–6.7 флипнуты, счётчик
+38/49, CLAUDE.md/ARCHITECTURE-статусы закрыты, PRD/6.6 «ждёт мерджа» снят.
+Архитектура: деградации за 6.0–6.6 нет (слои чистые, порты разделены).
+Безопасность: публичные reads без вотера — по решению (fwd-7 + 6.6),
+экранирование фильтров через `addcslashes`. CI стабилен (зелёные прогоны
+6.0–6.6 подряд, один красный — свежие индексы без настроек, 6.6).
+`composer audit` чист. CodeGraph на flow-вопросы этапа вызывался
+(callers, порт→адаптер — см. #44).
+
+**Слепые зоны — явно, обе.** (1) Mapping-vs-schema: `schema:validate`
+DB-половина недоступна (нет стабильного DBAL 4.5) — старое решение 5.14,
+достаточно. (2) Index-vs-DB drift (новая, этапная): reindex только upsert,
+никогда prune; fail-open теряет документы при мёртвом движке. «Review done»
+не читать как «индекс сверен».
+
+**Smoke 9/9 (порядок важен — см. PRD).** Wipe `items`+`collections` (202/202);
+фильтрованный поиск → 500 `{error}` без деталей; `search:reindex` →
+«Indexed 6 item(s), 9 collection(s)»; фильтрованный поиск → 200, хит
+«Smoke Dune»; HEAD гость → 200; `owner=me` без токена → 401; пустой `q` →
+400; не-скаляр `q[]` → 400; стоп движка: чтение → 500, валидная мутация →
+201 (fail-open живьём). Данные dev-движка восстановимы reindex.
+
+Буквальные команды (воспроизводимость): `DELETE 127.0.0.1:7700/indexes/items`
+и `/collections` (202/202, master key); `POST /api/register` + `/api/login`
+(smoke6); `POST /api/collections` + `/api/collections/{id}/items` (теги
+`epic,smoke6x`); `GET /api/search/items?q=smoke&tags[]=smoke6x` → 500;
+`php bin/console search:reindex` → «Indexed 6 item(s), 9 collection(s)»;
+повтор поиска → 200 + хит; `HEAD` → 200; `owner=me` без токена → 401;
+`q=%20` и `q[]=x` → 400; `docker compose stop meilisearch` → поиск 500,
+валидный `POST /api/collections` → 201; `start` обратно.
+
+**review-10 закрыт кодом** (решение владельца: внутрь 6.7).
+`WriteCircuitBreaker`: после первой ошибки записи пропуск на TTL
+(`search.circuit_ttl_seconds`, дефолт 30 с). Порт/сервисы не менялись.
+
+**Диспозиции триггеров (не терять с PRD):** orphan-prune (6.4+6.5) —
+открыт; request-path provisioning — «вторая жалоба на 500 после деплоя»;
+keyset-пагинация (6.4) — при росте корпуса; третий реиндексер (6.5) —
+извлечь общий обходчик; batch-size 100 — догадка; ADR 2.x (review-9) —
+вне этапа, `[future]`.

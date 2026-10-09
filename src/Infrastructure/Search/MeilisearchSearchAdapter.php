@@ -56,6 +56,7 @@ final readonly class MeilisearchSearchAdapter implements SearchIndexerInterface,
         private LoggerInterface $logger,
         private string $itemsIndex = 'items',
         private string $collectionsIndex = 'collections',
+        private ?WriteCircuitBreaker $circuitBreaker = null,
     ) {
     }
 
@@ -192,10 +193,17 @@ final readonly class MeilisearchSearchAdapter implements SearchIndexerInterface,
 
     private function write(\Closure $operation): void
     {
+        if ($this->circuitBreaker instanceof WriteCircuitBreaker && $this->circuitBreaker->isOpen()) {
+            $this->circuitBreaker->logSkipped();
+
+            return;
+        }
+
         try {
             $operation();
         } catch (ExceptionInterface|ClientExceptionInterface $e) {
             $this->logger->warning('Search index write failed', ['exception' => $e]);
+            $this->circuitBreaker?->recordFailure();
         }
     }
 }
