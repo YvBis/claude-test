@@ -40,6 +40,7 @@ final class OpenApiSpecTest extends TestCase
     ];
 
     private const RESPONSE_CODES = [
+        'DELETE /api/admin/users/{id}' => ['204', '401', '403', '404', '422'],
         'DELETE /api/collections/{id}' => ['204', '401', '403', '404'],
         'DELETE /api/comments/{id}' => ['204', '401', '403', '404'],
         'DELETE /api/items/{id}' => ['204', '401', '403', '404'],
@@ -60,6 +61,7 @@ final class OpenApiSpecTest extends TestCase
         'GET /api/search/items' => ['200', '400', '401'],
         'GET /api/tags' => ['200', '400', '401'],
         'GET /health' => ['200'],
+        'PATCH /api/admin/users/{id}' => ['200', '400', '401', '403', '404', '422'],
         'PATCH /api/collections/{id}' => ['200', '400', '401', '403', '404', '422'],
         'PATCH /api/comments/{id}' => ['200', '400', '401', '403', '404', '422'],
         'PATCH /api/items/{id}' => ['200', '400', '401', '403', '404', '422'],
@@ -87,6 +89,7 @@ final class OpenApiSpecTest extends TestCase
     ];
 
     private const OPERATION_IDS = [
+        'DELETE /api/admin/users/{id}' => 'delete_api_admin_user_delete',
         'DELETE /api/collections/{id}' => 'delete_api_collection_delete',
         'DELETE /api/comments/{id}' => 'delete_api_comment_delete',
         'DELETE /api/items/{id}' => 'delete_api_item_delete',
@@ -107,6 +110,7 @@ final class OpenApiSpecTest extends TestCase
         'GET /api/search/items' => 'get_api_search_items',
         'GET /api/tags' => 'get_api_tag_list',
         'GET /health' => 'get_health',
+        'PATCH /api/admin/users/{id}' => 'patch_api_admin_user_update',
         'PATCH /api/collections/{id}' => 'patch_api_collection_update',
         'PATCH /api/comments/{id}' => 'patch_api_comment_update',
         'PATCH /api/items/{id}' => 'patch_api_item_update',
@@ -120,6 +124,7 @@ final class OpenApiSpecTest extends TestCase
     ];
 
     private const PARAMETERS = [
+        'DELETE /api/admin/users/{id}' => ['id in=path req=true'],
         'DELETE /api/collections/{id}' => ['id in=path req=true'],
         'DELETE /api/comments/{id}' => ['id in=path req=true'],
         'DELETE /api/items/{id}' => ['id in=path req=true'],
@@ -140,6 +145,7 @@ final class OpenApiSpecTest extends TestCase
         'GET /api/search/items' => ['collection_id in=query req=false', 'limit in=query req=false', 'offset in=query req=false', 'owner in=query req=false', 'q in=query req=true', 'tags[] in=query req=false'],
         'GET /api/tags' => ['limit in=query req=false', 'offset in=query req=false', 'search in=query req=false'],
         'GET /health' => [],
+        'PATCH /api/admin/users/{id}' => ['id in=path req=true'],
         'PATCH /api/collections/{id}' => ['id in=path req=true'],
         'PATCH /api/comments/{id}' => ['id in=path req=true'],
         'PATCH /api/items/{id}' => ['id in=path req=true'],

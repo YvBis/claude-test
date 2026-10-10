@@ -6,6 +6,7 @@ namespace App\Domain\User\Repository;
 
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
+use App\Domain\User\ValueObject\Role;
 use App\Domain\User\ValueObject\UserId;
 
 interface UserRepositoryInterface
@@ -54,4 +55,9 @@ interface UserRepositoryInterface
     public function findNamesByIds(array $userIds): array;
 
     public function existsByEmail(Email $email): bool;
+
+    /**
+     * How many users carry the role — the last-admin guard.
+     */
+    public function countByRole(Role $role): int;
 }

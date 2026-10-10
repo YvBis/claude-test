@@ -73,4 +73,26 @@ final class DoctrineCollectionRepository extends ServiceEntityRepository impleme
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * @return array<CollectionId>
+     */
+    #[\Override]
+    public function findIdsByOwnerId(OwnerId $ownerId): array
+    {
+        /** @var list<array{id: string}> $rows */
+        $rows = $this->createQueryBuilder('c')
+            ->select('c.id')
+            ->where('c.ownerId = :ownerId')
+            ->setParameter('ownerId', $ownerId->toBytes(), 'binary')
+            ->orderBy('c.createdAt', \SortDirection::Ascending)
+            ->addOrderBy('c.id', \SortDirection::Ascending)
+            ->getQuery()
+            ->getResult();
+
+        return \array_map(
+            static fn (array $row): CollectionId => CollectionId::fromBytes($row['id']),
+            $rows,
+        );
+    }
 }

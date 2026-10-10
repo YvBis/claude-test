@@ -30,6 +30,14 @@ interface CollectionRepositoryInterface
     public function findByOwnerId(OwnerId $ownerId, int $limit = 50, int $offset = 0): array;
 
     /**
+     * Ids of every collection owned — the user-delete fan-out. Scalar read,
+     * no pagination: the whole set must be collected before remove().
+     *
+     * @return array<CollectionId>
+     */
+    public function findIdsByOwnerId(OwnerId $ownerId): array;
+
+    /**
      * Every collection, page by page — the search reindex walk. Ordered by
      * createdAt DESC then id DESC so pages are stable (the tie-breaker follows
      * the primary direction, fwd-27); offset drift under concurrent writes is

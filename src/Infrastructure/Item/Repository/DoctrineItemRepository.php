@@ -145,6 +145,29 @@ final class DoctrineItemRepository extends ServiceEntityRepository implements It
     }
 
     /**
+     * @return array<ItemId>
+     */
+    #[\Override]
+    public function findIdsByOwnerId(OwnerId $ownerId): array
+    {
+        /** @var list<array{id: string}> $rows */
+        $rows = $this->createQueryBuilder('i')
+            ->select('i.id')
+            ->join('i.collection', 'c')
+            ->where('c.ownerId = :ownerId')
+            ->setParameter('ownerId', $ownerId->toBytes(), 'binary')
+            ->orderBy('i.createdAt', \SortDirection::Ascending)
+            ->addOrderBy('i.id', \SortDirection::Ascending)
+            ->getQuery()
+            ->getResult();
+
+        return \array_map(
+            static fn (array $row): ItemId => ItemId::fromBytes($row['id']),
+            $rows,
+        );
+    }
+
+    /**
      * fwd-6: pre-initialize the tag collections of a page of items in one
      * extra query.
      *
