@@ -11,6 +11,7 @@ use App\Domain\User\Exception\UserAlreadyExistsException;
 use App\Domain\User\Repository\UserRepositoryInterface;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
+use App\Domain\User\ValueObject\Role;
 
 final readonly class RegistrationService
 {
@@ -20,7 +21,11 @@ final readonly class RegistrationService
     ) {
     }
 
-    public function register(RegisterUserDTO $dto): User
+    /**
+     * @param Role|null $role Admin creation (7.3) passes a role explicitly;
+     *                        public registration keeps the default user role.
+     */
+    public function register(RegisterUserDTO $dto, ?Role $role = null): User
     {
         $email = Email::fromString($dto->email);
 
@@ -29,7 +34,7 @@ final readonly class RegistrationService
         }
 
         $passwordHash = PasswordHash::createFromPlain($dto->password);
-        $user = User::register($dto->name, $email, $passwordHash);
+        $user = User::register($dto->name, $email, $passwordHash, $role);
 
         $this->userRepository->save($user);
         $this->unitOfWork->flush();
