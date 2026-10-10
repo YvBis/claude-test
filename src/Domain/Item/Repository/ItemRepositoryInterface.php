@@ -75,4 +75,13 @@ interface ItemRepositoryInterface
      * @return array<ItemId>
      */
     public function findIdsByCollectionId(CollectionId $collectionId): array;
+
+    /**
+     * Ids of every item in the owner's collections — the user-delete fan-out.
+     * Scalar read, no pagination: the whole set must be collected before the
+     * cascade detaches it.
+     *
+     * @return array<ItemId>
+     */
+    public function findIdsByOwnerId(OwnerId $ownerId): array;
 }

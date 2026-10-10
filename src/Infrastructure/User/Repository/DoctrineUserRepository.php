@@ -7,6 +7,7 @@ namespace App\Infrastructure\User\Repository;
 use App\Domain\User\Entity\User;
 use App\Domain\User\Repository\UserRepositoryInterface;
 use App\Domain\User\ValueObject\Email;
+use App\Domain\User\ValueObject\Role;
 use App\Domain\User\ValueObject\UserId;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\DBAL\ArrayParameterType;
@@ -99,6 +100,17 @@ final class DoctrineUserRepository extends ServiceEntityRepository implements Us
         }
 
         return $names;
+    }
+
+    #[\Override]
+    public function countByRole(Role $role): int
+    {
+        return (int) $this->createQueryBuilder('u')
+            ->select('COUNT(u.id)')
+            ->where('u.role.role = :role')
+            ->setParameter('role', $role->value())
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 
     #[\Override]
