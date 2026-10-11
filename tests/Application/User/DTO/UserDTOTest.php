@@ -8,16 +8,18 @@ use App\Application\User\DTO\UserDTO;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
+use App\Domain\User\ValueObject\Role;
 use PHPUnit\Framework\TestCase;
 
 final class UserDTOTest extends TestCase
 {
     public function testFromEntityCarriesEveryFieldExceptTheHash(): void
     {
-        $dto = UserDTO::fromEntity(User::createAdmin(
+        $dto = UserDTO::fromEntity(User::register(
             name: 'Ada Admin',
             email: Email::fromString('ada@example.com'),
             passwordHash: PasswordHash::createFromPlain('secret123'),
+            role: Role::admin(),
         ));
 
         $array = $dto->toArray();

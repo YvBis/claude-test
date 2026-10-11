@@ -62,22 +62,6 @@ final class UserTest extends TestCase
         $this->assertTrue($user->getRole()->isAdmin());
     }
 
-    public function testCreateAdminCreatesAdminUser(): void
-    {
-        $user = User::createAdmin(
-            'Admin User',
-            Email::fromString('admin@example.com'),
-            PasswordHash::createFromPlain('password123')
-        );
-
-        $this->assertTrue($user->getRole()->isAdmin());
-        $this->assertTrue($user->isActive());
-        $this->assertEquals(
-            $user->getCreatedAt()->getTimestamp(),
-            $user->getUpdatedAt()->getTimestamp()
-        );
-    }
-
     public function testChangeNameUpdatesNameAndTimestamp(): void
     {
         $user = $this->createUser();
@@ -150,10 +134,11 @@ final class UserTest extends TestCase
 
     public function testPromoteToAdminThrowsIfAlreadyAdmin(): void
     {
-        $user = User::createAdmin(
+        $user = User::register(
             'Admin',
             Email::fromString('admin@example.com'),
-            PasswordHash::createFromPlain('password123')
+            PasswordHash::createFromPlain('password123'),
+            Role::admin(),
         );
 
         $this->expectException(\LogicException::class);
@@ -164,10 +149,11 @@ final class UserTest extends TestCase
 
     public function testDemoteToUserChangesRole(): void
     {
-        $user = User::createAdmin(
+        $user = User::register(
             'Admin',
             Email::fromString('admin@example.com'),
-            PasswordHash::createFromPlain('password123')
+            PasswordHash::createFromPlain('password123'),
+            Role::admin(),
         );
         $this->assertTrue($user->getRole()->isAdmin());
 
@@ -255,7 +241,7 @@ final class UserTest extends TestCase
     private function userWithEmail(string $email, bool $isAdmin = false): User
     {
         return $isAdmin
-            ? User::createAdmin('Admin', Email::fromString($email), PasswordHash::createFromPlain('password123'))
+            ? User::register('Admin', Email::fromString($email), PasswordHash::createFromPlain('password123'), Role::admin())
             : User::register('Test User', Email::fromString($email), PasswordHash::createFromPlain('password123'));
     }
 }

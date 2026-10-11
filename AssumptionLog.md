@@ -4195,6 +4195,15 @@ architect SHIP-WITH-NITS, tech-lead NEEDS-CHANGES (guest-401 на POST).
 `RegisterUserDTO` — при правке одного второе молча расходится; (3) инвариант
 «создание админа без аудита» учесть в 7.4.
 
+## 2026-10-11 — chore: удаление `User::createAdmin()` (вне очереди)
+
+Follow-up (1) из 7.3 закрыт отдельным chore-PR: фабрика осиротела после
+`register(?Role)`, 9 caller'ов — все тесты (`UserTest` ×4 включая удаление
+кейса `testCreateAdminCreatesAdminUser`, `UserDTOTest`, `UserServiceTest`,
+`OwnerAccessTest`, оба voter-теста) — мигрированы на
+`register(..., Role::admin())`; `@internal`-докблок конструктора правлен.
+Продакшн-caller'ов не было. Проверки: `ci:all` 991/3908 exit 0.
+
 ## 2026-10-09 — chore: stale-статусы 7.1 (внепланово, без таски)
 
 7.1 смержена (PR #149), а артефакты врали: Roadmap `todo` + «0/7», Итого

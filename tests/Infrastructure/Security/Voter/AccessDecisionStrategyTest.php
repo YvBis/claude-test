@@ -14,6 +14,7 @@ use App\Domain\Like\Entity\Like;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
+use App\Domain\User\ValueObject\Role;
 use App\Infrastructure\Security\Voter\SocialContentVoter;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -53,10 +54,11 @@ final class AccessDecisionStrategyTest extends TestCase
     {
         $this->socialVoter = new SocialContentVoter();
 
-        $this->admin = User::createAdmin(
+        $this->admin = User::register(
             'Admin',
             Email::fromString('admin@example.com'),
             PasswordHash::createFromPlain('password123'),
+            Role::admin(),
         );
 
         $collection = new Collection(

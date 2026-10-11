@@ -60,7 +60,7 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     /**
      * @internal This constructor is public to allow test object creation.
-     * Use User::register() or User::createAdmin() for production code.
+     * Use User::register() for production code.
      */
     public function __construct(
         string $id,
@@ -92,21 +92,6 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
             email: $email,
             passwordHash: $passwordHash,
             role: $role ?? Role::user(),
-            isActive: true,
-        );
-    }
-
-    public static function createAdmin(
-        string $name,
-        Email $email,
-        PasswordHash $passwordHash,
-    ): self {
-        return new self(
-            id: UserId::generate()->toBytes(),
-            name: $name,
-            email: $email,
-            passwordHash: $passwordHash,
-            role: Role::admin(),
             isActive: true,
         );
     }
