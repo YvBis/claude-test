@@ -77,11 +77,12 @@ final class ItemController extends AbstractApiController
     #[OA\Get(
         path: '/api/items',
         security: [['Bearer' => []]],
-        summary: 'List own items',
-        description: 'Returns a paginated list of items owned by the authenticated user. Optional filters: name (substring) and tags (AND semantics).',
+        summary: 'List items',
+        description: 'Returns a paginated list of items. Without an "owner" parameter — the authenticated user\'s own items; with "owner" — that user\'s items (any authenticated user, guests excluded). Optional filters: name (substring) and tags (AND semantics).',
         parameters: [
             new OA\Parameter(name: 'limit', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
             new OA\Parameter(name: 'offset', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: self::DEFAULT_OFFSET, minimum: self::DEFAULT_OFFSET)),
+            new OA\Parameter(name: 'owner', in: 'query', required: false, description: "User ID whose items to list. Omit to list the authenticated user's own items.", schema: new OA\Schema(type: 'string', format: 'uuid')),
             new OA\Parameter(name: 'name', in: 'query', required: false, description: 'Substring match on item name (case-insensitive)', schema: new OA\Schema(type: 'string')),
             new OA\Parameter(name: 'tags[]', in: 'query', required: false, description: 'Item must have all given tags (AND). Repeat the parameter (tags[]=a&tags[]=b); a single ?tags=a or a nested value is rejected with 400', schema: new OA\Schema(type: 'array', items: new OA\Items(type: 'string'))),
         ],
@@ -109,8 +110,9 @@ final class ItemController extends AbstractApiController
             // pagination error rather than the filter one.
             [$limit, $offset] = $this->parsePagination($request);
             [$name, $tagNames] = $this->parseFilters($request);
+            $ownerId = $this->parseOwner($request, $user);
             $items = $itemService->listByOwner(
-                OwnerId::fromBytes($user->getId()->toBytes()),
+                $ownerId,
                 $limit,
                 $offset,
                 $name,
@@ -357,6 +359,27 @@ final class ItemController extends AbstractApiController
         $itemService->delete($item);
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * Resolves the owner scope: explicit ?owner={uuid}, or the caller's own
+     * id when omitted. Reads the raw query bag like CollectionController —
+     * InputBag accessors throw an unconvertible BadRequestException on
+     * non-scalar values.
+     */
+    private function parseOwner(Request $request, User $user): OwnerId
+    {
+        $owner = $request->query->all()['owner'] ?? null;
+
+        if (null === $owner) {
+            return OwnerId::fromBytes($user->getId()->toBytes());
+        }
+
+        if (!\is_string($owner)) {
+            throw new \InvalidArgumentException('Invalid owner id');
+        }
+
+        return OwnerId::fromString($owner);
     }
 
     /**

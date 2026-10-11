@@ -138,7 +138,7 @@ final class OpenApiSpecTest extends TestCase
         'GET /api/collections/{collectionId}/items' => ['collectionId in=path req=true', 'limit in=query req=false', 'name in=query req=false', 'offset in=query req=false', 'tags[] in=query req=false'],
         'GET /api/collections/{id}' => ['id in=path req=true'],
         'GET /api/comments' => ['limit in=query req=false', 'offset in=query req=false'],
-        'GET /api/items' => ['limit in=query req=false', 'name in=query req=false', 'offset in=query req=false', 'tags[] in=query req=false'],
+        'GET /api/items' => ['limit in=query req=false', 'name in=query req=false', 'offset in=query req=false', 'owner in=query req=false', 'tags[] in=query req=false'],
         'GET /api/items/{id}' => ['id in=path req=true'],
         'GET /api/items/{itemId}/comments' => ['itemId in=path req=true', 'limit in=query req=false', 'offset in=query req=false'],
         'GET /api/items/{itemId}/likes' => ['itemId in=path req=true', 'limit in=query req=false', 'offset in=query req=false'],
