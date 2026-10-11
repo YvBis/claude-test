@@ -136,8 +136,8 @@ final class UserController extends AbstractApiController
     #[OA\Patch(
         path: '/api/admin/users/{id}',
         security: [['Bearer' => []]],
-        summary: 'Block or unblock a user (admin)',
-        description: 'Sets the active flag. Blocking is idempotent: re-blocking an already blocked user answers 200 with the same state.',
+        summary: 'Update a user (admin)',
+        description: 'Sets the active flag, the role, or both. Both changes are idempotent: repeating the current state answers 200.',
         tags: ['Admin'],
         parameters: [
             new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'string', format: 'uuid')),
@@ -147,6 +147,7 @@ final class UserController extends AbstractApiController
             content: new OA\JsonContent(
                 properties: [
                     new OA\Property(property: 'is_active', type: 'boolean', example: false),
+                    new OA\Property(property: 'role', type: 'string', enum: ['user', 'admin'], example: 'admin'),
                 ],
                 type: 'object'
             )
@@ -188,9 +189,12 @@ final class UserController extends AbstractApiController
         \assert($actor instanceof User);
 
         try {
-            $updated = $dto->isActive
-                ? $userService->unblockUser($target, $actor)
-                : $userService->blockUser($target, $actor);
+            $updated = $userService->update(
+                $target,
+                $actor,
+                $dto->isActive,
+                null === $dto->role ? null : Role::fromString($dto->role),
+            );
         } catch (SelfActionForbiddenException $selfActionForbiddenException) {
             return $this->forbidden($selfActionForbiddenException->getMessage());
         } catch (LastAdminException $lastAdminException) {

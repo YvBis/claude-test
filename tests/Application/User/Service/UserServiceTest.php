@@ -53,7 +53,7 @@ final class UserServiceTest extends TestCase
         }
 
         $service = new UserService($this->userRepository([$admin, $target], 2), $uow, $this->items(), $this->collections(), $indexer);
-        $service->blockUser($target, $admin);
+        $service->update($target, $admin, false, null);
 
         self::assertFalse($target->isActive());
     }
@@ -73,7 +73,7 @@ final class UserServiceTest extends TestCase
         );
 
         // No exception: PATCH state-setting, not a transition.
-        $service->blockUser($target, $admin);
+        $service->update($target, $admin, false, null);
 
         self::assertFalse($target->isActive());
     }
@@ -88,7 +88,7 @@ final class UserServiceTest extends TestCase
 
         $this->expectException(SelfActionForbiddenException::class);
 
-        $service->blockUser($admin, $admin);
+        $service->update($admin, $admin, false, null);
     }
 
     public function testBlockLastAdminIsRefused(): void
@@ -106,7 +106,7 @@ final class UserServiceTest extends TestCase
 
         $this->expectException(LastAdminException::class);
 
-        $service->blockUser($target, $admin);
+        $service->update($target, $admin, false, null);
     }
 
     public function testUnblockActivates(): void
@@ -119,7 +119,7 @@ final class UserServiceTest extends TestCase
         $uow->expects($this->once())->method('flush');
         $service = new UserService($this->userRepository([$admin, $target], 1), $uow, $this->items(), $this->collections(), $this->indexer());
 
-        $service->unblockUser($target, $admin);
+        $service->update($target, $admin, true, null);
 
         self::assertTrue($target->isActive());
     }
@@ -210,6 +210,113 @@ final class UserServiceTest extends TestCase
     private function admin(string $email): User
     {
         return User::register('Admin', Email::fromString($email), PasswordHash::createFromPlain('secret123'), Role::admin());
+    }
+
+    public function testUpdatePromotesAndFlushesOnce(): void
+    {
+        $admin = $this->admin('admin@example.com');
+        $target = $this->user('target@example.com');
+
+        $uow = $this->createMock(UnitOfWorkInterface::class);
+        $uow->expects($this->once())->method('flush');
+        $service = $this->service($this->userRepository([$admin, $target], 2), $uow);
+
+        $updated = $service->update($target, $admin, null, Role::admin());
+
+        self::assertTrue($updated->getRole()->isAdmin());
+    }
+
+    public function testUpdateDemotes(): void
+    {
+        $admin = $this->admin('admin@example.com');
+        $target = $this->admin('target@example.com');
+
+        $uow = $this->createMock(UnitOfWorkInterface::class);
+        $uow->expects($this->once())->method('flush');
+        $service = $this->service($this->userRepository([$admin, $target], 2), $uow);
+
+        $updated = $service->update($target, $admin, null, Role::user());
+
+        self::assertTrue($updated->getRole()->isUser());
+    }
+
+    public function testUpdateNoopsOnSameRoleWithoutFlush(): void
+    {
+        $admin = $this->admin('admin@example.com');
+        $target = $this->admin('target@example.com');
+
+        $uow = $this->createMock(UnitOfWorkInterface::class);
+        $uow->expects($this->never())->method('flush');
+        $service = $this->service($this->userRepository([$admin, $target], 2), $uow);
+
+        $updated = $service->update($target, $admin, null, Role::admin());
+
+        self::assertTrue($updated->getRole()->isAdmin());
+    }
+
+    public function testUpdateAppliesBothFieldsWithOneFlush(): void
+    {
+        $admin = $this->admin('admin@example.com');
+        $target = $this->user('target@example.com');
+
+        $uow = $this->createMock(UnitOfWorkInterface::class);
+        $uow->expects($this->once())->method('flush');
+        $service = $this->service($this->userRepository([$admin, $target], 1), $uow);
+
+        $updated = $service->update($target, $admin, false, Role::admin());
+
+        self::assertFalse($updated->isActive());
+        self::assertTrue($updated->getRole()->isAdmin());
+    }
+
+    public function testUpdateSelfRoleChangeIsForbidden(): void
+    {
+        $admin = $this->admin('admin@example.com');
+
+        $service = $this->service($this->userRepository([$admin], 1));
+
+        $this->expectException(SelfActionForbiddenException::class);
+
+        $service->update($admin, $admin, null, Role::user());
+    }
+
+    public function testUpdateDemoteLastAdminIsRefused(): void
+    {
+        $admin = $this->admin('admin@example.com');
+        $target = $this->admin('target@example.com');
+
+        $service = $this->service($this->userRepository([$admin, $target], 1));
+
+        $this->expectException(LastAdminException::class);
+
+        $service->update($target, $admin, null, Role::user());
+    }
+
+    public function testUpdateBlockSelfKeepsBlockMessage(): void
+    {
+        $admin = $this->admin('admin@example.com');
+
+        $service = $this->service($this->userRepository([$admin], 1));
+
+        try {
+            $service->update($admin, $admin, false, null);
+            self::fail('self block must be refused');
+        } catch (SelfActionForbiddenException $e) {
+            self::assertSame('An admin cannot block their own account.', $e->getMessage());
+        }
+    }
+
+    private function service(
+        UserRepositoryInterface $users,
+        ?UnitOfWorkInterface $uow = null,
+    ): UserService {
+        return new UserService(
+            $users,
+            $uow ?? $this->unitOfWork(),
+            $this->items(),
+            $this->collections(),
+            $this->indexer(),
+        );
     }
 
     private function user(string $email): User
