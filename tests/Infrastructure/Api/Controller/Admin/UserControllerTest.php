@@ -362,6 +362,69 @@ final class UserControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(403);
     }
 
+    public function testAdminCanPromoteAndDemote(): void
+    {
+        $admin = $this->registerAdmin();
+        $target = $this->registerUser('promotee');
+
+        $this->client->request('PATCH', '/api/admin/users/'.$target['id'], [], [], $this->authHeaders($admin['token']), \json_encode(['role' => 'admin'], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame('admin', $data['role']);
+
+        $this->client->request('PATCH', '/api/admin/users/'.$target['id'], [], [], $this->authHeaders($admin['token']), \json_encode(['role' => 'user'], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame('user', $data['role']);
+    }
+
+    public function testRoleOnlyPatchDoesNotBlock(): void
+    {
+        // Regression: the old truthiness ternary turned {role} (isActive=null)
+        // into a block. A role-only request must leave is_active untouched.
+        $admin = $this->registerAdmin();
+        $target = $this->registerUser('roleonly');
+
+        $this->client->request('PATCH', '/api/admin/users/'.$target['id'], [], [], $this->authHeaders($admin['token']), \json_encode(['role' => 'admin'], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertTrue($data['is_active']);
+        self::assertSame('admin', $data['role']);
+    }
+
+    public function testPromoteNoopsOnCurrentRole(): void
+    {
+        $admin = $this->registerAdmin();
+        $target = $this->registerUser('noop');
+
+        foreach (['admin', 'admin'] as $role) {
+            $this->client->request('PATCH', '/api/admin/users/'.$target['id'], [], [], $this->authHeaders($admin['token']), \json_encode(['role' => $role], \JSON_THROW_ON_ERROR));
+            $this->assertResponseStatusCodeSame(200);
+        }
+
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame('admin', $data['role']);
+    }
+
+    public function testInvalidRoleIsA422(): void
+    {
+        $admin = $this->registerAdmin();
+        $target = $this->registerUser('badrole');
+
+        $this->client->request('PATCH', '/api/admin/users/'.$target['id'], [], [], $this->authHeaders($admin['token']), \json_encode(['role' => 'root'], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(422);
+    }
+
+    public function testSelfDemoteIsForbidden(): void
+    {
+        // Single admin self-demoting: the self-guard fires first (403), so
+        // the last-admin guard stays unit-level, like the 7.2 block case.
+        $admin = $this->registerAdmin();
+
+        $this->client->request('PATCH', '/api/admin/users/'.$admin['id'], [], [], $this->authHeaders($admin['token']), \json_encode(['role' => 'user'], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(403);
+    }
+
     /** @return array{token: string, id: string} */
     private function registerUser(string $tag): array
     {

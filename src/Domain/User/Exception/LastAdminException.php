@@ -15,4 +15,9 @@ final class LastAdminException extends \RuntimeException
     {
         return new self('Cannot delete the last active admin: the system would be left unmanageable.');
     }
+
+    public static function demote(): self
+    {
+        return new self('Cannot demote the last active admin: the system would be left unmanageable.');
+    }
 }

@@ -16,6 +16,11 @@ final class SelfActionForbiddenException extends \RuntimeException
         return new self('An admin cannot unblock their own account.');
     }
 
+    public static function changeRole(): self
+    {
+        return new self('An admin cannot change their own role.');
+    }
+
     public static function delete(): self
     {
         return new self('An admin cannot delete their own account.');

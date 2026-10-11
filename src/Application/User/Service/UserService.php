@@ -46,28 +46,62 @@ final readonly class UserService
         return $user;
     }
 
-    public function blockUser(User $target, User $actor): User
+    /**
+     * Applies an admin-driven state change: active flag, role, or both.
+     * Guards run before any mutation and the unit of work flushes at most
+     * once, so a combined request can never partially commit.
+     */
+    public function update(User $target, User $actor, ?bool $isActive, ?Role $role): User
     {
-        $this->denySelf($target, $actor, SelfActionForbiddenException::block(...));
+        $self = $target->getId()->toString() === $actor->getId()->toString();
+        $changed = false;
 
-        if ($target->isActive() && $this->isLastAdmin($target)) {
-            throw LastAdminException::block();
+        if (false === $isActive) {
+            if ($self) {
+                throw SelfActionForbiddenException::block();
+            }
+
+            if ($this->isLastAdmin($target)) {
+                throw LastAdminException::block();
+            }
+
+            // Always flushes, preserving the old block behavior (touch() bumps
+            // updatedAt even on re-block); only the role path may skip.
+            $target->deactivate();
+            $changed = true;
+        } elseif (true === $isActive) {
+            if ($self) {
+                throw SelfActionForbiddenException::unblock();
+            }
+
+            $target->activate();
+            $changed = true;
         }
 
-        $target->deactivate();
-        $this->userRepository->save($target);
-        $this->unitOfWork->flush();
+        // instanceof over null !== : rector's rule (both equivalent here —
+        // the controller only ever passes null or a fromString() Role).
+        if ($role instanceof Role && !$target->getRole()->equals($role)) {
+            if ($self) {
+                throw SelfActionForbiddenException::changeRole();
+            }
 
-        return $target;
-    }
+            if ($role->isUser() && $this->isLastAdmin($target)) {
+                throw LastAdminException::demote();
+            }
 
-    public function unblockUser(User $target, User $actor): User
-    {
-        $this->denySelf($target, $actor, SelfActionForbiddenException::unblock(...));
+            if ($role->isAdmin()) {
+                $target->promoteToAdmin();
+            } else {
+                $target->demoteToUser();
+            }
 
-        $target->activate();
-        $this->userRepository->save($target);
-        $this->unitOfWork->flush();
+            $changed = true;
+        }
+
+        if ($changed) {
+            $this->userRepository->save($target);
+            $this->unitOfWork->flush();
+        }
 
         return $target;
     }
