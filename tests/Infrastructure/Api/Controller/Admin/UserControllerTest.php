@@ -54,12 +54,124 @@ final class UserControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(401);
     }
 
+    public function testAdminCanCreateUser(): void
+    {
+        $admin = $this->registerAdmin();
+        $email = 'created_'.\str_replace('.', '', \uniqid('', true)).'@example.com';
+
+        $this->client->request('POST', '/api/admin/users', [], [], $this->authHeaders($admin['token']), \json_encode([
+            'name' => 'Created By Admin',
+            'email' => $email,
+            'password' => 'password123',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(201);
+
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame('Created By Admin', $data['name']);
+        self::assertSame($email, $data['email']);
+        self::assertSame('user', $data['role']);
+        self::assertTrue($data['is_active']);
+        self::assertArrayNotHasKey('password_hash', $data);
+    }
+
+    public function testAdminCanCreateAdminAndItCanUseAdminRoutes(): void
+    {
+        $admin = $this->registerAdmin();
+        $email = 'newadmin_'.\str_replace('.', '', \uniqid('', true)).'@example.com';
+
+        $this->client->request('POST', '/api/admin/users', [], [], $this->authHeaders($admin['token']), \json_encode([
+            'name' => 'Fresh Admin',
+            'email' => $email,
+            'password' => 'password123',
+            'role' => 'admin',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(201);
+
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame('admin', $data['role']);
+
+        $this->client->request('POST', '/api/login', [], [], ['CONTENT_TYPE' => 'application/json'], \json_encode([
+            'email' => $email,
+            'password' => 'password123',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(200);
+        $token = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)['access_token'];
+
+        $this->client->request('GET', '/api/admin/users', [], [], $this->authHeaders($token));
+        $this->assertResponseStatusCodeSame(200);
+    }
+
+    public function testCreateWithDuplicateEmailIsA409(): void
+    {
+        $admin = $this->registerAdmin();
+        $target = $this->registerUser('dup');
+
+        $this->client->request('POST', '/api/admin/users', [], [], $this->authHeaders($admin['token']), \json_encode([
+            'name' => 'Copy Cat',
+            'email' => $this->emailOf($target['id']),
+            'password' => 'password123',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(409);
+    }
+
+    public function testCreateWithInvalidBodyIsA422(): void
+    {
+        $admin = $this->registerAdmin();
+
+        $this->client->request('POST', '/api/admin/users', [], [], $this->authHeaders($admin['token']), \json_encode([
+            'name' => 'X',
+            'email' => 'not-an-email',
+            'password' => 'short',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateWithInvalidRoleIsA422(): void
+    {
+        $admin = $this->registerAdmin();
+
+        $this->client->request('POST', '/api/admin/users', [], [], $this->authHeaders($admin['token']), \json_encode([
+            'name' => 'Role Hacker',
+            'email' => 'rolehack@example.com',
+            'password' => 'password123',
+            'role' => 'root',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(422);
+    }
+
+    public function testCreateWithMalformedBodyIsA400(): void
+    {
+        $admin = $this->registerAdmin();
+
+        $this->client->request('POST', '/api/admin/users', [], [], $this->authHeaders($admin['token']), 'not-json');
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    public function testRegularUserCannotCreate(): void
+    {
+        $user = $this->registerUser('nolist');
+
+        $this->client->request('POST', '/api/admin/users', [], [], $this->authHeaders($user['token']), \json_encode([
+            'name' => 'Nope',
+            'email' => 'nope@example.com',
+            'password' => 'password123',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(403);
+    }
+
     public function testGuestGets401OnMutations(): void
     {
         $this->client->request('PATCH', '/api/admin/users/018f0a1b-2c3d-4e5f-6789-0123456789ab', [], [], ['CONTENT_TYPE' => 'application/json'], \json_encode(['is_active' => false], \JSON_THROW_ON_ERROR));
         $this->assertResponseStatusCodeSame(401);
 
         $this->client->request('DELETE', '/api/admin/users/018f0a1b-2c3d-4e5f-6789-0123456789ab');
+        $this->assertResponseStatusCodeSame(401);
+
+        $this->client->request('POST', '/api/admin/users', [], [], ['CONTENT_TYPE' => 'application/json'], \json_encode([
+            'name' => 'Nobody',
+            'email' => 'nobody@example.com',
+            'password' => 'password123',
+        ], \JSON_THROW_ON_ERROR));
         $this->assertResponseStatusCodeSame(401);
     }
 

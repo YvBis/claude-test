@@ -12,6 +12,7 @@ use App\Domain\User\Exception\UserAlreadyExistsException;
 use App\Domain\User\Repository\UserRepositoryInterface;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
+use App\Domain\User\ValueObject\Role;
 use PHPUnit\Framework\TestCase;
 
 final class RegistrationServiceTest extends TestCase
@@ -98,5 +99,38 @@ final class RegistrationServiceTest extends TestCase
         $this->unitOfWork->expects($this->once())->method('flush');
 
         $this->service->register($dto);
+    }
+
+    public function testRegisterDefaultsToUserRole(): void
+    {
+        $this->userRepository->expects($this->once())->method('existsByEmail')->willReturn(false);
+        $this->userRepository
+            ->expects($this->once())
+            ->method('save')
+            ->with($this->callback(static fn (User $user): bool => $user->getRole()->isUser()));
+        $this->unitOfWork->expects($this->once())->method('flush');
+
+        $user = $this->service->register($this->dto());
+
+        self::assertTrue($user->getRole()->isUser());
+    }
+
+    public function testRegisterAcceptsAdminRoleForAdminCreation(): void
+    {
+        $this->userRepository->expects($this->once())->method('existsByEmail')->willReturn(false);
+        $this->userRepository
+            ->expects($this->once())
+            ->method('save')
+            ->with($this->callback(static fn (User $user): bool => $user->getRole()->isAdmin() && $user->isActive()));
+        $this->unitOfWork->expects($this->once())->method('flush');
+
+        $user = $this->service->register($this->dto(), Role::admin());
+
+        self::assertTrue($user->getRole()->isAdmin());
+    }
+
+    private function dto(): RegisterUserDTO
+    {
+        return new RegisterUserDTO('John', 'john@example.com', 'password123');
     }
 }

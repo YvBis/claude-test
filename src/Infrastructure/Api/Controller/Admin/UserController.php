@@ -4,14 +4,19 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Api\Controller\Admin;
 
+use App\Application\DTO\RegisterUserDTO;
 use App\Application\Exception\ValidationException;
+use App\Application\User\DTO\CreateUserDTO;
 use App\Application\User\DTO\UpdateUserDTO;
 use App\Application\User\DTO\UserDTO;
+use App\Application\User\Service\RegistrationService;
 use App\Application\User\Service\UserService;
 use App\Domain\User\Entity\User;
 use App\Domain\User\Exception\LastAdminException;
 use App\Domain\User\Exception\SelfActionForbiddenException;
+use App\Domain\User\Exception\UserAlreadyExistsException;
 use App\Domain\User\Exception\UserNotFoundException;
+use App\Domain\User\ValueObject\Role;
 use App\Infrastructure\Api\Controller\AbstractApiController;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -26,6 +31,67 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class UserController extends AbstractApiController
 {
+    #[Route('/api/admin/users', name: 'api_admin_user_create', methods: ['POST'])]
+    #[IsGranted('ROLE_ADMIN')]
+    #[OA\Post(
+        path: '/api/admin/users',
+        security: [['Bearer' => []]],
+        summary: 'Create a user (admin)',
+        description: 'Creates an account directly. An optional role mints the account with that role (default user).',
+        tags: ['Admin'],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', minLength: 2, maxLength: 100, example: 'Created By Admin'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', example: 'created@example.com'),
+                    new OA\Property(property: 'password', type: 'string', minLength: 8, maxLength: 255, example: 'password123'),
+                    new OA\Property(property: 'role', type: 'string', enum: ['user', 'admin'], example: 'user'),
+                ],
+                required: ['name', 'email', 'password'],
+                type: 'object'
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'User created successfully',
+                content: new OA\JsonContent(ref: '#/components/schemas/User'),
+            ),
+            new OA\Response(response: 400, description: 'Bad request (malformed body)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 409, description: 'Email already registered', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 422, description: 'Validation error (body or role)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 403, description: 'Forbidden (non-admin)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+        ],
+    )]
+    public function create(Request $request, RegistrationService $registrationService, SerializerInterface $serializer, ValidatorInterface $validator): JsonResponse
+    {
+        try {
+            $dto = $this->deserializeAndValidate($request->getContent(), CreateUserDTO::class, $serializer, $validator);
+        } catch (ValidationException $validationException) {
+            return $this->createValidationErrorResponse($validationException->getDetails());
+        } catch (NotEncodableValueException|NotNormalizableValueException) {
+            return $this->badRequest('Malformed request body');
+        }
+
+        try {
+            $user = $registrationService->register(
+                $this->toRegisterDTO($dto),
+                null === $dto->role ? null : Role::fromString($dto->role),
+            );
+        } catch (UserAlreadyExistsException) {
+            return $this->conflict('User already exists');
+        }
+
+        return new JsonResponse(UserDTO::fromEntity($user)->toArray(), Response::HTTP_CREATED);
+    }
+
+    private function toRegisterDTO(CreateUserDTO $dto): RegisterUserDTO
+    {
+        return new RegisterUserDTO($dto->name, $dto->email, $dto->password);
+    }
+
     #[Route('/api/admin/users', name: 'api_admin_user_list', methods: ['GET'])]
     #[IsGranted('ROLE_ADMIN')]
     #[OA\Get(

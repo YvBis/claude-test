@@ -4176,6 +4176,25 @@ TOCTOU принят осознанно: `countByRole` и `flush` не сериа
 self-guard, last-admin недостижим по HTTP — guard остаётся safety invariant
 с юнит-покрытием.
 
+## 2026-10-11 — 7.3: создание пользователя админом (в работе)
+
+**Решения:** маршрут `POST /api/admin/users`; опциональная `role` с
+`Assert\Choice` (без чойса мусорная роль дала бы 500, не 422 — синьор);
+`CreateUserDTO` в `Application\User\DTO`; `RegistrationService::register`
+расширен `?Role` с дефолтом (публичный путь не тронут); мост
+`CreateUserDTO` → `RegisterUserDTO` в контроллере (2 caller'а, union-type
+избыточен).
+
+**Ревью:** senior NEEDS-CHANGES (unused-импорт Role в DTO → убран;
+guest-401 на POST → добавлен; OA `required` на теле → добавлен),
+architect SHIP-WITH-NITS, tech-lead NEEDS-CHANGES (guest-401 на POST).
+
+**Открытые follow-up'ы (не задачи этапа):** (1) `User::createAdmin()`
+без caller'ов после 7.3 — удалить или направить ROLE_ADMIN-создание через
+него (одна фабрика); (2) constraints `CreateUserDTO` копируют
+`RegisterUserDTO` — при правке одного второе молча расходится; (3) инвариант
+«создание админа без аудита» учесть в 7.4.
+
 ## 2026-10-09 — chore: stale-статусы 7.1 (внепланово, без таски)
 
 7.1 смержена (PR #149), а артефакты врали: Roadmap `todo` + «0/7», Итого
