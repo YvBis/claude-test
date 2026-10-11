@@ -209,7 +209,7 @@ final class UserServiceTest extends TestCase
 
     private function admin(string $email): User
     {
-        return User::createAdmin('Admin', Email::fromString($email), PasswordHash::createFromPlain('secret123'));
+        return User::register('Admin', Email::fromString($email), PasswordHash::createFromPlain('secret123'), Role::admin());
     }
 
     private function user(string $email): User

@@ -8,6 +8,7 @@ use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
+use App\Domain\User\ValueObject\Role;
 use App\Infrastructure\Security\OwnerAccess;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -77,7 +78,7 @@ final class OwnerAccessTest extends TestCase
         $email = Email::fromString(($isAdmin ? 'admin' : 'user').'@example.com');
 
         return $isAdmin
-            ? User::createAdmin('Test User', $email, PasswordHash::createFromPlain('password123'))
+            ? User::register('Test User', $email, PasswordHash::createFromPlain('password123'), Role::admin())
             : User::register('Test User', $email, PasswordHash::createFromPlain('password123'));
     }
 }

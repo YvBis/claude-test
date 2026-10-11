@@ -38,10 +38,11 @@ final class SocialContentVoterTest extends TestCase
     {
         $this->owner = $this->createUser('owner@example.com');
         $this->other = $this->createUser('other@example.com');
-        $this->admin = User::createAdmin(
+        $this->admin = User::register(
             'Admin',
             Email::fromString('admin@example.com'),
             PasswordHash::createFromPlain('password123'),
+            Role::admin(),
         );
 
         $collection = new Collection(
