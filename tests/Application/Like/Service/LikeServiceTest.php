@@ -262,6 +262,29 @@ final class LikeServiceTest extends TestCase
         $this->assertSame([], $this->service->listByOwner($ownerId));
     }
 
+    public function testListAllDelegatesWithPagination(): void
+    {
+        $like = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
+        $this->likeRepository
+            ->expects($this->once())
+            ->method('findAll')
+            ->with(10, 20)
+            ->willReturn([$like]);
+
+        $this->assertSame([$like], $this->service->listAll(10, 20));
+    }
+
+    public function testListAllUsesDefaultPagination(): void
+    {
+        $this->likeRepository
+            ->expects($this->once())
+            ->method('findAll')
+            ->with(50, 0)
+            ->willReturn([]);
+
+        $this->assertSame([], $this->service->listAll());
+    }
+
     public function testRemoveLikeRemovesAndFlushes(): void
     {
         $like = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
