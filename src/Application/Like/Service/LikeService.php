@@ -109,6 +109,16 @@ final readonly class LikeService
     }
 
     /**
+     * Every like, newest first — the admin audit listing.
+     *
+     * @return array<Like>
+     */
+    public function listAll(int $limit = 50, int $offset = 0): array
+    {
+        return $this->likeRepository->findAll($limit, $offset);
+    }
+
+    /**
      * @return array<Like>
      */
     public function listByItem(ItemId $itemId, int $limit = 50, int $offset = 0): array

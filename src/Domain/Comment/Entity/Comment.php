@@ -20,6 +20,9 @@ use Symfony\Component\Validator\Constraints as Assert;
 // the PK (id) implicitly, but it is listed explicitly so the intent is visible.
 #[ORM\Index(name: 'idx_comment_item', columns: ['item_id', 'created_at', 'id'])]
 #[ORM\Index(name: 'idx_comment_owner', columns: ['owner_id', 'created_at', 'id'])]
+// The admin audit listing orders globally by (created_at, id); neither
+// scoped index serves it, so it gets its own (proven by EXPLAIN in 7.6a).
+#[ORM\Index(name: 'idx_comment_created', columns: ['created_at', 'id'])]
 final class Comment
 {
     use ClockAwareTrait {

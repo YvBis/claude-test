@@ -4233,3 +4233,17 @@ Follow-up (1) из 7.3 закрыт отдельным chore-PR: фабрика 
 38/49, PRD/7.1 `in progress`, CLAUDE.md без строки этапа 7. Исправлено одним
 chore-PR: 7.1→done, 1/7, 39/49, PRD→done, строка этапа 7. Нашёл синьор
 при ревью плана 7.2.
+
+## 2026-10-11 — 7.6: админ-аудит (в работе)
+
+GET /api/admin/comments + GET /api/admin/likes: findAll через withAll,
+порядок created_at DESC, id DESC. item_name — в общих DTO (читается из
+джойнутого item, запросов ноль); by-item/by-owner ответы тоже получили поле.
+UI исключён (отдельная команда, основание prd:10).
+
+EXPLAIN-доказательства (dev, 1000-2000 строк, cleanup после): comments —
+type=index, key=idx_comment_created, rows=50, Backward index scan; Using
+index, без filesort. likes: уникальность (owner,item) не дала набрать объём
+на живых таблицах (29x6=174 пары) — та же механика доказана на
+scratch-таблице той же формы (idx_probe_created, тот же план). Отклонение
+от fwd-27 зафиксировано.

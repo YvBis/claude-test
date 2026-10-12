@@ -294,6 +294,7 @@ final class LikeServiceTest extends TestCase
                 'owner_id' => $this->owner->getId()->toString(),
                 'owner_name' => $this->owner->getName(),
                 'item_id' => $this->item->getId()->toString(),
+                'item_name' => $this->item->getName(),
                 'created_at' => $like->getCreatedAt()->format(\DateTimeInterface::ATOM),
             ],
             $dto->toArray(),

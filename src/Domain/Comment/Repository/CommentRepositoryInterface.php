@@ -33,6 +33,14 @@ interface CommentRepositoryInterface
     public function findById(CommentId $id): ?Comment;
 
     /**
+     * Every comment, newest first — the admin audit walk. Ordered by
+     * (created_at, id) so pages are stable; see idx_comment_created.
+     *
+     * @return array<Comment>
+     */
+    public function findAll(int $limit = 50, int $offset = 0): array;
+
+    /**
      * Lists comments of an item ordered by createdAt ASC (id as deterministic
      * tiebreaker for equal microsecond timestamps).
      *

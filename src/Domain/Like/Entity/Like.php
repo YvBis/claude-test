@@ -16,6 +16,9 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Table(name: 'likes')]
 #[ORM\Index(name: 'idx_like_item', columns: ['item_id'])]
 #[ORM\Index(name: 'idx_like_owner', columns: ['owner_id', 'created_at', 'id'])]
+// The admin audit listing orders globally by (created_at, id); neither
+// scoped index serves it, so it gets its own (proven by EXPLAIN in 7.6b).
+#[ORM\Index(name: 'idx_like_created', columns: ['created_at', 'id'])]
 #[ORM\UniqueConstraint(name: 'uniq_like_owner_item', columns: ['owner_id', 'item_id'])]
 final class Like
 {

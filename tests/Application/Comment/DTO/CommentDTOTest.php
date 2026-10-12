@@ -55,6 +55,7 @@ final class CommentDTOTest extends TestCase
             'owner_id' => $dto->ownerId,
             'owner_name' => $dto->ownerName,
             'item_id' => $dto->itemId,
+            'item_name' => $dto->itemName,
             'content' => 'Great game!',
             'created_at' => $dto->createdAt->format(\DateTimeInterface::ATOM),
             'updated_at' => $dto->updatedAt->format(\DateTimeInterface::ATOM),
