@@ -332,6 +332,79 @@ final class ItemControllerTest extends WebTestCase
         $this->assertNotEmpty($data['details']);
     }
 
+    public function testListByOwnerReturnsForeignItems(): void
+    {
+        $mine = $this->createCollection();
+        $this->createItem($mine, ['name' => 'Mine']);
+
+        $foreign = $this->registerUser();
+        $foreignCollection = $this->createCollection($foreign['token']);
+        $this->createItem($foreignCollection, ['name' => 'Theirs'], $foreign['token']);
+
+        $this->client->request('GET', '/api/items?owner='.$foreign['id'], [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertCount(1, $data);
+        $this->assertSame('Theirs', $data[0]['name']);
+    }
+
+    public function testListByOwnerAppliesFiltersAndPagination(): void
+    {
+        $foreign = $this->registerUser();
+        $foreignCollection = $this->createCollection($foreign['token']);
+        $this->createItem($foreignCollection, ['name' => 'Brave New World', 'tags' => ['scifi']], $foreign['token']);
+        $this->createItem($foreignCollection, ['name' => 'Don Quixote'], $foreign['token']);
+
+        $this->client->request('GET', '/api/items?owner='.$foreign['id'].'&name=brave&tags[]=scifi&limit=1&offset=0', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertCount(1, $data);
+        $this->assertSame('Brave New World', $data[0]['name']);
+    }
+
+    public function testListByOwnerWithInvalidOwnerReturns400(): void
+    {
+        $this->client->request('GET', '/api/items?owner=not-a-uuid', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    public function testListByOwnerWithNonscalarOwnerReturns400(): void
+    {
+        $this->client->request('GET', '/api/items?owner[]=x', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(400);
+    }
+
+    public function testListByOwnerWithUnknownOwnerReturnsEmpty(): void
+    {
+        $this->client->request('GET', '/api/items?owner=018f0a1b-2c3d-4e5f-6789-0123456789ab', [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame([], $data);
+    }
+
+    public function testListByOwnerWithoutAuthReturns401(): void
+    {
+        $foreign = $this->registerUser();
+
+        $this->client->request('GET', '/api/items?owner='.$foreign['id']);
+
+        $this->assertResponseStatusCodeSame(401);
+    }
+
+    public function testHeadOnItemsWithOwnerReturns200(): void
+    {
+        $foreign = $this->registerUser();
+
+        $this->client->request('HEAD', '/api/items?owner='.$foreign['id'], [], [], $this->authHeaders());
+
+        $this->assertResponseStatusCodeSame(200);
+    }
+
     public function testListByCollectionWithNegativeOffsetReturns400(): void
     {
         $collectionId = $this->createCollection();
@@ -657,5 +730,42 @@ final class ItemControllerTest extends WebTestCase
         $this->client->request('GET', '/api/items/'.$itemId, [], [], $this->authHeaders($foreign['token']));
 
         $this->assertResponseStatusCodeSame(200);
+    }
+
+    public function testAdminCanUpdateForeignItem(): void
+    {
+        $collectionId = $this->createCollection();
+        $itemId = $this->createItem($collectionId);
+        $foreign = $this->registerUser();
+        $this->promoteToAdmin($foreign['id']);
+
+        $this->client->request('PATCH', '/api/items/'.$itemId, [], [], $this->authHeaders($foreign['token']), \json_encode(['name' => 'Admin Renamed'], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(200);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Admin Renamed', $data['name']);
+    }
+
+    public function testAdminCanDeleteForeignItem(): void
+    {
+        $collectionId = $this->createCollection();
+        $itemId = $this->createItem($collectionId);
+        $foreign = $this->registerUser();
+        $this->promoteToAdmin($foreign['id']);
+
+        $this->client->request('DELETE', '/api/items/'.$itemId, [], [], $this->authHeaders($foreign['token']));
+
+        $this->assertResponseStatusCodeSame(204);
+    }
+
+    private function promoteToAdmin(string $userId): void
+    {
+        // No EntityManager::clear() needed: the next request reboots the
+        // kernel and authenticates by token, so UserProvider reloads the role.
+        $em = static::getContainer()->get('doctrine.orm.entity_manager');
+        $em->getConnection()->executeStatement(
+            'UPDATE users SET role = "admin" WHERE id = UNHEX(REPLACE(?, "-", ""))',
+            [\preg_replace('/-/', '', $userId)]
+        );
     }
 }

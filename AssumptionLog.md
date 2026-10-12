@@ -4189,13 +4189,26 @@ self-guard, last-admin недостижим по HTTP — guard остаётся
 guest-401 на POST → добавлен; OA `required` на теле → добавлен),
 architect SHIP-WITH-NITS, tech-lead NEEDS-CHANGES (guest-401 на POST).
 
-**Открытые follow-up'ы (не задачи этапа):** (1) `User::createAdmin()`
-без caller'ов после 7.3 — удалить или направить ROLE_ADMIN-создание через
-него (одна фабрика); (2) constraints `CreateUserDTO` копируют
-`RegisterUserDTO` — при правке одного второе молча расходится; (3) инвариант
-«создание админа без аудита» учесть в 7.4; (4) `countByRole` считает всех
-админов, не только активных — guard строже доки («последний активный»);
-недостижимо по HTTP, только safety-invariant (из ревью 7.4).
+**Открытые follow-up'ы (не задачи этапа):** (1) закрыт chore #153;
+(2) constraints `CreateUserDTO` копируют `RegisterUserDTO` — при правке
+одного второе молча расходится; (3) инвариант «создание админа без аудита»
+учтён в 7.4 (last-admin guard на demote); (4) `countByRole` считает всех
+админов, не только активных (из ревью 7.4).
+
+## 2026-10-11 — 7.5: айтемы чужого владельца (в работе)
+
+Проверка 113–118 показала: мутации чужих коллекций/айтемов, модерация и
+чтение коллекций чужого уже работают — единственным пробелом был
+`GET /api/items?owner=`. Решения: owner парсится в `listOwn` (не в общем
+`parseFilters` — иначе сменился бы контракт
+`GET /api/collections/{id}/items`); асимметрия осознанная
+(`collections?owner=` публично, `items?owner=` только аутентифицированным);
+`owner=me` нет (зеркалим коллекции); перенос владения исключён навсегда.
+- Follow-up (из ревью 7.5, третья копия): raw-bag owner-парсинг теперь в
+  двух местах (`CollectionController::list`, `ItemController::parseOwner`)
+  — при третьем появлении вынести `parseOwnerParam` в
+  `AbstractApiController` (fallback остаётся на call-site; в `parseFilters`
+  не складывать — иначе сменится контракт чужого эндпоинта).
 
 ## 2026-10-11 — 7.4: смена роли (в работе)
 
