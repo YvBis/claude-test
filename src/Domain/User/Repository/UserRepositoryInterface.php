@@ -29,7 +29,6 @@ interface UserRepositoryInterface
 
     public function findByEmail(Email $email): ?User;
 
-    /** @return array<User> */
     /**
      * Every user, page by page — the admin list. Ordered by createdAt DESC
      * then id DESC so pages are stable (the tiebreak follows the primary

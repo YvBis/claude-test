@@ -67,6 +67,7 @@ TaskFlow — REST API для управления личными коллекц�
 - Поля имеют порядок через `slotIndex`; максимум 3 поля на тип via `SlotLimits::MAX_SLOTS_PER_TYPE`
 - UNIQUE `(collection_id, field_type, slot_index)` — per-type слот-уникальность
 - Темы: Books, Games, Movies, Drinks
+- **Стек `CollectionField` (сущность, репозиторий, VO, миграция) — дормантный задел:** ни один Application-сервис или `/api`-роут его не использует (CRUD полей не реализован); правила про 100 полей/`slotIndex`/UNIQUE описывают схему, а не текущий API. Айтемы хранят слоты по фиксированной паре (type, slot) из `SlotLimits`, поля коллекции в этот путь не задействованы
 
 ### Item (`src/Domain/Item/`)
 
@@ -104,11 +105,11 @@ TaskFlow — REST API для управления личными коллекц�
 |-----------|------|----------|
 | `Like` | `Entity/Like.php` | Отметка «нравится» (id, ownerId, item, createdAt); **owner** — колонка `owner_id` (FK `ON DELETE CASCADE` объявлен вручную в миграции, ORM-ассоциации нет), **item** — `ManyToOne` с `ON DELETE CASCADE` |
 | `LikeId` | `ValueObject/LikeId.php` | Бинарный UUID |
-| `LikeRepositoryInterface` | `Repository/LikeRepositoryInterface.php` | Интерфейс репозитория (`save`, `remove`, `findById`, `findByOwnerAndItem`, `findByItemId`, `countByItemId`) |
+| `LikeRepositoryInterface` | `Repository/LikeRepositoryInterface.php` | Интерфейс репозитория (`save`, `remove`, `findById`, `findByOwnerAndItem`, `findByItemId`, `findByOwnerId`, `findAll` — аудит-список, 7.6, `countByItemId`) |
 
 **Бизнес-правила:**
 - Один лайк на пару (пользователь, айтем): UNIQUE `uniq_like_owner_item(owner_id, item_id)`; двойной лайк → `UniqueConstraintViolation`
-- `idx_like_item(item_id)` — списки лайков айтема; отдельный owner-индекс не нужен (UNIQUE покрывает префикс `owner_id`)
+- `idx_like_item(item_id)` — списки лайков айтема; `idx_like_created(created_at, id)` — глобальный аудит-список (7.6, `ORDER BY created_at DESC, id DESC` без filesort); отдельный owner-индекс не нужен (UNIQUE покрывает префикс `owner_id`)
 - Удаление айтема/пользователя каскадно удаляет лайки
 
 ### Comment (`src/Domain/Comment/`)
@@ -118,11 +119,11 @@ TaskFlow — REST API для управления личными коллекц�
 | `Comment` | `Entity/Comment.php` | Комментарий (id, ownerId, item, content, createdAt, updatedAt); **owner** — колонка `owner_id` (FK `ON DELETE CASCADE` объявлен вручную в миграции, ORM-ассоциации нет), **item** — `ManyToOne` с `ON DELETE CASCADE` |
 | `CommentId` | `ValueObject/CommentId.php` | Бинарный UUID |
 | `CommentContent` | `ValueObject/CommentContent.php` | Markdown-текст (длина 1..3000; нормализация `\r\n`→`\n`, strip control-символов кроме `\n`/`\t`, trim краёв; внутренние пробелы/переносы сохраняются) |
-| `CommentRepositoryInterface` | `Repository/CommentRepositoryInterface.php` | Интерфейс репозитория (`save`, `remove`, `findById`, `findByItemId`, `findByOwnerId`, `countByItemId`, `countByOwnerId`) |
+| `CommentRepositoryInterface` | `Repository/CommentRepositoryInterface.php` | Интерфейс репозитория (`save`, `remove`, `findById`, `findAll` — аудит-список, 7.6, `findByItemId`, `findByOwnerId`, `countByItemId`, `countByOwnerId`) |
 
 **Бизнес-правила:**
 - Один пользователь может комментировать айтем многократно — **UNIQUE нет**
-- Индексы композитные под сортировку: `idx_comment_item(item_id, created_at, id)` и `idx_comment_owner(owner_id, created_at, id)` → индекс обслуживает `ORDER BY created_at, id` без filesort (`id` указан явно; InnoDB добавляет PK и так)
+- Индексы композитные под сортировку: `idx_comment_item(item_id, created_at, id)` и `idx_comment_owner(owner_id, created_at, id)` → индекс обслуживает `ORDER BY created_at, id` без filesort (`id` указан явно; InnoDB добавляет PK и так); `idx_comment_created(created_at, id)` — глобальный админ-аудит-список (7.6)
 - Правка `changeContent()` + `touch()`: `updatedAt` меняется, no-op при нормализованно равном контенте
 - Удаление айтема/пользователя каскадно удаляет комментарии
 - Контент хранится как есть (markdown); рендеринг/экранирование — забота фронтенда
@@ -156,24 +157,30 @@ Doctrine. Подробности: «Владение (fwd-5)» в разделе
 |--------|------|----------|
 | `RegistrationService` | `src/Application/User/Service/RegistrationService.php` | Регистрация пользователя |
 | `AuthenticationService` | `src/Application/User/Service/AuthenticationService.php` | Аутентификация (login), JWT |
+| `UserService` | `src/Application/User/Service/UserService.php` | Админка пользователей (7.1–7.4): `listUsers` (пагинация), `getById` (404), `update` — блок/разблок и смена роли одним методом, идемпотентно по состоянию (повторный блок всё равно flush'ит и трогает `updatedAt`), с гвардами self-action/last-admin, `deleteUser` (каскад + очистка индекса) |
 | `TagService` | `src/Application/Tag/Service/TagService.php` | `resolveByNames` — нормализация/дедуп имён, найти-или-создать тег (flush у вызывающего); `listTags` — список/поиск по подстроке (ci) |
 | `ItemService` | `src/Application/Item/Service/ItemService.php` | CRUD айтемов + списки; слоты через `ItemSlotMapper`, теги через `TagService`; create/update в `uow->transactional()`, delete — remove+flush |
 | `ItemSlotMapper` | `src/Application/Item/Service/ItemSlotMapper.php` | Коэрсия `{type, slot, value}` → слоты Item: date ISO-8601 (Z/милли/микро, UTC-нормализация), number→float, bool, text; `null` очищает слот |
-| `LikeService` | `src/Application/Like/Service/LikeService.php` | Лайки: `like`/`unlike` (идемпотентно), `toggle` (возвращает новое состояние), `isLikedBy`, `countByItem`, `listByItem`, `removeLike` (админский путь), `toDTO`/`toDTOList`; мутации — `save`/`remove` + `uow->flush()` |
-| `CommentService` | `src/Application/Comment/Service/CommentService.php` | Комментарии: `create`, `getById` (`?Comment` → 404), `changeContent` (no-op без flush), `delete`, `listByItem`/`listByOwner` (пагинация), `countByItem`/`countByOwner`, `toDTO`/`toDTOList`; авторизация — на контроллере (5.5) |
+| `CollectionService` | `src/Application/Collection/Service/CollectionService.php` | CRUD коллекций; `listAll`/`listByOwnerId` (пагинация); после `flush()` пишет индекс-документ коллекции и делает fan-out переименования (6.5). Коллекция правится по name/theme/description/image — CRUD полей (`CollectionField`) не реализован, стек полей пока задел (см. раздел `Collection` выше) |
+| `LikeService` | `src/Application/Like/Service/LikeService.php` | Лайки: `like`/`unlike` (идемпотентно), `toggle` (возвращает новое состояние), `isLikedBy`, `getById`, `countByItem`, `listByItem`, `listByOwner`, `listAll` (админ-аудит, 7.6), `removeLike` (админский путь), `toDTO`/`toDTOList`; мутации — `save`/`remove` + `uow->flush()` |
+| `CommentService` | `src/Application/Comment/Service/CommentService.php` | Комментарии: `create`, `getById` (`?Comment` → 404), `changeContent` (no-op без flush), `delete`, `listByItem`/`listByOwner`, `listAll` (админ-аудит, 7.6), `countByItem`/`countByOwner`, `toDTO`/`toDTOList`; авторизация — на контроллере (5.5) |
+| `SearchService` | `src/Application/Search/SearchService.php` | `searchItems`/`searchCollections` — чтение из движка через `SearchReaderInterface` (не fail-open), фильтры owner/collection_id/tags (AND)/theme (6.6) |
 
 **Транзакции:** `UnitOfWorkInterface` (`src/Application/Common/Transaction/`) — `flush()` и `transactional(callable): mixed` (граница транзакции на уровне Application). Реализация `DoctrineUnitOfWork` (`src/Infrastructure/Common/Transaction/`) делегирует `EntityManager::wrapInTransaction`. ItemService create/update обёрнуты в `transactional()`; `getOrCreate` (raw upsert) делит DBAL-соединение EM → атомарность тегов+item; вложенные вызовы безопасны (savepoints).
 
 **DTO:**
 - `RegisterUserDTO` — name, email, password
+- `CreateUserDTO` — name, email, password, `?role` (`Assert\Choice` user|admin; мусор → 422, не 500) — админское создание (7.3)
+- `UpdateUserDTO` — `?is_active`, `?role` (`Assert\Choice`); `hasChanges()` (пустое тело → 422) — `PATCH /api/admin/users/{id}` (7.2/7.4)
+- `UserDTO` — id, name, email, role, is_active, timestamps (без хеша пароля) — админский список (7.1)
 - `LoginUserDTO` — email, password
 - `LoginResult` — accessToken, tokenType, expiresIn, user
 - `CreateItemDTO` / `UpdateItemDTO` — name, tags, slots `array<ItemSlotDTO>`; обновление: теги replace по TagId, слоты частично (`null` очищает)
 - `ItemDTO` — id, name, tags `array<TagDTO>`, слоты только заполненные, collection_id, timestamps (ATOM)
 - `ItemSlotDTO` — type, slot (1..`SlotLimits::MAX_SLOTS_PER_TYPE`), value
 - `TagDTO` — id, name
-- `LikeDTO` — id, owner_id, owner_name, item_id, created_at (ATOM)
-- `CommentDTO` — id, owner_id, owner_name, item_id, content, created_at, updated_at (ATOM)
+- `LikeDTO` — id, owner_id, owner_name, item_id, item_name, created_at (ATOM)
+- `CommentDTO` — id, owner_id, owner_name, item_id, item_name, content, created_at, updated_at (ATOM)
 - `CommentRequestDTO` — content (Application/Comment/DTO; тонкий, валидация в `CommentContent` → 422) 
 - `ItemDetailDTO` — `ItemDTO::toArray()` + likes_count, comments_count, liked_by_me (только `GET /api/items/{id}`)
 
@@ -182,6 +189,11 @@ Doctrine. Подробности: «Владение (fwd-5)» в разделе
 (`UserRepositoryInterface::findNamesByIds()`), и отсутствие строки представимо
 впервые. FK на `users(id)` гарантирует, что на реальных данных `null` не бывает,
 так что ни один ответ не меняется.
+
+`item_name` в `LikeDTO`/`CommentDTO` — `string` (7.6), не `?string`: читается
+прямо из айтема, который `withAll()` уже джойнит на всех read-путях, поэтому
+лишнего запроса нет и `null` непредставим. Поле появилось ради админского
+аудит-списка, но аддитивно присутствует и в by-item/by-owner ответах.
 
 ## Авторизация
 
@@ -194,6 +206,15 @@ Doctrine. Подробности: «Владение (fwd-5)» в разделе
 | Voter через `AccessDecisionManager` | `SocialContentVoter` | `SOCIAL_EDIT` / `SOCIAL_DELETE` для `Comment` и `Like` — решение по атрибуту над загруженной сущностью |
 | `canManage` / `denyUnlessCanManage` | `AbstractApiController` | owner-or-admin для **всех** мутаций айтемов и коллекций — делегат к `OwnerAccess::isOwnerOrAdmin()` (fwd-14 → fwd-5); сравнение сырых id, **вне** ADM |
 | `access_control` через `AccessDecisionManager` | `config/packages/security.yaml` | гейт по URL+method — `IS_AUTHENTICATED_FULLY` / `PUBLIC_ACCESS` / `IS_AUTHENTICATED_REMEMBERED`; никакой бизнес-логики |
+
+**Админский неймспейс `/api/admin/*`** (7.1–7.6) не заводит четвёртого механизма:
+`security.yaml` не содержит отдельного правила для него, поэтому роуты попадают под
+catch-all `^/api → IS_AUTHENTICATED_FULLY` (только аутентификация), а роль проверяет
+`#[IsGranted('ROLE_ADMIN')]` на каждом экшене — это тот же ADM-путь с атрибутом
+`IS_GRANTED` (role voter). Инвариант «каждый админский роут защищён» держит
+`AdminGuardTest`: он читает `RouterInterface::getRouteCollection()`, берёт все пути `/api/admin` и требует
+`IsGranted ROLE_ADMIN` на методе или классе — новый админский экшен без атрибута
+краснит тест на коммите, любым HTTP-методом.
 
 **Все мутации коллекций и айтимов — owner-or-admin через один предикат**
 (`OwnerAccess::isOwnerOrAdmin()`, fwd-5; до него был `User::isOwnerOrAdminOf()`,
@@ -242,9 +263,12 @@ Voter отвечает «как этот атрибут правится для 
 | `LogoutController` | `src/Infrastructure/Api/Controller/LogoutController.php` | POST /api/logout |
 | `RegistrationController` | `src/Infrastructure/Api/Controller/RegistrationController.php` | POST /api/register |
 | `CollectionController` | `src/Infrastructure/Api/Controller/CollectionController.php` | CRUD коллекций; **все мутации — owner-or-admin через `denyUnlessCanManage`** (fwd-33 закрыл последнее исключение, `PATCH` больше не owner-only); `GET /api/collections` с `?owner={uuid}` (чужие коллекции, двоичный UUID через `IDENTITY`); `GET /api/collections/{id}` — любой аутентифицированный (D1); non-scalar `?owner` (`?owner[]=x`) returns 400 with the API envelope (fwd-25); `ApiExceptionSubscriber` мини-этапа 5A не перемапливает 400 на query-параметрах |
-| `ItemController` | `src/Infrastructure/Api/Controller/ItemController.php` | CRUD айтемов + списки: `POST /api/collections/{id}/items`, `GET /api/collections/{id}/items` и `GET /api/items` (свои) с фильтрами `?name` (LIKE, ci) и `?tags[]` (AND), `GET/PATCH/DELETE /api/items/{id}`. Чтение — любой аутентифицированный (D1 Этапа 5); запись — владелец+админ; слоты/теги `\InvalidArgumentException` → 400. `GET /api/items/{id}` отдаёт `ItemDetailDTO` (+`likes_count`/`comments_count`/`liked_by_me`). Карта ошибок (5.9, единая через хелперы): нет токена → 401, id/не найдено → 404, не автор/не админ → 403, битый JSON или `limit`/`offset` → 400, семантически невалидный контент (слот/пустой PATCH) → 422. Не-скалярный query-параметр (`?name[]=x`, `?tags=x`, `?limit[]=1`) отдаёт 400 нашим конвертом — чтение идёт через сырой массив `$request->query->all()`, потому что `InputBag::get()` бросает фреймворковый `BadRequestException` (fwd-25); `ApiExceptionSubscriber` мини-этапа 5A не перемапливает 400 на query-параметрах |
+| `ItemController` | `src/Infrastructure/Api/Controller/ItemController.php` | CRUD айтемов + списки: `POST /api/collections/{id}/items`, `GET /api/collections/{id}/items` и `GET /api/items` (свои, либо чужие при `?owner={uuid}`, 7.5) с фильтрами `?name` (LIKE, ci) и `?tags[]` (AND), `GET/PATCH/DELETE /api/items/{id}`. Чтение — любой аутентифицированный (D1 Этапа 5; `?owner` — тоже только аутентифицированные, гость 401, в отличие от публичного `collections?owner`); запись — владелец+админ; слоты/теги `\InvalidArgumentException` → 400. `GET /api/items/{id}` отдаёт `ItemDetailDTO` (+`likes_count`/`comments_count`/`liked_by_me`). Карта ошибок (5.9, единая через хелперы): нет токена → 401, id/не найдено → 404, не автор/не админ → 403, битый JSON или `limit`/`offset` → 400, семантически невалидный контент (слот/пустой PATCH) → 422. Не-скалярный query-параметр (`?name[]=x`, `?tags=x`, `?limit[]=1`) отдаёт 400 нашим конвертом — чтение идёт через сырой массив `$request->query->all()`, потому что `InputBag::get()` бросает фреймворковый `BadRequestException` (fwd-25); `ApiExceptionSubscriber` мини-этапа 5A не перемапливает 400 на query-параметрах |
 | `LikeController` | `src/Infrastructure/Api/Controller/LikeController.php` | Лайки: `POST`/`DELETE /api/items/{id}/likes` (идемпотентно, `{likes_count}`), `GET /api/items/{id}/likes` (пагинация), `GET /api/likes` (свои, пагинация), `DELETE /api/likes/{id}` — автор или админ (PRD 118) |
 | `CommentController` | `src/Infrastructure/Api/Controller/CommentController.php` | Комментарии: `POST`/`GET /api/items/{id}/comments`, `GET /api/comments` (свои), `PATCH`/`DELETE /api/comments/{id}` и вложенный `DELETE /api/items/{itemId}/comments/{id}` — автор или админ (PRD 117). Карта ошибок: id → 404, контент → 422, тело → 400 (`CommentRequestDTO` в Application) |
+| `Admin\UserController` | `src/Infrastructure/Api/Controller/Admin/UserController.php` | Админка пользователей (7.1–7.4): `GET /api/admin/users` (список, пагинация), `POST /api/admin/users` (создание, опц. `role`), `PATCH /api/admin/users/{id}` (`{is_active}`/`{role}`, идемпотентно), `DELETE /api/admin/users/{id}` (каскад + очистка индекса). Каждый экшен — `#[IsGranted('ROLE_ADMIN')]`; инварианты last-admin/self-action |
+| `Admin\CommentController` | `src/Infrastructure/Api/Controller/Admin/CommentController.php` | `GET /api/admin/comments` (7.6) — сквозной аудит-список комментариев, новейшие первыми, `IsGranted ROLE_ADMIN` |
+| `Admin\LikeController` | `src/Infrastructure/Api/Controller/Admin/LikeController.php` | `GET /api/admin/likes` (7.6) — сквозной аудит-список лайков, новейшие первыми, `IsGranted ROLE_ADMIN` |
 | `DoctrineUserRepository` | `src/Infrastructure/User/Repository/DoctrineUserRepository.php` | Реализация репозитория User; `findNamesByIds()` — батч-выборка отображаемых имён по списку id (fwd-5), один запрос на страницу лайков/комментариев вместо одного на строку |
 | `OwnerAccess` | `src/Infrastructure/Security/OwnerAccess.php` | Единственный предикат owner-or-admin (fwd-5, заменил `User::isOwnerOrAdminOf()`). Сравнивает id побайтно, admin-шорткат — здесь; пользуются `AbstractApiController` и `SocialContentVoter` |
 | `DoctrineCollectionFieldRepository` | `src/Infrastructure/Collection/Repository/DoctrineCollectionFieldRepository.php` | Реализация репозитория CollectionField |
@@ -406,7 +430,7 @@ CI — имя сервиса на раннере не резолвится. `tes
 | 4 | Айтем | ✅ завершён (4.1–4.7) |
 | 5 | Социальное | ✅ завершён (весь бэклог и мини-этап 5A закрыты; гейт messenger снят в 6.0) |
 | 6 | Поиск | ✅ завершён — 6.0–6.7 (движок, клиент, документы/порты, CI, sync, эндпоинты, breaker, закрытие); fail-open на записи, голый 500 на чтении; свежий движок требует `search:reindex` |
-| 7 | Админ | ⏳ |
+| 7 | Админ | ✅ завершён — 7.1–7.7 (список/создание/блок/удаление/роль пользователей, айтемы чужого владельца, аудит-список лайков/комментариев, юнит-тесты); `/api/admin/*` — `IsGranted ROLE_ADMIN` |
 | 8 | Тестирование | ⏳ |
 
 ---
