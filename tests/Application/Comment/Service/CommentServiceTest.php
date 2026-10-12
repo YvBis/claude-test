@@ -227,6 +227,29 @@ final class CommentServiceTest extends TestCase
         $this->assertSame([], $this->service->listByOwner($ownerId));
     }
 
+    public function testListAllDelegatesWithPagination(): void
+    {
+        $comment = $this->comment();
+        $this->commentRepository
+            ->expects($this->once())
+            ->method('findAll')
+            ->with(10, 20)
+            ->willReturn([$comment]);
+
+        $this->assertSame([$comment], $this->service->listAll(10, 20));
+    }
+
+    public function testListAllUsesDefaultPagination(): void
+    {
+        $this->commentRepository
+            ->expects($this->once())
+            ->method('findAll')
+            ->with(50, 0)
+            ->willReturn([]);
+
+        $this->assertSame([], $this->service->listAll());
+    }
+
     public function testCountByItemDelegates(): void
     {
         $this->commentRepository
