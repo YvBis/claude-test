@@ -58,6 +58,18 @@ final class DoctrineLikeRepository extends ServiceEntityRepository implements Li
     }
 
     #[\Override]
+    public function findAll(int $limit = 50, int $offset = 0): array
+    {
+        return $this->withAll($this->createQueryBuilder('l'))
+            ->orderBy('l.createdAt', \SortDirection::Descending)
+            ->addOrderBy('l.id', \SortDirection::Descending)
+            ->setMaxResults($limit)
+            ->setFirstResult($offset)
+            ->getQuery()
+            ->getResult();
+    }
+
+    #[\Override]
     public function findByItemId(ItemId $itemId, int $limit = 50, int $offset = 0): array
     {
         return $this->withAll($this->createQueryBuilder('l'))

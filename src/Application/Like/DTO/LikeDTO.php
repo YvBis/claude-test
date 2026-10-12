@@ -14,6 +14,7 @@ final readonly class LikeDTO implements ArrayableInterface
         public string $ownerId,
         public ?string $ownerName,
         public string $itemId,
+        public string $itemName,
         public \DateTimeImmutable $createdAt,
     ) {
     }
@@ -31,11 +32,12 @@ final readonly class LikeDTO implements ArrayableInterface
             ownerId: $like->getOwnerId()->toString(),
             ownerName: $ownerName,
             itemId: $like->getItem()->getId()->toString(),
+            itemName: $like->getItem()->getName(),
             createdAt: $like->getCreatedAt(),
         );
     }
 
-    /** @return array{id: string, owner_id: string, owner_name: ?string, item_id: string, created_at: string} */
+    /** @return array{id: string, owner_id: string, owner_name: ?string, item_id: string, item_name: string, created_at: string} */
     #[\Override]
     public function toArray(): array
     {
@@ -44,6 +46,7 @@ final readonly class LikeDTO implements ArrayableInterface
             'owner_id' => $this->ownerId,
             'owner_name' => $this->ownerName,
             'item_id' => $this->itemId,
+            'item_name' => $this->itemName,
             'created_at' => $this->createdAt->format(\DateTimeInterface::ATOM),
         ];
     }

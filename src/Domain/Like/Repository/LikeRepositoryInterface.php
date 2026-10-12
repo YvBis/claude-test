@@ -39,6 +39,14 @@ interface LikeRepositoryInterface
     public function findByOwnerAndItem(OwnerId $ownerId, ItemId $itemId): ?Like;
 
     /**
+     * Every like, newest first — the admin audit walk. Ordered by
+     * (created_at, id) so pages are stable; see idx_like_created.
+     *
+     * @return array<Like>
+     */
+    public function findAll(int $limit = 50, int $offset = 0): array;
+
+    /**
      * Lists likes of an item ordered by createdAt ASC (id as deterministic
      * tiebreaker for equal microsecond timestamps).
      *

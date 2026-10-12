@@ -89,7 +89,7 @@ nelmio_api_doc:
                               liked_by_me: { type: boolean, example: false }
                 Like:
                     type: object
-                    required: [id, owner_id, owner_name, item_id, created_at]
+                    required: [id, owner_id, owner_name, item_id, item_name, created_at]
                     properties:
                         id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
                         owner_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
@@ -100,15 +100,17 @@ nelmio_api_doc:
                         # the key stays required, only its value may be null.
                         owner_name: { type: string, nullable: true, example: 'John Doe' }
                         item_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        item_name: { type: string, example: 'Brave New World' }
                         created_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
                 Comment:
                     type: object
-                    required: [id, owner_id, owner_name, item_id, content, created_at, updated_at]
+                    required: [id, owner_id, owner_name, item_id, item_name, content, created_at, updated_at]
                     properties:
                         id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
                         owner_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
                         owner_name: { type: string, nullable: true, example: 'John Doe' }
                         item_id: { type: string, format: uuid, example: '018f0a1b-2c3d-4e5f-6789-0123456789ab' }
+                        item_name: { type: string, example: 'Brave New World' }
                         content: { type: string, maxLength: 3000, example: 'Great read! ## Notes' }
                         created_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }
                         updated_at: { type: string, format: date-time, example: '2026-07-17T12:00:00Z' }

@@ -87,6 +87,16 @@ final readonly class CommentService
     }
 
     /**
+     * Every comment, newest first — the admin audit listing.
+     *
+     * @return array<Comment>
+     */
+    public function listAll(int $limit = 50, int $offset = 0): array
+    {
+        return $this->commentRepository->findAll($limit, $offset);
+    }
+
+    /**
      * Lists the comments of an item, oldest first.
      *
      * @return array<Comment>

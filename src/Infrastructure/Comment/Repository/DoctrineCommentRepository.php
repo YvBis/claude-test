@@ -46,6 +46,18 @@ final class DoctrineCommentRepository extends ServiceEntityRepository implements
     }
 
     #[\Override]
+    public function findAll(int $limit = 50, int $offset = 0): array
+    {
+        return $this->withAll($this->createQueryBuilder('c'))
+            ->orderBy('c.createdAt', \SortDirection::Descending)
+            ->addOrderBy('c.id', \SortDirection::Descending)
+            ->setMaxResults($limit)
+            ->setFirstResult($offset)
+            ->getQuery()
+            ->getResult();
+    }
+
+    #[\Override]
     public function findByItemId(ItemId $itemId, int $limit = 50, int $offset = 0): array
     {
         return $this->withAll($this->createQueryBuilder('c'))

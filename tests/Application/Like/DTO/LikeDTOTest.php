@@ -64,7 +64,7 @@ final class LikeDTOTest extends TestCase
         $array = LikeDTO::fromEntity($like, 'John Doe')->toArray();
 
         $this->assertSame(
-            ['id', 'owner_id', 'owner_name', 'item_id', 'created_at'],
+            ['id', 'owner_id', 'owner_name', 'item_id', 'item_name', 'created_at'],
             \array_keys($array),
         );
         $this->assertSame('John Doe', $array['owner_name']);
