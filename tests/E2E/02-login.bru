@@ -1,0 +1,37 @@
+meta {
+  name: 02 Login
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{email}}",
+    "password": "password123"
+  }
+}
+
+headers {
+  Content-Type: application/json
+}
+
+script:post-response {
+  bru.setVar("token", res.body.access_token);
+  bru.setVar("userId", res.body.user.id);
+}
+
+tests {
+  test("login returns 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+  test("login returns a bearer token and the user", function() {
+    expect(res.body).to.have.property("access_token");
+    expect(res.body.user).to.have.property("id");
+  });
+}

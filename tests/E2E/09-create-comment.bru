@@ -1,0 +1,32 @@
+meta {
+  name: 09 Create comment
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/items/{{itemId}}/comments
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "content": "E2E comment"
+  }
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+}
+
+tests {
+  test("create comment returns 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  test("comment is authored by the logged-in user", function() {
+    expect(res.body).to.have.property("id");
+    expect(res.body.owner_id).to.equal(bru.getVar("userId"));
+  });
+}

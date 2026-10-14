@@ -18,6 +18,12 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-enable xdebug \
     && pecl install redis \
     && docker-php-ext-enable redis \
+    # APCu: the test environment configures `cache.app: cache.adapter.apcu`
+    # (config/packages/test/framework.yaml). PHPUnit on the host never needs it
+    # (the pool is lazy and unused), but the composed stack that the E2E job
+    # serves runs the test env over HTTP and does instantiate it.
+    && pecl install apcu \
+    && docker-php-ext-enable apcu \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

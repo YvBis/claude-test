@@ -1,0 +1,17 @@
+meta {
+  name: 08 Guest reads collection
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/collections/{{collectionId}}
+  body: none
+  auth: none
+}
+
+tests {
+  test("a guest can read a collection (fwd-7)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

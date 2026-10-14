@@ -1,0 +1,21 @@
+meta {
+  name: 12 Admin endpoint forbids a regular user
+  type: http
+  seq: 12
+}
+
+get {
+  url: {{baseUrl}}/api/admin/users
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}
+
+tests {
+  test("admin endpoint returns 403 for a non-admin (authorization holds)", function() {
+    expect(res.getStatus()).to.equal(403);
+  });
+}

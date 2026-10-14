@@ -1,0 +1,39 @@
+meta {
+  name: 01 Register
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/register
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "name": "E2E User",
+    "email": "{{email}}",
+    "password": "password123"
+  }
+}
+
+headers {
+  Content-Type: application/json
+}
+
+script:pre-request {
+  bru.setVar("email", "e2e_" + Date.now() + "_" + Math.floor(Math.random() * 100000) + "@example.com");
+}
+
+tests {
+  test("register returns 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  test("register response carries no password hash", function() {
+    expect(res.body).to.have.property("id");
+    expect(res.body).to.have.property("email");
+    expect(res.body).to.not.have.property("password");
+    expect(res.body).to.not.have.property("password_hash");
+  });
+}

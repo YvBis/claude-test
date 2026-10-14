@@ -256,6 +256,97 @@ jobs:
       - name: Probe deprecation output format
         run: bash scripts/deprecation-format-probe.sh
 
+  # Task 8.1: end-to-end journeys over the *composed* stack (nginx -> php-fpm ->
+  # MySQL/Meilisearch). The in-kernel WebTestCase functional tests never cross
+  # nginx/php-fpm, so this is the layer they cannot cover (Redis is part of the
+  # stack but no journey exercises it: no cache.app consumer in src, messenger is
+  # in-memory under test). A Bruno collection (plain-text .bru under tests/E2E)
+  # drives it; the tool choice and the collection contract live in
+  # PRD/8.1-e2e-bruno.md and ADR/0002-e2e-client.md.
+  e2e:
+    name: E2E (Bruno)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # composer install must run before `docker compose up`: the app image
+      # bind-mounts the workspace and the Dockerfile carries no COPY of the code,
+      # so vendor/ and JWT keys come from this step.
+      - name: Setup CI environment
+        uses: ./.github/actions/setup-ci
+
+      # setup-ci generates the keypair with `openssl genrsa`, which writes 0600,
+      # owned by the runner user. The composed stack reads the private key as
+      # www-data (uid 1000), which is not the owner on the runner, so JWT signing
+      # fails with a 500 on every authenticated-token path — login only; register
+      # never touches the key. The host-PHP jobs are unaffected because they run
+      # as the owner (measured locally: a root-owned 0600 key is DENIED to
+      # www-data, 0644 is readable).
+      - name: Make JWT keys readable by the container user
+        run: chmod 644 config/jwt/private.pem config/jwt/public.pem
+
+      # .env.test omits MEILISEARCH_URL/KEY on purpose (that file serves two
+      # network namespaces), but the compose app container must reach the engine
+      # by its service name. Append the compose-only values to the .env that
+      # docker-compose.yml consumes via env_file. The leading blank line matters:
+      # .env.test carries no trailing newline, so a naive append glues the first
+      # key onto the last line ("###< lexik... ###MEILISEARCH_URL=..."), which
+      # Symfony reads as a comment and the variable goes missing at runtime.
+      - name: Point the composed stack at its services
+        run: printf '\nMEILISEARCH_URL=http://meilisearch:7700\nMEILISEARCH_KEY=masterKey123\n' >> .env
+
+      - name: Start the stack
+        run: docker compose up -d --build
+
+      # docker-compose.yml mounts an anonymous volume at /var/www/html/var
+      # (line 11), which on a fresh runner is created root-owned; php-fpm runs
+      # as www-data and cannot write var/cache, so the first request dies with
+      # "Unable to write in the cache directory". Locally this volume already
+      # exists chowned, which is why the omission is invisible until a clean
+      # machine. Do it before the first HTTP request.
+      - name: Make the app var/ writable
+        run: docker compose exec -T -u root app sh -c 'mkdir -p var/cache var/log && chown -R www-data:www-data var'
+
+      - name: Wait for the app to answer
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then
+              echo "app is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "app did not become healthy" >&2
+          docker compose logs --no-color | tail -100
+          exit 1
+
+      - name: Run migrations on the composed database
+        run: docker compose exec -T app php bin/console doctrine:migrations:migrate --no-interaction
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Pinned like every other tool in this repo (symfony-lsp, meilisearch):
+      # `.bru` parsing and CLI flags are version-sensitive, and this is a blocking
+      # gate now — an unannounced upstream release must not be able to break it
+      # without a change in this repository. Bump deliberately.
+      - name: Install Bruno CLI
+        run: npm install -g @usebruno/cli@4.2.1
+
+      # bru resolves the collection from the working directory ("You can run
+      # only at the root of a collection"), so the step runs inside tests/E2E.
+      - name: Run E2E journeys
+        working-directory: tests/E2E
+        run: bru run --env ci
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
   dependency-audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
@@ -293,7 +384,7 @@ jobs:
   ci-summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [static-analysis, unit-tests, dependency-audit, symfony-diagnostics]
+    needs: [static-analysis, unit-tests, dependency-audit, symfony-diagnostics, e2e]
     if: always()
     env:
       NEEDS_JSON: ${{ toJSON(needs) }}

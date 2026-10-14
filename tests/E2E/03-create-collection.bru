@@ -1,0 +1,37 @@
+meta {
+  name: 03 Create collection
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/collections
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "name": "E2E Collection",
+    "theme": "books"
+  }
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+}
+
+script:post-response {
+  bru.setVar("collectionId", res.body.id);
+}
+
+tests {
+  test("create collection returns 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  test("collection has an id and the requested theme", function() {
+    expect(res.body).to.have.property("id");
+    expect(res.body.theme).to.equal("books");
+  });
+}

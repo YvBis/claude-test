@@ -131,6 +131,24 @@ docker compose exec app composer coverage:check
 > docker compose exec app composer coverage:gate
 > ```
 
+### E2E-сценарии (Bruno)
+
+Сквозные пользовательские пути проверяются против **собранного стека**
+(nginx → php-fpm → MySQL/Meilisearch; Redis поднят, но этими путями не задействован),
+а не ядра в PHPUnit. Коллекция — plain-text
+`.bru` в `tests/E2E/`; правка — в Bruno Desktop, запуск — CLI:
+
+```bash
+docker compose up -d
+docker compose exec app php bin/console doctrine:migrations:migrate
+npm install -g @usebruno/cli@4.2.1     # Node 20+
+cd tests/E2E && bru run --env local
+```
+
+`--env local` берёт `baseUrl=http://localhost:8000`; CI-job **E2E (Bruno)** — то же на стеке из
+`docker compose` с `--env ci` (`http://127.0.0.1:8000`). Обоснование выбора инструмента —
+`PRD/8.1-e2e-bruno.md`.
+
 > **Примечание**: после изменения `docker/php/custom.ini` или `Dockerfile` пересоберите образ:
 > ```bash
 > docker compose build app

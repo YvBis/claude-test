@@ -75,6 +75,10 @@ config/jwt/*.pem
 # Local env files
 .env
 .env.dev
+# Editor/debug backups of the env files (hold APP_SECRET, DATABASE_URL,
+# JWT_PASSPHRASE). Caught by a reviewer in 8.1 after `git add -A` swept one in.
+.env.bak
+.env.*.bak
 
 ###> symfony/phpunit-bridge ###
 .phpunit.result.cache

@@ -1,0 +1,17 @@
+meta {
+  name: 11 Search items
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/api/search/items?q=E2E
+  body: none
+  auth: none
+}
+
+tests {
+  test("search responds 200 (engine is alive)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}
