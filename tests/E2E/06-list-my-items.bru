@@ -1,0 +1,21 @@
+meta {
+  name: 06 List my items
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/items
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}
+
+tests {
+  test("my items returns 200", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

@@ -1,0 +1,23 @@
+meta {
+  name: 10 Like item
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/items/{{itemId}}/likes
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}
+
+tests {
+  test("like returns 200 and a like count", function() {
+    expect(res.getStatus()).to.equal(200);
+    expect(res.body).to.have.property("likes_count");
+    expect(res.body.likes_count).to.equal(1);
+  });
+}

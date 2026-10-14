@@ -1,0 +1,36 @@
+meta {
+  name: 04 Create item
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/collections/{{collectionId}}/items
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "name": "E2E Item"
+  }
+}
+
+headers {
+  Content-Type: application/json
+  Authorization: Bearer {{token}}
+}
+
+script:post-response {
+  bru.setVar("itemId", res.body.id);
+}
+
+tests {
+  test("create item returns 201", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  test("item belongs to the created collection", function() {
+    expect(res.body).to.have.property("id");
+    expect(res.body.collection_id).to.equal(bru.getVar("collectionId"));
+  });
+}
