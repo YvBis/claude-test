@@ -33,10 +33,11 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h localhost -u root -proot_password"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot_password"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=10
+          --health-start-period=60s
       redis:
         image: redis:alpine
         ports:
@@ -152,10 +153,11 @@ jobs:
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h localhost -u root -proot_password"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot_password"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=10
+          --health-start-period=60s
       redis:
         image: redis:alpine
         ports:
@@ -320,6 +322,33 @@ jobs:
           done
           echo "app did not become healthy" >&2
           docker compose logs --no-color | tail -100
+          exit 1
+
+      # /health only proves the app answered; it does not touch the database. The
+      # db healthcheck (docker-compose.yml) is TCP-based, so waiting on the
+      # container's own health status is a truthful single source of truth — no
+      # credentials re-keyed here, no container name hardcoded. On main after the
+      # 8.1 merge (task 8.7), migrations raced MySQL startup and died with
+      # "SQLSTATE[HY000] [2002] Connection refused".
+      #
+      # Deliberately redundant: `app.depends_on.db.condition: service_healthy`
+      # already makes `docker compose up -d` block until the db is healthy, so
+      # this loop normally exits on its first iteration. It stays as an explicit,
+      # cheap assertion that survives a future regression of that depends_on, and
+      # documents the dependency where it matters.
+      - name: Wait for the database to be healthy
+        run: |
+          for _ in $(seq 1 60); do
+            id=$(docker compose ps -q db)
+            status=$(docker inspect --format '{{.State.Health.Status}}' "$id" 2>/dev/null || echo unknown)
+            if [ "$status" = "healthy" ]; then
+              echo "database is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "database did not become healthy (last status: $status)" >&2
+          docker compose logs --no-color db | tail -50
           exit 1
 
       - name: Run migrations on the composed database

@@ -43,10 +43,22 @@ services:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      # TCP (-h 127.0.0.1), not the default socket (-h localhost, see task 8.7).
+      # During the image's fresh-volume initialization MySQL runs a temporary
+      # server with --skip-networking, which answers on the unix socket but has no
+      # TCP listener yet; the socket form therefore reports healthy before the
+      # real server exists, and `depends_on: service_healthy` starts the app too
+      # early (surfaced as "SQLSTATE[HY000] [2002] Connection refused" from
+      # migrations in the e2e job).
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot_password"]
       interval: 5s
       timeout: 5s
       retries: 10
+      # The TCP probe fails during MySQL's own initialization by design, so the
+      # ordinary retry budget (10 x 5s) would mark the container unhealthy on a
+      # cold volume and abort `up`. Failures inside start_period do not consume
+      # retries and the status stays `starting`.
+      start_period: 60s
 
   redis:
     image: redis:alpine
