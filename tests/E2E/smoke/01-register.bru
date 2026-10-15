@@ -1,0 +1,39 @@
+meta {
+  name: 01 Register
+  type: http
+  seq: 1
+  tags: [
+    smoke
+  ]
+}
+
+post {
+  url: {{baseUrl}}/api/register
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "name": "Smoke Probe",
+    "email": "{{email}}",
+    "password": "password123"
+  }
+}
+
+headers {
+  Content-Type: application/json
+}
+
+script:pre-request {
+  bru.setVar("email", "smoke_" + Date.now() + "_" + Math.floor(Math.random() * 100000) + "@example.com");
+}
+
+tests {
+  test("register returns 201 (stack accepts writes)", function() {
+    expect(res.getStatus()).to.equal(201);
+  });
+  test("register response carries an id", function() {
+    expect(res.body).to.have.property("id");
+  });
+}
