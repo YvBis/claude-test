@@ -142,8 +142,11 @@ docker compose exec app composer coverage:check
 docker compose up -d
 docker compose exec app php bin/console doctrine:migrations:migrate
 npm install -g @usebruno/cli@4.2.1     # Node 20+
-cd tests/E2E && bru run --env local
+cd tests/E2E && bru run --env local --exclude-tags=smoke
 ```
+
+Голый `bru run` в `@usebruno/cli@4.2.1` рекурсивен и подхватил бы `smoke/`; journeys всегда
+гоняются с `--exclude-tags=smoke` (так же в CI-job). Локальный smoke — отдельно, см. ниже.
 
 `--env local` берёт `baseUrl=http://localhost:8000`; CI-job **E2E (Bruno)** — то же на стеке из
 `docker compose` с `--env ci` (`http://127.0.0.1:8000`). Обоснование выбора инструмента —
@@ -202,12 +205,20 @@ docker compose exec app composer ci:symfony-lsp -- --source-only   # стати�
 
 ## Smoke tests
 
-После запуска приложения проверьте доступность основных эндпоинтов:
+Быстрая локальная проверка «поднялось и отвечает» (~45 с, 5 запросов, только Bruno —
+единообразие с E2E по `ADR/0002-e2e-client.md`):
+
 ```bash
-curl -I http://localhost:8000/api/doc
-curl -I http://localhost:8000/api/register
+docker compose up -d
+cd tests/E2E && bru run smoke --env local
 ```
-Должен возвращаться HTTP 200 или 401 (для защищённых эндпоинтов).
+
+Папка `tests/E2E/smoke/`: register → login → свои айтемы → гостевой поиск → admin-403.
+Создаёт одну строку юзера (`smoke_*`) в dev-БД за прогон — приемлемо на dev-стеке. Все 5 запросов
+несут meta-тег `smoke`: голый `bru run` в `@usebruno/cli@4.2.1` рекурсивен и подхватил бы папку,
+поэтому journeys всегда гоняются с `--exclude-tags=smoke` (и локально, и в CI-job). В CI smoke
+не гоняется отдельным шагом: те же пути покрывает job `E2E (Bruno)`, и дублировать их ради
+раннего падения не стали (решение — `PRD/8.2-smoke-bruno.md`).
 
 ## Структура проекта
 
@@ -259,7 +270,6 @@ API документировано с использованием OpenAPI 3.0. 
 
 Дополнительные workflows:
 - E2E тесты
-- Smoke tests (docker compose up + проверка эндпоинтов)
 - Мутационное тестирование (Infection)
 
 ## Лицензия

@@ -1,0 +1,24 @@
+meta {
+  name: 03 List my items
+  type: http
+  seq: 3
+  tags: [
+    smoke
+  ]
+}
+
+get {
+  url: {{baseUrl}}/api/items
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+}
+
+tests {
+  test("own items listing returns 200 (API + DB read path alive)", function() {
+    expect(res.getStatus()).to.equal(200);
+  });
+}

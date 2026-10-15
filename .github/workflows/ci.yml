@@ -368,9 +368,13 @@ jobs:
 
       # bru resolves the collection from the working directory ("You can run
       # only at the root of a collection"), so the step runs inside tests/E2E.
+      # Bare `bru run` is recursive in @usebruno/cli@4.2.1, so it would also pick
+      # up tests/E2E/smoke/ (the local-only smoke, task 8.2) — and smoke's guest
+      # search would 500 on the job's fresh, unprovisioned engine. All smoke
+      # requests carry the `smoke` meta tag, and the job explicitly excludes them.
       - name: Run E2E journeys
         working-directory: tests/E2E
-        run: bru run --env ci
+        run: bru run --env ci --exclude-tags=smoke
 
       - name: Tear down
         if: always()
