@@ -27,6 +27,9 @@ Thumbs.db
 # Testing
 .phpunit.cache/
 coverage/
+# ...but committed clover fixtures for the coverage-gate guard test live here
+# (task 8.3) — the bare `coverage/` rule above would swallow the directory.
+!tests/Fixtures/Coverage/
 
 # Logs
 # Runtime logs live under var/ (recipe `/var/` block below covers them);
