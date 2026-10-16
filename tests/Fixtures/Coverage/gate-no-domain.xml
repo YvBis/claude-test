@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture for CoverageGateTest: the project total is 100% but NO file belongs
+     to src/Domain/ (simulates phpunit.xml.dist <source><include> losing the
+     Domain entry). The gate must fail with "no statements recorded for layer
+     Domain" instead of silently passing on one layer. -->
+<coverage generated="1760000000">
+  <project timestamp="1760000000">
+    <package name="App\Application\User">
+      <file name="/var/www/html/src/Application/User/Service/UserService.php">
+        <class name="UserService" namespace="App\Application\User\Service">
+          <metrics methods="1" coveredmethods="1" statements="10" coveredstatements="10" elements="1" coveredelements="1"/>
+        </class>
+        <metrics loc="40" ncloc="32" classes="1" methods="1" coveredmethods="1" statements="10" coveredstatements="10" elements="1" coveredelements="1"/>
+      </file>
+    </package>
+    <metrics files="1" loc="40" ncloc="32" classes="1" methods="1" coveredmethods="1" statements="10" coveredstatements="10" elements="1" coveredelements="1"/>
+  </project>
+</coverage>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture for CoverageGateTest: every level passes. Mirrors the real schema
+     measured on php-code-coverage 12.x — files nested under <package> plus a
+     direct <file> child, absolute container paths, per-file metrics. -->
+<coverage generated="1760000000">
+  <project timestamp="1760000000">
+    <package name="App\Domain\User">
+      <file name="/var/www/html/src/Domain/User/Entity/User.php">
+        <class name="User" namespace="App\Domain\User\Entity">
+          <metrics methods="1" coveredmethods="1" statements="10" coveredstatements="9" elements="1" coveredelements="1"/>
+        </class>
+        <metrics loc="50" ncloc="40" classes="1" methods="1" coveredmethods="1" statements="10" coveredstatements="9" elements="1" coveredelements="1"/>
+      </file>
+    </package>
+    <package name="App\Application\User">
+      <file name="/var/www/html/src/Application/User/Service/UserService.php">
+        <class name="UserService" namespace="App\Application\User\Service">
+          <metrics methods="1" coveredmethods="1" statements="10" coveredstatements="10" elements="1" coveredelements="1"/>
+        </class>
+        <metrics loc="40" ncloc="32" classes="1" methods="1" coveredmethods="1" statements="10" coveredstatements="10" elements="1" coveredelements="1"/>
+      </file>
+    </package>
+    <file name="/var/www/html/src/Domain/Common/ValueObject/OwnerId.php">
+      <class name="OwnerId" namespace="App\Domain\Common\ValueObject">
+        <metrics methods="1" coveredmethods="1" statements="5" coveredstatements="5" elements="1" coveredelements="1"/>
+      </class>
+      <metrics loc="20" ncloc="16" classes="1" methods="1" coveredmethods="1" statements="5" coveredstatements="5" elements="1" coveredelements="1"/>
+    </file>
+    <metrics files="3" loc="110" ncloc="88" classes="3" methods="3" coveredmethods="3" statements="25" coveredstatements="24" elements="3" coveredelements="3"/>
+  </project>
+</coverage>

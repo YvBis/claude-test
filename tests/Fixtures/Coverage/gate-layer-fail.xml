@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture for CoverageGateTest: the PROJECT level passes (22/25 = 88%) but the
+     Application layer is at 7/10 = 70%, below the 80 minimum. This is exactly
+     the signal task 8.3 adds on top of the project gate: a green project total
+     must not mask a red layer. -->
+<coverage generated="1760000000">
+  <project timestamp="1760000000">
+    <package name="App\Domain\User">
+      <file name="/var/www/html/src/Domain/User/Entity/User.php">
+        <class name="User" namespace="App\Domain\User\Entity">
+          <metrics methods="1" coveredmethods="1" statements="10" coveredstatements="10" elements="1" coveredelements="1"/>
+        </class>
+        <metrics loc="50" ncloc="40" classes="1" methods="1" coveredmethods="1" statements="10" coveredstatements="10" elements="1" coveredelements="1"/>
+      </file>
+    </package>
+    <package name="App\Application\User">
+      <file name="/var/www/html/src/Application/User/Service/UserService.php">
+        <class name="UserService" namespace="App\Application\User\Service">
+          <metrics methods="1" coveredmethods="1" statements="10" coveredstatements="7" elements="1" coveredelements="0"/>
+        </class>
+        <metrics loc="40" ncloc="32" classes="1" methods="1" coveredmethods="1" statements="10" coveredstatements="7" elements="1" coveredelements="0"/>
+      </file>
+    </package>
+    <file name="/var/www/html/src/Domain/Common/ValueObject/OwnerId.php">
+      <class name="OwnerId" namespace="App\Domain\Common\ValueObject">
+        <metrics methods="1" coveredmethods="1" statements="5" coveredstatements="5" elements="1" coveredelements="1"/>
+      </class>
+      <metrics loc="20" ncloc="16" classes="1" methods="1" coveredmethods="1" statements="5" coveredstatements="5" elements="1" coveredelements="1"/>
+    </file>
+    <metrics files="3" loc="110" ncloc="88" classes="3" methods="3" coveredmethods="2" statements="25" coveredstatements="22" elements="3" coveredelements="2"/>
+  </project>
+</coverage>
