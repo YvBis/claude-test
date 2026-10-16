@@ -5,6 +5,16 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Manual full mutation run (task 8.4). PRs and pushes mutate only the diff of
+  # their own change; a full run over src/Domain+src/Application is far too slow
+  # for that, and it is only needed to (re)establish the MSI baseline behind
+  # infection.json's minMsi, or to re-baseline after a deliberate change.
+  workflow_dispatch:
+    inputs:
+      infection_full:
+        description: 'Full run over the whole source (uncheck for a diff-only run against the previous commit)'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -380,6 +390,62 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  # Task 8.4: mutation testing over the hermetic unit layer - source
+  # src/Domain + src/Application, tests tests/Domain + tests/Application via
+  # tests/infection/phpunit.xml. Deliberately no services: nothing on that layer
+  # touches MySQL, Redis or Meilisearch (measured, not assumed - see
+  # PRD/8.4-infection.md). Scope, timeout policy and the MSI baseline live in
+  # infection.json, which is the single source for the threshold: this job never
+  # passes --min-msi.
+  infection:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # The diff modes need a common ancestor with the base branch; the
+          # default depth-1 checkout has none to diff against.
+          fetch-depth: 0
+
+      - name: Setup CI environment
+        uses: ./.github/actions/setup-ci
+        with:
+          # xdebug is the coverage driver the initial Infection pass needs. The
+          # setup-ci default does not list it (setup-php brings it in by its own
+          # coverage default, which is what the unit-tests job silently relies on);
+          # naming it here removes the dependence on that default.
+          extensions: pdo_mysql, mbstring, exif, pcntl, bcmath, gd, zip, redis, xdebug
+
+      # Both diff modes mutate only the lines this change touches: a full run is
+      # ~1000 mutants and tens of minutes, a PR diff is a handful of them. The
+      # base differs by event because a push has no branch to diff against -
+      # origin/main for a PR, the previous commit for a push. The full checkout
+      # below already carries origin/main, so no extra fetch is needed.
+      - name: Mutation testing (pull request diff)
+        if: github.event_name == 'pull_request'
+        run: composer mutation:ci -- --git-diff-lines --git-diff-base=origin/main --logger-github
+
+      - name: Mutation testing (whole source, manual)
+        if: github.event_name == 'workflow_dispatch' && inputs.infection_full
+        run: composer mutation:ci -- --logger-github
+
+      - name: Mutation testing (last commit)
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.infection_full)
+        run: composer mutation:ci -- --git-diff-lines --git-diff-base=HEAD^ --logger-github
+
+      # The reports are the only machine-readable record of MSI/MCC and the
+      # per-mutator table; the console summary is not enough to refine minMsi
+      # after a manual baseline run.
+      - name: Upload mutation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: infection-reports
+          path: var/infection/
+          if-no-files-found: ignore
+
   dependency-audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
@@ -417,7 +483,7 @@ jobs:
   ci-summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [static-analysis, unit-tests, dependency-audit, symfony-diagnostics, e2e]
+    needs: [static-analysis, unit-tests, dependency-audit, symfony-diagnostics, e2e, infection]
     if: always()
     env:
       NEEDS_JSON: ${{ toJSON(needs) }}

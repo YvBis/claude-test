@@ -100,6 +100,34 @@ docker compose exec app composer phpunit:no-coverage
 > в `items_test`/`collections_test` (forced в `phpunit.xml.dist`), продовые `items`/`collections`
 > не трогаются. Если движок остановлен, падают только engine-backed тесты — остальной сьют зелёный.
 
+### Мутационное тестирование (Infection)
+
+Mutation testing проверяет, что тесты *ловят* изменение поведения, а не просто исполняют строки
+(line coverage этого не показывает). Мутируется тот же слой, что и измеряется покрытием —
+`src/Domain` + `src/Application`; прогон идёт по юнит-тестам (`tests/Domain` + `tests/Application`),
+поэтому ни БД, ни поисковый движок не нужны.
+
+```bash
+# полный прогон по исходникам слоя (долго: ~1000 мутантов)
+docker compose exec app composer mutation
+
+# то же, что гоняет CI: только строки текущего диффа, покрывающие тесты, все потоки
+docker compose exec app composer mutation:ci -- --git-diff-lines --git-diff-base=main
+```
+
+Отчёты (`MSI/MCC`, таблица по мутаторам, HTML) пишутся в `var/infection/`; временные файлы —
+в `var/infection-tmp/`. Оба скрипта идут с `--show-mutations=0`: печать диффов выживших
+мутантов роняет Symfony Console («Incorrectly nested style tag found.») на этом коде — диффы
+доступны в HTML/JSON-отчётах. Порог `minMsi` живёт **только** в `infection.json`; CI его
+не переопределяет, иначе локальный и CI пороги разъедутся молча. Полный прогон на CI
+запускается вручную: `CI Pipeline` → *Run workflow* → вход `infection_full` (артефакт
+`infection-reports`).
+
+> **Почему `timeoutsAsEscaped: true`**: Infection по умолчанию считает таймаут
+> «убитым» мутантом. Замер 2026-10-16 (первый полный локальный прогон) дал 647 таймаутов
+> из 962 мутантов и MSI 97% при 295 реально убитых — число ничего не значит, пока таймауты
+> не вынесены в выжившие. С флагом MSI считается честно.
+
 ### Поиск: перестроение индекса
 
 Создание, изменение и удаление айтема индексируется сразу после коммита. Если движок был

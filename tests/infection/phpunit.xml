@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    PHPUnit configuration for the mutation run only (task 8.4, PRD/8.4-infection.md).
+
+    It lives in its own directory and is named phpunit.xml on purpose: Infection
+    discovers the test-framework config by scanning `phpUnit.configDir` for
+    `phpunit.<ext>` (TestFrameworkConfigLocator), and it always passes its own
+    generated per-mutant configuration first. A custom file name therefore cannot
+    be pointed at from the outside: it has to be found here.
+
+    It is phpunit.xml.dist minus the Infrastructure testsuite: mutation testing runs
+    against the hermetic unit layer (tests/Domain + tests/Application are all plain
+    TestCase, no kernel, no DB, no engine), so the infection job needs no services.
+    All paths are relative to THIS directory.
+
+    Deliberate differences from phpunit.xml.dist, each with a reason:
+    - no DAMA extension: it exists to roll back DB transactions, and nothing here
+      opens a connection; dropping it keeps the run hermetic by construction.
+    - cacheResult disabled: Infection drives PHPUnit once per mutant and those runs
+      go in parallel threads; a shared result cache would let a mutant reuse a stale
+      result. Correctness beats the seconds.
+    - no clover report: the real gate's report is written by coverage:check into
+      var/coverage/clover.xml, and this config must never clobber it. Infection
+      collects the coverage it needs itself, into its own tmpDir.
+    - no MEILISEARCH env vars: nothing on this layer touches the engine.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="../../vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="../../tests/bootstrap.php"
+         colors="true"
+         executionOrder="depends"
+         requireCoverageMetadata="false"
+         beStrictAboutCoverageMetadata="false"
+         beStrictAboutOutputDuringTests="true"
+         failOnRisky="true"
+         failOnWarning="true"
+         failOnDeprecation="true"
+         failOnPhpunitNotice="true"
+         processIsolation="false"
+         cacheResult="false"
+         stderr="true">
+    <testsuites>
+        <testsuite name="Domain">
+            <directory>../../tests/Domain</directory>
+        </testsuite>
+        <testsuite name="Application">
+            <directory>../../tests/Application</directory>
+        </testsuite>
+    </testsuites>
+
+    <source>
+        <include>
+            <directory suffix=".php">../../src/Domain</directory>
+            <directory suffix=".php">../../src/Application</directory>
+        </include>
+    </source>
+
+    <!-- Text summary only: it is what a local run prints after the initial pass.
+         Clover is deliberately absent - coverage:check owns var/coverage/clover.xml
+         and the 8.3 gate reads it. -->
+    <coverage includeUncoveredFiles="true">
+        <report>
+            <text outputFile="php://stdout" showUncoveredFiles="false" showOnlySummary="true"/>
+        </report>
+    </coverage>
+
+    <php>
+        <env name="APP_ENV" value="test"/>
+        <env name="KERNEL_CLASS" value="App\Kernel"/>
+        <env name="DEFAULT_URI" value="http://localhost"/>
+        <env name="JWT_PASSPHRASE" value="test_passphrase"/>
+    </php>
+</phpunit>
