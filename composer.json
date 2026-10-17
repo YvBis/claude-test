@@ -37,6 +37,7 @@
     "require-dev": {
         "dama/doctrine-test-bundle": "^8.2",
         "friendsofphp/php-cs-fixer": "^3.55",
+        "infection/infection": "0.35.8",
         "lcobucci/jwt": "^5.0",
         "nelmio/api-doc-bundle": "^5.12",
         "phpdocumentor/reflection-docblock": "^5.6",
@@ -58,7 +59,8 @@
     "config": {
         "allow-plugins": {
             "symfony/flex": true,
-            "symfony/runtime": true
+            "symfony/runtime": true,
+            "infection/extension-installer": false
         },
         "sort-packages": true,
         "platform": {
@@ -121,6 +123,8 @@
             "@phpunit",
             "php scripts/coverage-gate.php"
         ],
+        "mutation": "vendor/bin/infection --no-progress --show-mutations=0",
+        "mutation:ci": "vendor/bin/infection --no-progress --show-mutations=0 --threads=max --only-covering-test-cases",
         "ci:all": [
             "@ci:static:quality",
             "@ci:test"

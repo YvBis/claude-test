@@ -1,0 +1,28 @@
+{
+  "$schema": "vendor/infection/infection/resources/schema.json",
+  "source": {
+    "directories": [
+      "src/Domain",
+      "src/Application"
+    ]
+  },
+  "tmpDir": "var/infection-tmp",
+  "testFramework": "phpunit",
+  "phpUnit": {
+    "configDir": "tests/infection"
+  },
+  "timeout": 60,
+  "mutators": {
+    "@default": true
+  },
+  "timeoutsAsEscaped": true,
+  "ignoreMsiWithNoMutations": true,
+  "minMsi": 88,
+  "logs": {
+    "text": "var/infection/infection.log",
+    "html": "var/infection/infection.html",
+    "json": "var/infection/infection.json",
+    "summary": "var/infection/summary.log",
+    "perMutator": "var/infection/per-mutator.md"
+  }
+}
