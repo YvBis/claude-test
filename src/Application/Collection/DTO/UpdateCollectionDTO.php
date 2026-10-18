@@ -4,22 +4,24 @@ declare(strict_types=1);
 
 namespace App\Application\Collection\DTO;
 
+use App\Domain\Collection\Entity\Collection;
+use App\Domain\Collection\ValueObject\CollectionName;
 use Symfony\Component\Validator\Constraints as Assert;
 
 final readonly class UpdateCollectionDTO
 {
     #[Assert\Length(
-        min: 3,
-        max: 100,
+        min: CollectionName::MIN_NAME_LENGTH,
+        max: CollectionName::MAX_NAME_LENGTH,
         minMessage: 'Collection name must be at least {{ limit }} characters',
         maxMessage: 'Collection name cannot exceed {{ limit }} characters',
     )]
     public ?string $name;
 
-    #[Assert\Length(max: 500, maxMessage: 'Collection description cannot exceed {{ limit }} characters')]
+    #[Assert\Length(max: Collection::MAX_DESCRIPTION_LENGTH, maxMessage: 'Collection description cannot exceed {{ limit }} characters')]
     public ?string $description;
 
-    #[Assert\Length(max: 500, maxMessage: 'Collection image cannot exceed {{ limit }} characters')]
+    #[Assert\Length(max: Collection::MAX_IMAGE_LENGTH, maxMessage: 'Collection image cannot exceed {{ limit }} characters')]
     public ?string $image;
 
     public function __construct(

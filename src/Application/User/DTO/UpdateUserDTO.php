@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Application\User\DTO;
 
+use App\Domain\User\ValueObject\Role;
 use Symfony\Component\Validator\Constraints as Assert;
 
 final readonly class UpdateUserDTO
 {
-    #[Assert\Choice(choices: ['user', 'admin'], message: 'Invalid role: {{ value }}. Allowed: user, admin')]
+    #[Assert\Choice(callback: [Role::class, 'values'], message: 'Invalid role: {{ value }}. Allowed: user, admin')]
     public ?string $role;
 
     public function __construct(

@@ -10,6 +10,8 @@ use App\Application\User\DTO\UserDTO;
 use App\Application\User\Service\AuthenticationService;
 use App\Domain\User\Exception\InvalidCredentialsException;
 use App\Domain\User\Exception\UserDeactivatedException;
+use App\Domain\User\ValueObject\Email;
+use App\Domain\User\ValueObject\PasswordHash;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -33,8 +35,8 @@ final class LoginController extends AbstractApiController
             content: new OA\JsonContent(
                 required: ['email', 'password'],
                 properties: [
-                    new OA\Property(property: 'email', type: 'string', format: 'email', maxLength: 255, example: 'john@example.com'),
-                    new OA\Property(property: 'password', type: 'string', minLength: 8, maxLength: 255, example: 'securePassword123'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', maxLength: Email::MAX_LENGTH, example: 'john@example.com'),
+                    new OA\Property(property: 'password', type: 'string', minLength: PasswordHash::MIN_PLAIN_LENGTH, maxLength: PasswordHash::MAX_PLAIN_LENGTH, example: 'securePassword123'),
                 ],
                 type: 'object'
             )

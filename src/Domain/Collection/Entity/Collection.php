@@ -26,6 +26,16 @@ final class Collection
         now as protected clockNow;
     }
 
+    /**
+     * API/product limits with no domain invariant behind them: description is a
+     * TEXT column with no domain or DB bound, and the 500s cap what a client
+     * may send (enforced in CreateCollectionDTO/UpdateCollectionDTO). Recorded
+     * as stubs, not silently aligned, per the 8.6 review.
+     */
+    public const int MAX_DESCRIPTION_LENGTH = 500;
+
+    public const int MAX_IMAGE_LENGTH = 500;
+
     #[ORM\Id]
     #[ORM\Column(name: 'id', type: 'binary', length: 16)]
     private string $id;
@@ -50,8 +60,8 @@ final class Collection
     #[Assert\Valid]
     private Theme $theme;
 
-    #[ORM\Column(name: 'image', type: Types::STRING, length: 500, nullable: true)]
-    #[Assert\Length(max: 500)]
+    #[ORM\Column(name: 'image', type: Types::STRING, length: self::MAX_IMAGE_LENGTH, nullable: true)]
+    #[Assert\Length(max: self::MAX_IMAGE_LENGTH)]
     private ?string $image = null;
 
     #[ORM\Column(name: 'description', type: Types::TEXT, nullable: true)]

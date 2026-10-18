@@ -27,6 +27,16 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
         now as protected clockNow;
     }
 
+    /**
+     * Bounds for the display name. min is DTO-facing only: changeName() below
+     * enforces non-empty and max, and no domain path enforces the min — the
+     * validator runs on DTOs, so the check lives there (RegisterUserDTO,
+     * CreateUserDTO). Recorded, not silently aligned, per the 8.6 review.
+     */
+    public const int MIN_NAME_LENGTH = 2;
+
+    public const int MAX_NAME_LENGTH = 100;
+
     #[ORM\Id]
     #[ORM\Column(name: 'id', type: 'binary', length: 16)]
     private string $id;
@@ -47,9 +57,9 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[Assert\NotNull]
     private bool $isActive = true;
 
-    #[ORM\Column(name: 'name', type: Types::STRING, length: 100)]
+    #[ORM\Column(name: 'name', type: Types::STRING, length: self::MAX_NAME_LENGTH)]
     #[Assert\NotBlank]
-    #[Assert\Length(min: 2, max: 100)]
+    #[Assert\Length(min: self::MIN_NAME_LENGTH, max: self::MAX_NAME_LENGTH)]
     private string $name;
 
     #[ORM\Column(name: 'created_at', type: Types::DATETIME_IMMUTABLE)]
@@ -142,8 +152,8 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
             throw new \InvalidArgumentException('Name cannot be empty');
         }
 
-        if (\strlen($name) > 100) {
-            throw new \InvalidArgumentException('Name cannot exceed 100 characters');
+        if (\strlen($name) > self::MAX_NAME_LENGTH) {
+            throw new \InvalidArgumentException(\sprintf('Name cannot exceed %d characters', self::MAX_NAME_LENGTH));
         }
 
         $this->name = $name;

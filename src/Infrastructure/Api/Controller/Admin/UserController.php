@@ -16,6 +16,8 @@ use App\Domain\User\Exception\LastAdminException;
 use App\Domain\User\Exception\SelfActionForbiddenException;
 use App\Domain\User\Exception\UserAlreadyExistsException;
 use App\Domain\User\Exception\UserNotFoundException;
+use App\Domain\User\ValueObject\Email;
+use App\Domain\User\ValueObject\PasswordHash;
 use App\Domain\User\ValueObject\Role;
 use App\Infrastructure\Api\Controller\AbstractApiController;
 use OpenApi\Attributes as OA;
@@ -43,9 +45,9 @@ final class UserController extends AbstractApiController
             required: true,
             content: new OA\JsonContent(
                 properties: [
-                    new OA\Property(property: 'name', type: 'string', minLength: 2, maxLength: 100, example: 'Created By Admin'),
-                    new OA\Property(property: 'email', type: 'string', format: 'email', example: 'created@example.com'),
-                    new OA\Property(property: 'password', type: 'string', minLength: 8, maxLength: 255, example: 'password123'),
+                    new OA\Property(property: 'name', type: 'string', minLength: User::MIN_NAME_LENGTH, maxLength: User::MAX_NAME_LENGTH, example: 'Created By Admin'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', maxLength: Email::MAX_LENGTH, example: 'created@example.com'),
+                    new OA\Property(property: 'password', type: 'string', minLength: PasswordHash::MIN_PLAIN_LENGTH, maxLength: PasswordHash::MAX_PLAIN_LENGTH, example: 'password123'),
                     new OA\Property(property: 'role', type: 'string', enum: ['user', 'admin'], example: 'user'),
                 ],
                 required: ['name', 'email', 'password'],
@@ -101,8 +103,8 @@ final class UserController extends AbstractApiController
         description: 'Returns every user with all fields except the password hash. Admin only.',
         tags: ['Admin'],
         parameters: [
-            new OA\Parameter(name: 'limit', in: 'query', schema: new OA\Schema(type: 'integer', default: 50, minimum: 1, maximum: 100)),
-            new OA\Parameter(name: 'offset', in: 'query', schema: new OA\Schema(type: 'integer', default: 0, minimum: 0)),
+            new OA\Parameter(name: 'limit', in: 'query', schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
+            new OA\Parameter(name: 'offset', in: 'query', schema: new OA\Schema(type: 'integer', default: self::DEFAULT_OFFSET, minimum: self::DEFAULT_OFFSET)),
         ],
         responses: [
             new OA\Response(

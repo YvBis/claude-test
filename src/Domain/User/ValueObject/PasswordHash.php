@@ -12,9 +12,26 @@ final readonly class PasswordHash implements \Stringable
 {
     public const int BCRYPT_COST = 13;
 
-    #[ORM\Column(name: 'hash', type: 'string', length: 255)]
+    /**
+     * Bounds for the plain-text password at the API boundary. MAX is an
+     * API/product limit with no domain invariant behind it: the hash column is
+     * 255, but nothing in the domain constrains the plain input above, so the
+     * check lives in the DTOs (RegisterUserDTO, CreateUserDTO, LoginUserDTO).
+     * Recorded, not silently aligned, per the 8.6 review.
+     */
+    public const int MIN_PLAIN_LENGTH = 8;
+
+    public const int MAX_PLAIN_LENGTH = 255;
+
+    /**
+     * Storage bound for the hash column: bcrypt hashes are 60 chars, 255 is
+     * headroom. Not a validation bound — the plain-text limit lives above.
+     */
+    public const int MAX_HASH_LENGTH = 255;
+
+    #[ORM\Column(name: 'hash', type: 'string', length: self::MAX_HASH_LENGTH)]
     #[Assert\NotBlank]
-    #[Assert\Length(min: 60, max: 255)]
+    #[Assert\Length(min: 60, max: self::MAX_HASH_LENGTH)]
     private string $hash;
 
     private function __construct(string $hash)
@@ -33,8 +50,8 @@ final readonly class PasswordHash implements \Stringable
 
     public static function createFromPlain(string $plainPassword): self
     {
-        if (\strlen($plainPassword) < 8) {
-            throw new \InvalidArgumentException('Password must be at least 8 characters');
+        if (\strlen($plainPassword) < self::MIN_PLAIN_LENGTH) {
+            throw new \InvalidArgumentException(\sprintf('Password must be at least %d characters', self::MIN_PLAIN_LENGTH));
         }
 
         // `password_hash()` with hardcoded valid params cannot fail: PHPStan 2.2

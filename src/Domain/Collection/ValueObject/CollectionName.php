@@ -11,10 +11,10 @@ use Symfony\Component\Validator\Constraints as Assert;
 final readonly class CollectionName implements \Stringable
 {
     /** Minimum number of UTF-8 bytes permitted in a collection display name. Trims input, then enforces. */
-    private const int MIN_NAME_LENGTH = 3;
+    public const int MIN_NAME_LENGTH = 3;
 
     /** Maximum number of UTF-8 bytes permitted in a collection display name. */
-    private const int MAX_NAME_LENGTH = 100;
+    public const int MAX_NAME_LENGTH = 100;
 
     #[ORM\Column(name: 'name', type: 'string', length: 100)]
     #[Assert\NotBlank]

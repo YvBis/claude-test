@@ -8,6 +8,7 @@ use App\Application\Comment\DTO\CommentRequestDTO;
 use App\Application\Comment\Service\CommentService;
 use App\Application\Item\Service\ItemService;
 use App\Domain\Comment\Entity\Comment;
+use App\Domain\Comment\ValueObject\CommentContent;
 use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
 use App\Domain\User\Entity\User;
@@ -47,7 +48,7 @@ final class CommentController extends AbstractApiController
             content: new OA\JsonContent(
                 required: ['content'],
                 properties: [
-                    new OA\Property(property: 'content', type: 'string', maxLength: 3000, example: 'Great read! ## Notes'),
+                    new OA\Property(property: 'content', type: 'string', maxLength: CommentContent::MAX_LENGTH, example: 'Great read! ## Notes'),
                 ],
             ),
         ),
@@ -189,7 +190,7 @@ final class CommentController extends AbstractApiController
             content: new OA\JsonContent(
                 required: ['content'],
                 properties: [
-                    new OA\Property(property: 'content', type: 'string', maxLength: 3000, example: 'Updated note'),
+                    new OA\Property(property: 'content', type: 'string', maxLength: CommentContent::MAX_LENGTH, example: 'Updated note'),
                 ],
             ),
         ),

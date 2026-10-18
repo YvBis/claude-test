@@ -7,7 +7,10 @@ namespace App\Infrastructure\Api\Controller;
 use App\Application\DTO\RegisterUserDTO;
 use App\Application\Exception\ValidationException;
 use App\Application\User\Service\RegistrationService;
+use App\Domain\User\Entity\User;
 use App\Domain\User\Exception\UserAlreadyExistsException;
+use App\Domain\User\ValueObject\Email;
+use App\Domain\User\ValueObject\PasswordHash;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -31,9 +34,9 @@ final class RegistrationController extends AbstractApiController
             content: new OA\JsonContent(
                 required: ['name', 'email', 'password'],
                 properties: [
-                    new OA\Property(property: 'name', type: 'string', minLength: 2, maxLength: 100, example: 'John Doe'),
-                    new OA\Property(property: 'email', type: 'string', format: 'email', maxLength: 255, example: 'john@example.com'),
-                    new OA\Property(property: 'password', type: 'string', minLength: 8, maxLength: 255, example: 'securePassword123'),
+                    new OA\Property(property: 'name', type: 'string', minLength: User::MIN_NAME_LENGTH, maxLength: User::MAX_NAME_LENGTH, example: 'John Doe'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', maxLength: Email::MAX_LENGTH, example: 'john@example.com'),
+                    new OA\Property(property: 'password', type: 'string', minLength: PasswordHash::MIN_PLAIN_LENGTH, maxLength: PasswordHash::MAX_PLAIN_LENGTH, example: 'securePassword123'),
                 ],
                 type: 'object'
             )
