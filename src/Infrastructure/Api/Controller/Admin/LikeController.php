@@ -24,8 +24,8 @@ final class LikeController extends AbstractApiController
         description: 'Audit listing: every like across all users, newest first. Admin only.',
         tags: ['Admin'],
         parameters: [
-            new OA\Parameter(name: 'limit', in: 'query', schema: new OA\Schema(type: 'integer', default: 50, minimum: 1, maximum: 100)),
-            new OA\Parameter(name: 'offset', in: 'query', schema: new OA\Schema(type: 'integer', default: 0, minimum: 0)),
+            new OA\Parameter(name: 'limit', in: 'query', schema: new OA\Schema(type: 'integer', default: self::DEFAULT_LIMIT, minimum: self::MIN_LIMIT, maximum: self::MAX_LIMIT)),
+            new OA\Parameter(name: 'offset', in: 'query', schema: new OA\Schema(type: 'integer', default: self::DEFAULT_OFFSET, minimum: self::DEFAULT_OFFSET)),
         ],
         responses: [
             new OA\Response(

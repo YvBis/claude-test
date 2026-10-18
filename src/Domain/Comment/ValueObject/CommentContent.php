@@ -21,7 +21,7 @@ final readonly class CommentContent implements \Stringable
      * "\n" and control characters other than "\n"/"\t" are stripped. Markup is
      * stored as-is; escaping/rendering is the frontend's responsibility.
      */
-    #[ORM\Column(name: 'content', type: 'string', length: 3000)]
+    #[ORM\Column(name: 'content', type: 'string', length: self::MAX_LENGTH)]
     #[Assert\NotBlank]
     #[Assert\Length(min: self::MIN_LENGTH, max: self::MAX_LENGTH, charset: 'UTF-8')]
     private string $value;

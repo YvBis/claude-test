@@ -46,7 +46,7 @@ final class Item
     #[Assert\NotNull]
     private Collection $collection;
 
-    #[ORM\Column(name: 'name', type: Types::STRING, length: 100)]
+    #[ORM\Column(name: 'name', type: Types::STRING, length: self::MAX_NAME_LENGTH)]
     #[Assert\NotBlank]
     #[Assert\Length(max: self::MAX_NAME_LENGTH, charset: 'UTF-8')]
     #[Assert\Regex(pattern: self::ALLOWED_PATTERN)]

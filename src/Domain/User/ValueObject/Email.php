@@ -10,10 +10,12 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Embeddable]
 final readonly class Email implements \Stringable
 {
-    #[ORM\Column(name: 'email', type: 'string', length: 255, unique: true)]
+    public const int MAX_LENGTH = 255;
+
+    #[ORM\Column(name: 'email', type: 'string', length: self::MAX_LENGTH, unique: true)]
     #[Assert\NotBlank]
     #[Assert\Email(mode: 'html5')]
-    #[Assert\Length(max: 255)]
+    #[Assert\Length(max: self::MAX_LENGTH)]
     private string $email;
 
     private function __construct(string $email)

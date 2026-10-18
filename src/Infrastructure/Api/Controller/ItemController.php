@@ -13,7 +13,9 @@ use App\Application\Item\DTO\UpdateItemDTO;
 use App\Application\Item\Service\ItemService;
 use App\Application\Like\Service\LikeService;
 use App\Domain\Collection\Exception\CollectionNotFoundException;
+use App\Domain\Common\Constant\SlotLimits;
 use App\Domain\Common\ValueObject\OwnerId;
+use App\Domain\Item\Entity\Item;
 use App\Domain\Item\Exception\ItemNotFoundException;
 use App\Domain\User\Entity\User;
 use OpenApi\Attributes as OA;
@@ -183,7 +185,7 @@ final class ItemController extends AbstractApiController
             content: new OA\JsonContent(
                 required: ['name'],
                 properties: [
-                    new OA\Property(property: 'name', type: 'string', maxLength: 100, example: '1984'),
+                    new OA\Property(property: 'name', type: 'string', maxLength: Item::MAX_NAME_LENGTH, example: '1984'),
                     new OA\Property(property: 'tags', type: 'array', items: new OA\Items(type: 'string'), example: ['scifi', 'dystopia']),
                     new OA\Property(
                         property: 'slots',
@@ -193,7 +195,7 @@ final class ItemController extends AbstractApiController
                             type: 'object',
                             properties: [
                                 new OA\Property(property: 'type', type: 'string', enum: ['text', 'number', 'date', 'bool']),
-                                new OA\Property(property: 'slot', type: 'integer', minimum: 1, maximum: 3),
+                                new OA\Property(property: 'slot', type: 'integer', minimum: 1, maximum: SlotLimits::MAX_SLOTS_PER_TYPE),
                                 new OA\Property(property: 'value', type: 'string'),
                             ],
                         ),
@@ -264,7 +266,7 @@ final class ItemController extends AbstractApiController
             required: true,
             content: new OA\JsonContent(
                 properties: [
-                    new OA\Property(property: 'name', type: 'string', maxLength: 100, example: 'Nineteen Eighty-Four'),
+                    new OA\Property(property: 'name', type: 'string', maxLength: Item::MAX_NAME_LENGTH, example: 'Nineteen Eighty-Four'),
                     new OA\Property(property: 'tags', type: 'array', items: new OA\Items(type: 'string')),
                     new OA\Property(property: 'slots', type: 'array', items: new OA\Items(type: 'object')),
                 ],

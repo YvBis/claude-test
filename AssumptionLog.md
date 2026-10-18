@@ -4581,6 +4581,50 @@ MSI 88.88%, ~9 минут. Локально на тех же 962 мутанта�
 переименование `/api/tags` → `/api/tags-ghost` даёт `These routes exist but are not in the
 spec…` (Failures: 1).
 
+## 2026-10-17 — 8.6, часть 1: guard'ы безопасности + красные пробы
+
+**`RouteAccessGuardTest`** (`tests/Infrastructure/Api/`): гонится от `RouteCollection`,
+каждая мутирующая дорога классифицируется правилом — всё, кроме явно перечисленных
+`PUBLIC_MUTATIONS` (login/register с причиной), обязано резолвиться в
+`IS_AUTHENTICATED_FULLY`. Механические ячейки — только guest-401 (access map) и admin-атрибут
+(уже покрыт `AdminGuardTest`); stranger-403 остаётся функциональным spot-чекам, тест так и
+называется, без претензии на «матрицу». Красная проба: временный `PUBLIC_ACCESS` на logout →
+`FAILURES! Tests: 2, Assertions: 55, Failures: 1` → восстановлено, зелёный (2/57).
+
+**`ValidationUpperBoundTest`**: каждый `Assert\Length` в `src/Application` несёт кастомный
+`maxMessage`/`minMessage`. Тонкость, пойманная исполнением: `Length` шиппит с **непустыми**
+дефолтными сообщениями, поэтому проверка «не null» всегда зелёная — guard сравнивает с
+дефолтами живого `new Length(min: 1, max: 1)`. Красная проба: снятый `maxMessage` у
+`CreateCollectionDTO::$description` → `FAILURES!` с точным указанием поля → восстановлено.
+
+## 2026-10-17 — 8.6, часть 2: причёсывание ограничений (вариант A)
+
+**Третья копия (синьор, подтверждено).** Числа живут не в двух, а в трёх местах: DTO,
+домен и ручные `OA\Property`/`enum` в контроллерах + `api_doc.yaml` (22 + 4 сайта).
+Nelmio DTO-атрибуты не видит, поэтому «перегенерируй спеку» без проводки констант в `OA\*`
+было бы пустым доказательством. Вариант A: OA-int тоже на константах; OA-`enum` и YAML —
+литералы под guard-таблицей (атрибуты не вызывают функции, YAML не видит PHP).
+
+**Правки 4 ревьюеров (приняты до коммита).** Senior: admin-`OA\Parameter` пагинации
+(`Admin\User/Like/CommentController`) — оставались литералами, когда 7 остальных уже на
+`self::` — переведены; ORM-колонки (`User.name`, `Item.name`, `CommentContent`,
+`PasswordHash.hash`) — на те же константы, значения те же, миграций нет;
+`expectedAccess()` вместо дубля тернария в guard'е. Architect: `[review]`-строка под
+отложенное PHPStan-правило (review-16); `Domain→Infrastructure` EnumType-импорты — в
+периодический review, не сюда; convention-нота про `Domain\Common\Constant` — пропущена
+сознательно (противоречит принятому D3). Qwen/m3: без блокеров; замечание m3 про порядок
+`SORT_STRING` учтено ещё в 8.5.
+
+**Новые находки ревью (не чинятся в 8.6 — новый инфорсмент = смена поведения).**
+`PasswordHash` принимает plain до 255, а bcrypt режет на 72 байтах: два пароля с общим
+префиксом дают один хеш (review-15: кэп 72 vs принять). Отклонено: вынос DTO-констант из
+entity-импортов в отдельные `*Limits`-классы (D3 держит — 43 call-сайта против 6 импортов;
+импорты compile-time, инстансов нет).
+
+**Трассировка находок → Roadmap (все `todo`, в общую очередь после этапа):**
+rate limiter на login/register → review-13; продуктовые лимиты входов → review-14;
+bcrypt-72 → review-15; PHPStan-правило против литералов → review-16.
+
 **Замечания ревью: принятые и отклонённые.** Принято и внесено до коммита: общий
 `NON_OPERATION_KEYS` для всех трёх циклов (у `specOperations()` и двух циклов были разные
 списки пропуска — `$ref`/`servers` могли попасть в цикл как операция), `assertNotEmpty` на

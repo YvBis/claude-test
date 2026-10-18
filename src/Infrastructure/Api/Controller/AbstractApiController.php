@@ -25,13 +25,18 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
  */
 abstract class AbstractApiController extends BaseAbstractController
 {
-    protected const int DEFAULT_LIMIT = 50;
+    /**
+     * Pagination contract (also enforced in parsePagination() and documented
+     * in every list endpoint's OA parameters). Public so the consistency guard
+     * (ValidationConsistencyTest) can pin the spec values to this source.
+     */
+    public const int DEFAULT_LIMIT = 50;
 
-    protected const int MIN_LIMIT = 1;
+    public const int MIN_LIMIT = 1;
 
-    protected const int MAX_LIMIT = 100;
+    public const int MAX_LIMIT = 100;
 
-    protected const int DEFAULT_OFFSET = 0;
+    public const int DEFAULT_OFFSET = 0;
 
     /**
      * Deserialize and validate a DTO from request content.

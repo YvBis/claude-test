@@ -94,6 +94,18 @@ final class UserTest extends TestCase
         $user->changeName(\str_repeat('a', 101));
     }
 
+    public function testChangeNameAcceptsExactlyMaxLengthName(): void
+    {
+        // Boundary the GreaterThan mutant targets: `>` must stay `>`, so a
+        // name of exactly MAX_NAME_LENGTH is accepted (`>=` would reject it).
+        $user = $this->createUser();
+        $name = \str_repeat('a', User::MAX_NAME_LENGTH);
+
+        $user->changeName($name);
+
+        $this->assertSame($name, $user->getName());
+    }
+
     public function testChangeEmailUpdatesEmailAndTimestamp(): void
     {
         $user = $this->createUser();

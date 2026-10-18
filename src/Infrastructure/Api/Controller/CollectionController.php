@@ -8,7 +8,9 @@ use App\Application\Collection\DTO\CreateCollectionDTO;
 use App\Application\Collection\DTO\UpdateCollectionDTO;
 use App\Application\Collection\Service\CollectionService;
 use App\Application\Exception\ValidationException;
+use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\Exception\CollectionNotFoundException;
+use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\User\Entity\User;
 use OpenApi\Attributes as OA;
@@ -34,10 +36,10 @@ final class CollectionController extends AbstractApiController
             content: new OA\JsonContent(
                 required: ['name', 'theme'],
                 properties: [
-                    new OA\Property(property: 'name', type: 'string', minLength: 3, maxLength: 100, example: 'My Book Collection'),
+                    new OA\Property(property: 'name', type: 'string', minLength: CollectionName::MIN_NAME_LENGTH, maxLength: CollectionName::MAX_NAME_LENGTH, example: 'My Book Collection'),
                     new OA\Property(property: 'theme', type: 'string', enum: ['books', 'games', 'movies', 'drinks'], example: 'books'),
-                    new OA\Property(property: 'description', type: 'string', maxLength: 500, example: 'A collection of my favorite books'),
-                    new OA\Property(property: 'image', type: 'string', maxLength: 500, example: 'https://example.com/cover.jpg'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: Collection::MAX_DESCRIPTION_LENGTH, example: 'A collection of my favorite books'),
+                    new OA\Property(property: 'image', type: 'string', maxLength: Collection::MAX_IMAGE_LENGTH, example: 'https://example.com/cover.jpg'),
                 ],
                 type: 'object'
             )
@@ -261,9 +263,9 @@ final class CollectionController extends AbstractApiController
             required: true,
             content: new OA\JsonContent(
                 properties: [
-                    new OA\Property(property: 'name', type: 'string', minLength: 3, maxLength: 100, example: 'My Updated Book Collection'),
-                    new OA\Property(property: 'description', type: 'string', maxLength: 500, example: 'An updated description'),
-                    new OA\Property(property: 'image', type: 'string', maxLength: 500, example: 'https://example.com/new-cover.jpg'),
+                    new OA\Property(property: 'name', type: 'string', minLength: CollectionName::MIN_NAME_LENGTH, maxLength: CollectionName::MAX_NAME_LENGTH, example: 'My Updated Book Collection'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: Collection::MAX_DESCRIPTION_LENGTH, example: 'An updated description'),
+                    new OA\Property(property: 'image', type: 'string', maxLength: Collection::MAX_IMAGE_LENGTH, example: 'https://example.com/new-cover.jpg'),
                 ],
                 type: 'object'
             )

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Item\DTO;
 
+use App\Domain\Collection\ValueObject\FieldType;
 use App\Domain\Common\Constant\SlotLimits;
 use Symfony\Component\Validator\Constraints as Assert;
 
@@ -11,7 +12,7 @@ final readonly class ItemSlotDTO
 {
     #[Assert\NotBlank(message: 'Slot type cannot be empty')]
     #[Assert\Choice(
-        choices: ['text', 'number', 'date', 'bool'],
+        callback: [FieldType::class, 'values'],
         message: 'Invalid slot type: {{ value }}. Allowed: text, number, date, bool',
     )]
     public string $type;
