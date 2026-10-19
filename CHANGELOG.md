@@ -1,5 +1,31 @@
 # Changelog
 
+## Этап 8 — Тестирование и полировка (завершён 2026-10-18; smoke 12/12 journeys + 5/5 smoke)
+
+### Фичи
+- **E2E-тесты** (8.1): Bruno-коллекция `tests/E2E/` + блокирующий job `e2e` в `ci.yml` — сквозные пользовательские пути против **собранного стека** (nginx → php-fpm → MySQL/Meilisearch), то есть слой, который in-kernel `WebTestCase` не пересекает. Выбор инструмента — `ADR/0002-e2e-client.md`.
+- **Smoke-сабсет** (8.2): `tests/E2E/smoke/` (register → login → свои айтемы → гостевой поиск → admin-403), локальный прогон без CI-проводки; meta-тег `smoke` + `--exclude-tags=smoke` у journeys — иначе рекурсивный `bru run` гонял бы smoke внутри CI-job.
+- **Аудит покрытия** (8.3): послойный гейт `scripts/coverage-gate.php` (Domain 96.04%, Application 99.69% при пороге 80%) + guard-тест на конфигурацию гейта.
+- **Мутационное тестирование** (8.4): Infection над `src/Domain`+`src/Application` (962 мутанта, MSI 88.88%, порог `minMsi` 88 = целый пол базлайна), герметичный unit-конфиг `tests/infection/phpunit.xml` без сервисов; job `infection` — diff-scoped на PR/push, полный прогон вручную (`workflow_dispatch`).
+- **Полнота OpenAPI** (8.5): `OpenApiCompletenessTest` — двустороннее равенство роутер ↔ спека, абсолютный deprecated-контракт, security по трём явным спискам, обязательные тела POST/PATCH. Замер показал, что API уже был полон (35 роутов == 35 операций) — задача про guard, а не про добивание гэпов.
+- **Guard'ы безопасности** (8.6): `RouteAccessGuardTest` (каждая мутирующая дорога — либо явный публичный список с причиной, либо `IS_AUTHENTICATED_FULLY`; читает живую access map) и `ValidationUpperBoundTest` (D11: каждый `Assert\Length` в Application несёт кастомное сообщение).
+
+### Изменения поведения
+- **`maxLength: 255` на `email` в `POST /api/admin/users`** (8.6): спека не документировала ограничение, которое DTO инфорсил всегда. Осознанный documentation fix, единственное контрактное изменение этапа; значение зафиксировано guard-таблицей `ValidationConsistencyTest` к доменной константе.
+
+### Исправления
+- **Гонка готовности БД в job `e2e`** (8.7): healthcheck `db` пинговал unix-сокет (`-h localhost`), а entrypoint mysql:8.0 на пустом томе поднимает временный сервер с `--skip-networking`, который отвечает по сокету до появления TCP → `depends_on: service_healthy` стартовал app раньше готовности, миграции падали `SQLSTATE[HY000] [2002] Connection refused`. Фикс: TCP-проба `-h 127.0.0.1` + `start_period` в compose и в GHA service-контейнерах, шаг ожидания health-статуса `db` перед миграциями.
+- **Фикстуры гейта покрытия съедались `.gitignore`** (8.3): широкое правило `coverage/` перекрывало `tests/Fixtures/Coverage/`, поэтому clover-фикстуры guard-теста не попадали в индекс; добавлено исключение `!tests/Fixtures/Coverage/` (`.gitignore:32`).
+- **Падение печати выживших мутантов** (8.4): Symfony Console ронял прогон `Incorrectly nested style tag found.` на диффе мутанта; оба composer-скрипта идут с `--show-mutations=0`, диффы остаются в HTML/JSON-отчётах.
+- **Граница длины имени** (8.6): мутационный гейт поймал `GreaterThan` в `User::changeName` — «ровно 100 символов принято» не было покрыто; добавлен граничный тест, а не подгонка порога.
+
+### Рефакторинг
+- **Константы ограничений в паблик** (8.6): `CollectionName`, `User`, `Collection`, `Email`, `PasswordHash`, ORM-колонки, пагинация `AbstractApiController`; OA-`enum` и `config/packages/dev/api_doc.yaml` остаются литералами под guard-таблицей (аргументы атрибутов не вызывают функции, YAML не видит PHP).
+- **Единый источник ограничений** (8.6): доменные границы стали публичными именованными константами, DTO-атрибуты и OA-аннотации ссылаются на них, `Choice` — через `callback: [X::class, 'values']`. Числа, порядки и сообщения ответов не менялись (доказано структурным diff'ом спеки) — поведение не изменилось, поэтому рубрика рефакторинга, а не изменений поведения.
+
+### Находки, вынесенные в бэклог
+- `review-13` — rate limiter на login/register; `review-14` — продуктовые лимиты входов; `review-15` — bcrypt молча режет пароль на 72 байтах; `review-16` — PHPStan-правило против литералов в `Length`/`Range`; `review-17` — свип класса «длина байтами там, где контракт меряет code points» (достижимый 500 на кириллическом имени коллекции).
+
 ## Этап 7 — Админ (завершён 2026-10-12; smoke 16/16)
 
 ### Фичи
