@@ -165,6 +165,63 @@ final class CollectionControllerTest extends WebTestCase
         }
     }
 
+    public function testCreateAcceptsMultibyteNameWithinContractualLimit(): void
+    {
+        // regression for review-17: 60 Cyrillic letters are 60 code points
+        // (DTO + spec accept them) but 120 UTF-8 bytes. A byte-based domain
+        // check turned this into a 500 envelope instead of 201.
+        $name = \str_repeat('б', 60);
+
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+            'name' => $name,
+            'theme' => 'books',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(201);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame($name, $response['name'], 'The name must round-trip through utf8mb4 unchanged.');
+    }
+
+    public function testCreateAcceptsNameAtMaxCodePointsWithAstralCharacters(): void
+    {
+        $name = \str_repeat("\u{1F600}", 100);
+
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+            'name' => $name,
+            'theme' => 'books',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(201);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame($name, $response['name']);
+    }
+
+    public function testCreateRejectsMultibyteNameOverMaxCodePointsWith422(): void
+    {
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+            'name' => \str_repeat('б', 101),
+            'theme' => 'books',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(422);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Unprocessable Entity', $response['error']);
+        $this->assertContains('Collection name cannot exceed 100 characters', $response['details']);
+    }
+
+    public function testCreateRejectsAsciiNameOverMaxLengthWith422(): void
+    {
+        // unchanged behaviour pinned: ASCII boundaries must keep answering 422
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+            'name' => \str_repeat('a', 101),
+            'theme' => 'books',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(422);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertContains('Collection name cannot exceed 100 characters', $response['details']);
+    }
+
     public function testCreateReturns401WithoutToken(): void
     {
         $this->client->request('POST', '/api/collections', [], [], ['CONTENT_TYPE' => 'application/json'], \json_encode([
@@ -569,6 +626,28 @@ final class CollectionControllerTest extends WebTestCase
         $this->assertSame('Updated Name', $response['name']);
         $this->assertSame('New description', $response['description']);
         $this->assertSame('books', $response['theme']);
+    }
+
+    public function testUpdateAcceptsMultibyteNameWithinContractualLimit(): void
+    {
+        // same review-17 regression through the update path: the controller
+        // calls CollectionService::update outside its try block as well.
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+            'name' => 'Original',
+            'theme' => 'books',
+        ], \JSON_THROW_ON_ERROR));
+        $this->assertResponseStatusCodeSame(201);
+        $created = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+
+        $name = \str_repeat('б', 60);
+
+        $this->client->request('PATCH', '/api/collections/'.$created['id'], [], [], $this->authHeaders(), \json_encode([
+            'name' => $name,
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(200);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame($name, $response['name']);
     }
 
     public function testUpdateReturns422WhenNoChanges(): void
