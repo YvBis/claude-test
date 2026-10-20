@@ -10,10 +10,14 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Embeddable]
 final readonly class CollectionName implements \Stringable
 {
-    /** Minimum number of UTF-8 bytes permitted in a collection display name. Trims input, then enforces. */
+    /** Minimum number of Unicode code points permitted in a collection display name. Trims input, then enforces. */
     public const int MIN_NAME_LENGTH = 3;
 
-    /** Maximum number of UTF-8 bytes permitted in a collection display name. */
+    /**
+     * Maximum number of Unicode code points permitted in a collection display
+     * name. Code points, not bytes and not grapheme clusters: the bound must
+     * match Assert\Length and the published maxLength (review-17).
+     */
     public const int MAX_NAME_LENGTH = 100;
 
     #[ORM\Column(name: 'name', type: 'string', length: 100)]
@@ -25,11 +29,11 @@ final readonly class CollectionName implements \Stringable
     {
         $value = \trim($value);
 
-        if (\strlen($value) < self::MIN_NAME_LENGTH) {
+        if (\mb_strlen($value, 'UTF-8') < self::MIN_NAME_LENGTH) {
             throw new \InvalidArgumentException(\sprintf('Collection name must be at least %d characters', self::MIN_NAME_LENGTH));
         }
 
-        if (\strlen($value) > self::MAX_NAME_LENGTH) {
+        if (\mb_strlen($value, 'UTF-8') > self::MAX_NAME_LENGTH) {
             throw new \InvalidArgumentException(\sprintf('Collection name cannot exceed %d characters', self::MAX_NAME_LENGTH));
         }
 

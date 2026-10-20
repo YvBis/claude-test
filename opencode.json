@@ -5,7 +5,7 @@
     "Всегда обращайся к CLAUDE.md для workflow правил.",
     "Ссылки на ключевые файлы: README.md (обзор), Roadmap.md (задачи), artifacts/ (PRD, техтребования, доменная модель).",
     "Архитектура: Domain → Application → Infrastructure. Слои изолированы через интерфейсы.",
-    "Текущий статус: этапы 1-8 завершены (55/55 задач, включая закрытие этапа 8). Открыт review-бэклог (review-13…review-17) — берётся в общем порядке очереди. Смотреть Roadmap.md.",
+    "Текущий статус: этапы 1-8 завершены (55/55 задач, включая закрытие этапа 8). Открыт review-бэклог (review-13…review-19; review-17 закрыт выравниванием длин на code points) — берётся в общем порядке очереди. Смотреть Roadmap.md.",
     "CI/CD: GitHub Actions. Локально: docker compose exec app composer ci:all",
     "Тесты: docker compose exec app composer test",
     "Коммиты: Conventional Commits (feat/fix/refactor/test/docs/chore/review)"

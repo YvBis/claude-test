@@ -28,10 +28,11 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
     }
 
     /**
-     * Bounds for the display name. min is DTO-facing only: changeName() below
-     * enforces non-empty and max, and no domain path enforces the min — the
-     * validator runs on DTOs, so the check lives there (RegisterUserDTO,
-     * CreateUserDTO). Recorded, not silently aligned, per the 8.6 review.
+     * Bounds for the display name, counted the way Assert\Length counts them:
+     * Unicode code points. min is DTO-facing only: changeName() below enforces
+     * non-empty and max, and no domain path enforces the min — the validator
+     * runs on DTOs, so the check lives there (RegisterUserDTO, CreateUserDTO).
+     * Recorded, not silently aligned, per the 8.6 review.
      */
     public const int MIN_NAME_LENGTH = 2;
 
@@ -152,7 +153,7 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
             throw new \InvalidArgumentException('Name cannot be empty');
         }
 
-        if (\strlen($name) > self::MAX_NAME_LENGTH) {
+        if (\mb_strlen($name, 'UTF-8') > self::MAX_NAME_LENGTH) {
             throw new \InvalidArgumentException(\sprintf('Name cannot exceed %d characters', self::MAX_NAME_LENGTH));
         }
 

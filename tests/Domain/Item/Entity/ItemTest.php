@@ -335,6 +335,40 @@ final class ItemTest extends TestCase
         $item->setSlotValue(FieldType::text(), 1, \str_repeat('a', Item::MAX_TEXT_SLOT_LENGTH + 1));
     }
 
+    public function testSetTextSlotAcceptsExactlyMaxLength(): void
+    {
+        // boundary the `>` must keep (a `>=` mutant would reject this)
+        $item = Item::create($this->collection, '1984');
+        $value = \str_repeat('a', Item::MAX_TEXT_SLOT_LENGTH);
+
+        $item->setSlotValue(FieldType::text(), 1, $value);
+
+        $this->assertSame($value, $item->getSlotValue(FieldType::text(), 1));
+    }
+
+    public function testSetTextSlotCountsCodePointsNotBytes(): void
+    {
+        // 600 Cyrillic letters are 600 code points but 1200 UTF-8 bytes: a
+        // byte-based bound would reject a value inside the contract (review-17).
+        $item = Item::create($this->collection, '1984');
+        $value = \str_repeat('б', 600);
+
+        $item->setSlotValue(FieldType::text(), 1, $value);
+
+        $this->assertSame($value, $item->getSlotValue(FieldType::text(), 1));
+    }
+
+    public function testSetTextSlotOverMaxLengthReportsCodePointCount(): void
+    {
+        // the message must quote the code-point count, not the byte count
+        $item = Item::create($this->collection, '1984');
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('got 1001 chars');
+
+        $item->setSlotValue(FieldType::text(), 1, \str_repeat('б', Item::MAX_TEXT_SLOT_LENGTH + 1));
+    }
+
     public function testSetSlotValueTouchesEntity(): void
     {
         $item = Item::create($this->collection, '1984');

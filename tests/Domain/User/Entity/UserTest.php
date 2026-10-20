@@ -106,6 +106,28 @@ final class UserTest extends TestCase
         $this->assertSame($name, $user->getName());
     }
 
+    public function testChangeNameAcceptsMultibyteNameAtMaxCodePoints(): void
+    {
+        // 100 Cyrillic letters are 100 code points but 200 UTF-8 bytes; a
+        // byte-based check would reject what the DTO accepts (review-17).
+        $user = $this->createUser();
+        $name = \str_repeat('б', User::MAX_NAME_LENGTH);
+
+        $user->changeName($name);
+
+        $this->assertSame($name, $user->getName());
+    }
+
+    public function testChangeNameThrowsOnMultibyteNameOverMaxCodePoints(): void
+    {
+        $user = $this->createUser();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('100 characters');
+
+        $user->changeName(\str_repeat('б', User::MAX_NAME_LENGTH + 1));
+    }
+
     public function testChangeEmailUpdatesEmailAndTimestamp(): void
     {
         $user = $this->createUser();
