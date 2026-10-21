@@ -51,13 +51,13 @@ final class SymfonyLspConfigTest extends TestCase
         self::assertSame(
             1,
             \preg_match_all('/^\s*bash scripts\/symfony-lsp-check\.sh/m', $job),
-            'CI must run the checker once: the parity probe showed the source-only pass reports nothing on symfony-lsp (5.17 baseline on 0.21.x, re-confirmed on 0.23.x by the 5.26 re-probe).',
+            'CI must run the checker once: the parity probe showed the source-only pass reports nothing on symfony-lsp (5.17 baseline on 0.21.x, re-confirmed on 0.23.0 by the 5.26 re-probe and on 0.24.1 by the 5.37 probe).',
         );
         self::assertDoesNotMatchRegularExpression(
             '/^\s*run:.*--source-only/m',
             $job,
-            'No executed command may pass --source-only with symfony-lsp 0.23.x: the 5.17 probe showed it reports no diagnostics at all on this project, and the 5.26 re-probe confirmed it on 0.23.0. '
-            .'A future checker bump needs a new probe task before this can change - see PRD/5.17-parity-probe.md and PRD/5.26-symfony-lsp-version-bump.md.',
+            'No executed command may pass --source-only with symfony-lsp 0.24.1: the 5.17 probe showed it reports no diagnostics at all on this project, and the 5.26 and 5.37 re-probes confirmed it on 0.23.0 and 0.24.1. '
+            .'A future checker bump needs a new probe task before this can change - see PRD/5.17-parity-probe.md, PRD/5.26-symfony-lsp-version-bump.md and PRD/5.37-symfony-lsp-0.24.1.md.',
         );
         self::assertMatchesRegularExpression(
             '/scripts\/symfony-lsp-check\.sh --environment=test --format=json/',
@@ -95,10 +95,52 @@ final class SymfonyLspConfigTest extends TestCase
     {
         $script = (string) \file_get_contents($this->projectRoot.'/scripts/symfony-lsp-check.sh');
 
+        // Derive the version from the runner default instead of repeating a
+        // literal: a bump that edits VERSION but forgets the pinned table used
+        // to leave this test green, while verify_pinned() only warns and returns
+        // 0 - the second trust factor degraded silently. Deriving closes that.
+        self::assertSame(
+            1,
+            \preg_match('/VERSION="\$\{SYMFONY_LSP_VERSION:-([0-9]+\.[0-9]+\.[0-9]+)\}"/', $script, $matches),
+            'The runner must install a pinned, overridable symfony-lsp version.',
+        );
+        $version = $matches[1];
+
+        // ci.yml is the EFFECTIVE pin: the runner default is overridden there,
+        // so a bump that touches only one producer would still run the old
+        // checker in CI. The drift cron reports that disagreement as a warning
+        // and exits 0, so the suite is the only hard stop.
+        $job = $this->jobBlock((string) \file_get_contents($this->projectRoot.'/.github/workflows/ci.yml'), 'symfony-diagnostics');
+        self::assertSame(
+            1,
+            \preg_match_all("/^\s*SYMFONY_LSP_VERSION: '([0-9.]+)'/m", $job, $ciMatches),
+            'The CI job must pin the checker version exactly once: the cache key and the download both read it.',
+        );
+        self::assertSame(
+            $version,
+            $ciMatches[1][0],
+            \sprintf(
+                'The runner default (%s) and the effective CI pin (%s) must agree: bumping one producer alone leaves CI running a different checker than local runs.',
+                $version,
+                $ciMatches[1][0],
+            ),
+        );
+
+        // Anchor the table: a row pasted after the `*)` catch-all is unreachable,
+        // yet an unanchored match would still accept it.
+        self::assertSame(
+            1,
+            \preg_match('/pinned_sha256\(\) \{\s*case "\$1" in(.*?)\n\s*\*\) return 1 ;;/s', $script, $table),
+            'pinned_sha256() must keep its `case "$1" in ... *) return 1 ;;` shape so the pinned rows are provably reachable.',
+        );
+
         self::assertMatchesRegularExpression(
-            '/pinned_sha256\(\) \{\s*case "\$1" in\s*"0\\.23\\.0-linux-x64"\) printf \'%s\' "f7169b653d178fda23f1f57e1f818c42d182bb674058feaa8897ef469f97ebb6"/',
-            $script,
-            'The runner must pin the expected archive hash in the repo: SHA256SUMS comes from the same release as the archive (TOFU), so the pinned constant is the second trust factor.',
+            '/"'.\preg_quote($version, '/').'-linux-x64"\) printf \'%s\' "[0-9a-f]{64}"/',
+            $table[1],
+            \sprintf(
+                'The runner must pin a measured archive hash for the version it defaults to (%s): SHA256SUMS comes from the same release as the archive (TOFU), so the pinned constant is the second trust factor. A version bump must add its entry to pinned_sha256().',
+                $version,
+            ),
         );
         self::assertStringContainsString(
             'verify_pinned',
@@ -146,11 +188,6 @@ final class SymfonyLspConfigTest extends TestCase
     {
         $script = (string) \file_get_contents($this->projectRoot.'/scripts/symfony-lsp-check.sh');
 
-        self::assertMatchesRegularExpression(
-            '/VERSION="\$\{SYMFONY_LSP_VERSION:-\d+\.\d+\.\d+\}"/',
-            $script,
-            'The runner must install a pinned, overridable symfony-lsp version.',
-        );
         self::assertStringContainsString('SHA256SUMS', $script);
         self::assertStringContainsString(
             'sha256sum -c -',
@@ -161,6 +198,11 @@ final class SymfonyLspConfigTest extends TestCase
             3,
             \substr_count($script, 'verify_archive'),
             'The cached archive must be checksum-verified before extraction, exactly like a fresh download.',
+        );
+        self::assertStringContainsString(
+            'sha256sum -c - >/dev/null',
+            $script,
+            'Checksum verification must not write to stdout: CI redirects this script\'s stdout into the JSON report, and a cache-miss download otherwise injects sha256sum\'s "OK" line into the artifact (measured on 0.24.1, PRD/5.37).',
         );
         self::assertStringContainsString(
             'SHA256SUMS.${VERSION}',

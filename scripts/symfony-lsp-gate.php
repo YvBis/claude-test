@@ -14,8 +14,9 @@ declare(strict_types=1);
  *
  * Fail-closed: a missing file, unparseable JSON, or a drifted schema fails the
  * job with a job-level `::error::` instead of a silent green. In particular an
- * incomplete index (`complete: false`, `runtime.state: stale`, empty
- * diagnostics, `blocking: 0` — measured on 0.23.0 with an aborted section)
+ * incomplete index (`complete: false`, a non-`ready` `runtime.state`, empty
+ * diagnostics, `blocking: 0` — shapes: `state: stale` on 0.21.x with an aborted
+ * section, `state: failed` on 0.24.1 with `--bridge-timeout=1`)
  * must fail: gating on `blocking` alone would be green exactly when blind. A
  * parseable-but-truncated report (summary counts disagreeing with the
  * diagnostics list) fails for the same reason.

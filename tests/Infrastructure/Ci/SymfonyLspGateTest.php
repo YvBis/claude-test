@@ -15,7 +15,8 @@ use PHPUnit\Framework\TestCase;
  * gate (its 0.x exit semantics are not a contract), so every condition is
  * re-derived from the artifact — and these tests pin that contract against
  * committed fixtures in `tests/Fixtures/SymfonyLsp/` (shapes measured on
- * 0.23.0, see PRD/5.14-blocking-diagnostics.md).
+ * 0.23.0, see PRD/5.14-blocking-diagnostics.md; the fail-closed conditions were
+ * re-confirmed against a live 0.24.1 checker in PRD/5.37-symfony-lsp-0.24.1.md).
  *
  * The converter runs as a child PHP process: it is a standalone script with no
  * framework dependency, and a child run costs milliseconds, so unlike the
@@ -83,6 +84,19 @@ final class SymfonyLspGateTest extends TestCase
         self::assertSame(1, $exit, 'An incomplete index must fail even with blocking: 0 and no diagnostics.');
         self::assertStringContainsString('not complete', $output);
         self::assertStringContainsString('runtime.state is "stale"', $output);
+        self::assertStringNotContainsString('::error file=', $output, 'No diagnostics exist to annotate.');
+    }
+
+    public function testFailedRuntimeFailsDespiteZeroBlocking(): void
+    {
+        // Shape measured on 0.24.1 with --bridge-timeout=1 (PRD/5.37): the
+        // runtime state is "failed", not "stale" as in the 0.21.x aborted-section
+        // shape above. The gate must reject any non-ready state, not one literal.
+        [$exit, $output] = $this->runGate('gate-failed.json');
+
+        self::assertSame(1, $exit, 'A failed runtime must fail even with blocking: 0 and no diagnostics.');
+        self::assertStringContainsString('not complete', $output);
+        self::assertStringContainsString('runtime.state is "failed"', $output);
         self::assertStringNotContainsString('::error file=', $output, 'No diagnostics exist to annotate.');
     }
 
