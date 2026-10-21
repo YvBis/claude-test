@@ -81,9 +81,9 @@ final class MeilisearchClientConfigTest extends TestCase
         $compose = Yaml::parseFile($this->projectRoot.'/docker-compose.yml');
 
         self::assertSame(
-            'getmeili/meilisearch:v1.54',
+            'getmeili/meilisearch:v1.55',
             $compose['services']['meilisearch']['image'],
-            'The Meilisearch image must stay on the minor locked by ADR-0001; v1.6 is outside the security support window.',
+            'The Meilisearch image must stay on the minor locked by ADR-0001; v1.6 is outside the security support window. This literal is deliberate: bumping it is the moment the upgrade is reviewed (review-9 drift control warns about lag, it does not bump anything).',
         );
     }
 

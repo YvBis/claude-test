@@ -72,7 +72,13 @@ services:
     # v1.6 (Feb 2024) is ~48 minors behind and outside upstream's security
     # window: only the latest minor receives patches. Bumped in 6.1
     # (ADR/0001-search-engine.md). Drift of this tag is tracked by review-9.
-    image: getmeili/meilisearch:v1.54
+    # Bumped to 1.55 on 2026-10-20: an EXISTING meilisearch_data volume from
+    # 1.54 makes the container refuse to start ("database version (1.54.3) is
+    # incompatible with your current engine version (1.55.0)"). One-time fix:
+    #   docker compose run --rm --entrypoint "" meilisearch meilisearch --upgrade-db
+    # The migration is one-way; `php bin/console search:reindex` rebuilds the
+    # documents afterwards. A fresh volume (CI) needs none of this.
+    image: getmeili/meilisearch:v1.55
     container_name: taskflow_meilisearch
     environment:
       - MEILI_MASTER_KEY=masterKey123
