@@ -47,7 +47,7 @@ final class MeilisearchCiConfigTest extends TestCase
         }
 
         self::assertSame(
-            'getmeili/meilisearch:v1.54',
+            'getmeili/meilisearch:v1.55',
             $composeImage,
             'docker-compose.yml must pin the engine by minor tag.',
         );

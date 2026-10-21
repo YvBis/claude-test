@@ -1,15 +1,21 @@
 name: Dependency Drift
 
-# Advisory-only version-drift visibility (Roadmap 5.14, PR-B): warns when the
-# pinned symfony-lsp checker binary lags the newest upstream release. This
-# workflow never fails and never enters the merge gate: no needs: edit in
+# Advisory-only version-drift visibility (Roadmap 5.14 PR-B, review-9): warns
+# when a pin that no dependency manager can see lags upstream.
+#
+# Two checks, both always-exit-0:
+#   - the pinned symfony-lsp checker binary (downloaded at run time, invisible
+#     to Dependabot);
+#   - the pinned Meilisearch Docker image, compared by MINOR tag as ADR/0001
+#     requires (a Docker image upgrade is invisible to Dependabot too).
+#
+# This workflow never fails and never enters the merge gate: no needs: edit in
 # CI Pipeline, no ruleset edit, no new required check. Upstream release
 # cadence is not a contract, so a drift must not block merges.
 #
 # Standalone file (not a job in ci.yml): ci.yml triggers only on push/PR to
-# main, so a schedule there would be an odd citizen. The checker binary is
-# downloaded, not vendored, so Dependabot cannot see it — this cron is the
-# only drift visibility.
+# main, so a schedule there would be an odd citizen. This cron is the only
+# drift visibility for both pins.
 on:
   schedule:
     # Weekly, off-peak minute (GitHub spreads schedule load; exact minutes
@@ -29,14 +35,20 @@ jobs:
     name: Tool Version Drift
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      # gh does not pick GITHUB_TOKEN up on its own, even though the runner has
+      # it: without an explicit GH_TOKEN every API call fails and both checks
+      # silently degrade to "not checked" — the cron then reports nothing
+      # forever, which is worse than no cron. The guard test pins this var.
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       # The script always exits 0 (EXIT trap): a drift prints ::warning::, an
       # unreachable API prints "not checked" instead of "stale". The offline
-      # proof hook documented in the script header must never be set here —
-      # it replaces the extracted pin and would blind the check (the guard
-      # test scans this file for it).
-      - name: Check symfony-lsp version drift
+      # proof hooks documented in the script header must never be set here —
+      # they replace the extracted pins and would blind the checks (the guard
+      # test scans this file for all of them).
+      - name: Check version drift
         run: bash scripts/check-tool-version-drift.sh

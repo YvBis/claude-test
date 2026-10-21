@@ -178,7 +178,7 @@ jobs:
       # the mysql credentials above — there is no production yet, and a secret
       # would break fork PRs without adding security.
       meilisearch:
-        image: getmeili/meilisearch:v1.54
+        image: getmeili/meilisearch:v1.55
         env:
           MEILI_MASTER_KEY: masterKey123
           MEILI_NO_ANALYTICS: 'true'
