@@ -26,18 +26,20 @@
 # the checker offers resolves references against the runtime index), while the
 # runtime pass reported four of the six injected defects. The probe was re-run
 # on the 0.23.0 bump (task 5.26, PRD/5.26-symfony-lsp-version-bump.md) with the
-# same result — source-only stays out of CI. See PRD/5.17-parity-probe.md and
-# PRD/5.26-symfony-lsp-version-bump.md.
+# same result, and again on the 0.24.1 bump (task 5.37,
+# PRD/5.37-symfony-lsp-0.24.1.md): source-only still reports nothing on this
+# project, so it stays out of CI. See PRD/5.17-parity-probe.md,
+# PRD/5.26-symfony-lsp-version-bump.md and PRD/5.37-symfony-lsp-0.24.1.md.
 #
 # Environment:
-#   SYMFONY_LSP_VERSION   release to install (default: 0.23.0)
+#   SYMFONY_LSP_VERSION   release to install (default: 0.24.1)
 #   SYMFONY_LSP_BIN_DIR   install/cache directory (default: var/bin)
 #   SYMFONY_LSP_BASE_URL  release base URL (default: the official GitHub release;
 #                         overridable so the failure paths stay testable offline)
 #
 set -euo pipefail
 
-VERSION="${SYMFONY_LSP_VERSION:-0.23.0}"
+VERSION="${SYMFONY_LSP_VERSION:-0.24.1}"
 BASE_URL="${SYMFONY_LSP_BASE_URL:-https://github.com/symfony/language-tools/releases/download/v${VERSION}}"
 BIN_DIR="${SYMFONY_LSP_BIN_DIR:-var/bin}"
 BIN="${BIN_DIR}/symfony-lsp"
@@ -48,11 +50,14 @@ SUMS="${BIN_DIR}/SHA256SUMS.${VERSION}"
 # Pinned hashes for the version+asset pairs CI and maintainers measured; a
 # version bump MUST add its hashes here. A pair without a pinned entry falls
 # back to SHA256SUMS-only with a warning, so unmeasured platforms keep working.
+# Retention: the current version plus the previous one, which keeps a baseline
+# re-probe two-factor; prune the older entry once no PRD needs it.
 # A `case` table (not an associative array) keeps the script on bash 3.2, which
 # stock macOS still ships.
 pinned_sha256() {
     case "$1" in
         "0.23.0-linux-x64") printf '%s' "f7169b653d178fda23f1f57e1f818c42d182bb674058feaa8897ef469f97ebb6" ;;
+        "0.24.1-linux-x64") printf '%s' "971bbc9fd051cc8eb2c5081651b10687e13fc8cc9c1f8999bb6a90e7800856c6" ;;
         *) return 1 ;;
     esac
 }
@@ -112,7 +117,11 @@ verify_archive() {
         return 1
     }
 
-    if ! (cd "${BIN_DIR}" && printf '%s\n' "${line}" | sha256sum -c -); then
+    # Keep stdout clean: CI redirects this script's stdout straight into the
+    # JSON report, so a cache-miss download must not print sha256sum's "OK"
+    # line into the artifact (measured on 0.24.1, PRD/5.37). Failures still
+    # surface through sha256sum's stderr and the message below.
+    if ! (cd "${BIN_DIR}" && printf '%s\n' "${line}" | sha256sum -c - >/dev/null); then
         echo "symfony-lsp: checksum mismatch for ${archive}" >&2
         return 1
     fi
