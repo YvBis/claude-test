@@ -16,6 +16,7 @@
          cacheDirectory=".phpunit.cache"
          stderr="true">
     <extensions>
+        <bootstrap class="Zenstruck\Foundry\PHPUnit\FoundryExtension" />
         <bootstrap class="DAMA\DoctrineTestBundle\PHPUnit\PHPUnitExtension"/>
     </extensions>
     <testsuites>
