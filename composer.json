@@ -54,6 +54,7 @@
         "symfony/twig-bundle": "7.*",
         "twig/intl-extra": "^3.26",
         "twig/twig": "^3.28",
+        "zenstruck/foundry": "^2",
         "zircote/swagger-php": "^5.7.8"
     },
     "config": {

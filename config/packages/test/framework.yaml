@@ -2,6 +2,13 @@ framework:
     test: true
     profiler:
         collect: false
+        # Symfony 7.3 deprecated leaving this unset and Symfony 8 defaults it to
+        # true. Foundry's PHPUnit extension makes the profiler reachable from
+        # functional tests, which surfaces the deprecation on every request the
+        # GuestReadTest-style cases make — and the suite fails on deprecations
+        # since 5.25. With `collect: false` nothing is collected either way, so
+        # this only adopts the future default. Measured in stage 9, task 9.1.
+        collect_serializer_data: true
     router:
         strict_requirements: null
     cache:
