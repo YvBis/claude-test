@@ -29,6 +29,9 @@
         <testsuite name="Infrastructure">
             <directory>tests/Infrastructure</directory>
         </testsuite>
+        <testsuite name="Story">
+            <directory>tests/Story</directory>
+        </testsuite>
     </testsuites>
 
     <source>
