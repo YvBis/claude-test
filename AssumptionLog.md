@@ -4951,3 +4951,26 @@ PHP 8.4/Symfony 7.4+ и YAML-DSL против сущностей без сетт
 прогонами показала, что виновато именно расширение, а не бандл. Фикс: явное
 `profiler.collect_serializer_data: true` в `config/packages/test/framework.yaml` (дефолт
 Symfony 8; при `collect: false` ничего не собирается).
+
+## 2026-10-22 - 9.2: фабрики Foundry и цена `final`-сущностей
+
+Прокси-фабрики (`PersistentProxyObjectFactory`) для этого домена невозможны: все сущности
+`final`, а Symfony VarExporter отказывается генерировать lazy proxy для final-класса
+(`Cannot generate lazy proxy: class "…User" is final`). Поэтому база фабрик -
+`PersistentObjectFactory`. Та же причина ломает чтение ассоциаций после `clear()`:
+`find(Item::class, …)` пытается построить lazy ghost для `Collection` и падает. Отсюда
+правило проверок: сущность без ассоциаций читаем через `find()`, внешние ключи
+(`items.collection_id`, `likes.owner_id`) - скалярным SQL. Это ровно та же причина, по
+которой репозитории делают JOIN FETCH, а не полагаются на ленивую загрузку.
+
+Foundry не разворачивает `\Closure` в аргументах конструктора (`Closure given`), поэтому
+`ownerId` в фабриках вычисляется сразу: `OwnerId::fromBytes(UserFactory::createOne()->getId()->toBytes())`.
+Ссылка на фабрику тут невозможна - владелец в этом домене колонка, а не ассоциация (fwd-5).
+
+Главная грабля: тесты идут в `taskflow_test` (`.env.test` через `tests/bootstrap.php`), а
+`bin/console` - в `taskflow`. Красное доказательство «DAMA отключён» **коммитит** строки в
+taskflow_test, и чистка dev-базы их не убирает: полный сьют потом падает на duplicate email и
+на «4 вместо 3». После любого прогона с отключённым DAMA чистить именно `taskflow_test`.
+
+И ещё: `UserFactory::repository()->count(['email' => …])` не работает - `email` это embedded
+VO, а не поле; считать надо DQL.
