@@ -1,0 +1,17 @@
+when@dev: &dev
+    services:
+        # 9.3: stories need constructor dependencies (EntityManager, ItemSlotMapper),
+        # and StoryRegistry falls back to `new $class()` when it cannot resolve one.
+        # Registration must stay inside when@dev/when@test: App\Tests\ is autoload-dev,
+        # so registering it unconditionally would break the prod container.
+        App\Tests\Story\:
+            resource: '%kernel.project_dir%/tests/Story/'
+            exclude:
+                - '%kernel.project_dir%/tests/Story/DemoCatalog.php'
+                # Test cases are not services: they extend PHPUnit's TestCase and
+                # would be registered but never resolved.
+                - '%kernel.project_dir%/tests/Story/*Test.php'
+            autowire: true
+            autoconfigure: true
+
+when@test: *dev
