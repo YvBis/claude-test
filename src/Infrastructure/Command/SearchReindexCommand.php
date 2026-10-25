@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Command;
 
-use App\Application\Search\CollectionReindexer;
-use App\Application\Search\ItemReindexer;
-use App\Infrastructure\Search\MeilisearchSearchAdapter;
+use App\Infrastructure\Search\SearchIndexRebuilder;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -14,20 +12,19 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
- * Provisions the search indexes and rebuilds them from the database.
+ * Rebuilds both search indexes from the database.
  *
- * Thin by design: provisioning lives on the adapter (it is engine-specific and
- * deliberately not on the port), the walks live in the reindexers. Provisioning
- * runs first and is idempotent, so the command is safe on a fresh engine and
- * on a populated one alike. It is also the repair path for fail-open indexing.
+ * Thin by design: the order (provision, optional wipe, walk) lives in
+ * `SearchIndexRebuilder`, which `app:seed:demo` shares - two callers, one
+ * ordering rule. `--reset` exists because a rebuild that only adds documents
+ * cannot remove the ones whose rows are gone; without it, a deleted row leaves
+ * a ghost document forever (observed in 6.5, tracked for 9.4).
  */
 #[AsCommand(name: 'search:reindex', description: 'Provision the search indexes and rebuild them from the database')]
 final class SearchReindexCommand extends Command
 {
     public function __construct(
-        private readonly MeilisearchSearchAdapter $adapter,
-        private readonly ItemReindexer $itemReindexer,
-        private readonly CollectionReindexer $collectionReindexer,
+        private readonly SearchIndexRebuilder $rebuilder,
     ) {
         parent::__construct();
     }
@@ -36,6 +33,7 @@ final class SearchReindexCommand extends Command
     protected function configure(): void
     {
         $this->addOption('batch-size', null, InputOption::VALUE_REQUIRED, 'Items and collections fetched per page', '100');
+        $this->addOption('reset', null, InputOption::VALUE_NONE, 'Wipe both indexes before rebuilding, removing documents whose rows no longer exist');
     }
 
     #[\Override]
@@ -48,11 +46,9 @@ final class SearchReindexCommand extends Command
             return Command::INVALID;
         }
 
-        $this->adapter->ensureIndexes();
-        $items = $this->itemReindexer->reindexAll((int) $batchSize);
-        $collections = $this->collectionReindexer->reindexAll((int) $batchSize);
+        $result = $this->rebuilder->rebuild((int) $batchSize, (bool) $input->getOption('reset'));
 
-        $output->writeln(\sprintf('Indexed %d item(s), %d collection(s).', $items, $collections));
+        $output->writeln(\sprintf('Indexed %d item(s), %d collection(s).', $result['items'], $result['collections']));
 
         return Command::SUCCESS;
     }
