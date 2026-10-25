@@ -155,7 +155,11 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 15 min was the ceiling until 9.4: the demo-story suite seeds ~1250 rows
+    # twice and waits on the search engine, which pushed the coverage run over
+    # the limit (cancelled at 15m17s on PR #179). 20 leaves headroom for a
+    # slower runner without hiding a genuine hang.
+    timeout-minutes: 20
     services:
       mysql:
         image: mysql:8.0

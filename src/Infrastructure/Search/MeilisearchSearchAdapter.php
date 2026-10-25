@@ -173,6 +173,54 @@ final readonly class MeilisearchSearchAdapter implements SearchIndexerInterface,
     }
 
     /**
+     * Wipes both indexes without dropping them, so their settings and primary
+     * key survive - re-provisioning after a delete would be a second source of
+     * truth for `IndexSettings`.
+     *
+     * `waitForTask()` returns failed tasks instead of throwing, so the status is
+     * checked explicitly: a silently failed wipe would leave ghost documents
+     * while the rebuild adds fresh ones, which is exactly what 6.5 warned about.
+     */
+    public function resetIndexes(): void
+    {
+        foreach ([$this->itemsIndex, $this->collectionsIndex] as $uid) {
+            $task = $this->client->index($uid)->deleteAllDocuments();
+            $this->assertTaskSucceeded(
+                $this->client->waitForTask($task['taskUid'], self::PROVISION_TIMEOUT_MS),
+                \sprintf('wiping index "%s"', $uid),
+            );
+        }
+    }
+
+    /**
+     * @return array{items: int, collections: int}
+     */
+    public function documentCounts(): array
+    {
+        return [
+            'items' => (int) $this->client->index($this->itemsIndex)->stats()['numberOfDocuments'],
+            'collections' => (int) $this->client->index($this->collectionsIndex)->stats()['numberOfDocuments'],
+        ];
+    }
+
+    /**
+     * @param array{status: string, error?: array{message?: string, code?: string}|null} $task
+     */
+    private function assertTaskSucceeded(array $task, string $operation): void
+    {
+        if ('failed' !== $task['status']) {
+            return;
+        }
+
+        throw new \RuntimeException(\sprintf(
+            'Meilisearch task failed while %s: %s (code: %s)',
+            $operation,
+            $task['error']['message'] ?? 'unknown error',
+            $task['error']['code'] ?? 'none',
+        ));
+    }
+
+    /**
      * @param array{status: string, error?: array{message?: string, code?: string}|null} $task
      */
     private function tolerateExistingIndex(array $task): void

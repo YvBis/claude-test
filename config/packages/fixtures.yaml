@@ -8,6 +8,8 @@ when@dev: &dev
             resource: '%kernel.project_dir%/tests/Story/'
             exclude:
                 - '%kernel.project_dir%/tests/Story/DemoCatalog.php'
+                # Data-only helper (static methods), not a service.
+                - '%kernel.project_dir%/tests/Story/DemoFingerprint.php'
                 # Test cases are not services: they extend PHPUnit's TestCase and
                 # would be registered but never resolved.
                 - '%kernel.project_dir%/tests/Story/*Test.php'
