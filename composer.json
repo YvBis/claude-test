@@ -27,6 +27,7 @@
         "symfony/polyfill-php86": "^1.41",
         "symfony/property-access": "^7.0",
         "symfony/property-info": "^7.0",
+        "symfony/rate-limiter": "^7.0",
         "symfony/redis-messenger": "^7.0",
         "symfony/runtime": "^7.0",
         "symfony/security-bundle": "^7.0",

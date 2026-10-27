@@ -10,6 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 use Symfony\Component\HttpKernel\KernelEvents;
 
 /**
@@ -56,6 +57,24 @@ final class ApiExceptionSubscriber implements EventSubscriberInterface
                 ['error' => 'Forbidden', 'message' => 'Forbidden'],
                 Response::HTTP_FORBIDDEN,
             ));
+
+            return;
+        }
+
+        // Must precede the HttpExceptionInterface no-op below, which would let
+        // a 429 escape without the envelope.
+        if ($throwable instanceof TooManyRequestsHttpException) {
+            $response = new JsonResponse(
+                ['error' => 'Too Many Requests', 'message' => $throwable->getMessage()],
+                Response::HTTP_TOO_MANY_REQUESTS,
+            );
+
+            $retryAfter = $throwable->getHeaders()['Retry-After'] ?? null;
+            if (null !== $retryAfter) {
+                $response->headers->set('Retry-After', (string) $retryAfter);
+            }
+
+            $event->setResponse($response);
 
             return;
         }
