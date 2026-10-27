@@ -177,7 +177,10 @@ cd tests/E2E && bru run --env local --exclude-tags=smoke
 гоняются с `--exclude-tags=smoke` (так же в CI-job). Локальный smoke — отдельно, см. ниже.
 
 `--env local` берёт `baseUrl=http://localhost:8000`; CI-job **E2E (Bruno)** — то же на стеке из
-`docker compose` с `--env ci` (`http://127.0.0.1:8000`). Обоснование выбора инструмента —
+`docker compose` с `--env ci` (`http://127.0.0.1:8000`), но перед прогоном journeys job
+загружает демо-набор (`app:seed:demo --batch-size 500`) и проверяет его по HTTP
+(login демо-админом → коллекций ≥1 → айтемов ≥1 — пре-степ `Seed demo data and
+smoke-test it`). Обоснование выбора инструмента —
 `PRD/8.1-e2e-bruno.md`.
 
 > **Примечание**: после изменения `docker/php/custom.ini` или `Dockerfile` пересоберите образ:
@@ -230,6 +233,42 @@ docker compose exec app composer ci:symfony-lsp -- --source-only   # стати�
 > `dependency-drift` (`scripts/check-tool-version-drift.sh` сверяет оба якоря пина —
 > дефолт скрипта и env в `ci.yml` — с новым релизом апстрима и печатает только `::warning::`,
 > в гейт не входит; детали — `PRD/5.14b-version-drift-cron.md`).
+
+## Демо-данные для фронтенда
+
+Для разработки фронтенда против локального стека — готовый набор: около 50
+пользователей, 200 коллекций (по 50 на тему), 1000 айтемов, 40 тегов, лайки и
+комментарии. Точный состав фиксирует золотой отпечаток `DemoStoryTest`
+(числа здесь — ориентир, контракт — отпечаток).
+
+```bash
+docker compose up -d
+docker compose exec -T app php bin/console doctrine:migrations:migrate
+docker compose exec -T app php bin/console app:seed:demo
+```
+
+> Команда **полностью заменяет** содержимое dev/test-БД (каскадное удаление всех
+> пользователей и тегов, затем загрузка демо-набора с пересборкой поисковых
+> индексов). В `prod` она не запускается — guard по окружению.
+
+Вход — любой из полусотни аккаунтов, пароль у всех одинаковый:
+
+| email | роль |
+|---|---|
+| `admin@example.com` | admin |
+| `user01@example.com` … `user49@example.com` | user |
+
+Пароль: `password123`.
+
+Идентификаторы демо-сущностей эфемерны (uuid7 генерируется при каждом сиде):
+не храните их в фикстурах фронта и не вшивайте в ссылки — ходите через
+`GET /api/collections`, `GET /api/collections/{id}/items` и поиск
+(`GET /api/search/items`, `GET /api/search/collections`).
+
+Опция `--skip-search` пропускает пересборку индексов (движок не нужен), но тогда
+индекс хранит документы удалённых строк — перед использованием поиска прогоните
+`search:reindex --reset`. Детали устройства сида — `PRD/9.3-demo-story.md` и
+`PRD/9.4-seed-command.md`.
 
 ## Smoke tests
 

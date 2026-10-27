@@ -372,6 +372,22 @@ jobs:
       - name: Run migrations on the composed database
         run: docker compose exec -T app php bin/console doctrine:migrations:migrate --no-interaction
 
+      # The CI e2e job proves the demo dataset end-to-end (9.5): the seed is the
+      # only supported way to produce it, so the job that owns the stack also
+      # owns the proof. `exec -T` (no TTY in CI), `set -euo pipefail` plus
+      # `-fsS`/`jq -e` so a 401 or an empty list fails loudly instead of
+      # degrading into "0 collections". `APP_ENV=test` comes from the `.env`
+      # copy, which is why the command's environment guard passes.
+      - name: Seed demo data and smoke-test it
+        run: |
+          set -euo pipefail
+          docker compose exec -T app php bin/console app:seed:demo --batch-size 500
+          TOKEN=$(curl -fsS --max-time 30 -X POST http://127.0.0.1:8000/api/login -H 'Content-Type: application/json' -d '{"email":"admin@example.com","password":"password123"}' | jq -e -r .access_token)
+          COLLS=$(curl -fsS --max-time 30 http://127.0.0.1:8000/api/collections -H "Authorization: Bearer $TOKEN")
+          [ "$(echo "$COLLS" | jq 'length')" -ge 1 ]
+          FIRST_ID=$(echo "$COLLS" | jq -er '.[0].id')
+          [ "$(curl -fsS --max-time 30 http://127.0.0.1:8000/api/collections/$FIRST_ID/items -H "Authorization: Bearer $TOKEN" | jq 'length')" -ge 1 ]
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -388,8 +404,11 @@ jobs:
       # only at the root of a collection"), so the step runs inside tests/E2E.
       # Bare `bru run` is recursive in @usebruno/cli@4.2.1, so it would also pick
       # up tests/E2E/smoke/ (the local-only smoke, task 8.2) — and smoke's guest
-      # search would 500 on the job's fresh, unprovisioned engine. All smoke
-      # requests carry the `smoke` meta tag, and the job explicitly excludes them.
+      # search would have 500ed on an unprovisioned engine before 9.5 (now the
+      # seed step above provisions it via ensureIndexes()). smoke requests still
+      # carry the `smoke` meta tag and the job still excludes them: the reason is
+      # duplication, not the engine — smoke asserts on its own data (`smoke_*`,
+      # dev-owned), not on the demo dataset.
       - name: Run E2E journeys
         working-directory: tests/E2E
         run: bru run --env ci --exclude-tags=smoke
