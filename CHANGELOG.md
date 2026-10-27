@@ -1,5 +1,23 @@
 # Changelog
 
+## Этап 9 — демо-данные для фронтенда (завершён 2026-10-27; CI-smoke login → коллекций ≥1 → айтемов ≥1)
+
+### Фичи
+- **Фикстурный стек** (9.1): `zenstruck/foundry ^2` в `require-dev`, бандл только в `dev`/`test` (`bundles.php`), `FoundryExtension` в PHPUnit + фикс `collect_serializer_data` (Foundry включает профайлер, депрекейшен ронял прогон), гард `FixturesToolingConfigTest` (5 инвариантов: dev-зависимость, env-ограничение, порядок расширений, lock-секция, ноль `Zenstruck\Foundry` в `src/`).
+- **Фабрики** (9.2): шесть Foundry-фабрик (`User` заменён, остальные новые); roundtrip-тесты с `clear()`; DAMA-proof с фиксированным email; `PersistentObjectFactory` вместо прокси (сущности `final`).
+- **DemoStory** (9.3): 50 пользователей / 200 коллекций / 1000 айтемов / 40 тегов / 1500 лайков / 800 комментариев; литералы в `DemoCatalog`, слоты через `ItemSlotMapper`, золотой отпечаток БД (`DemoFingerprint`); регистрация Story-классов в `fixtures.yaml` под `when@dev/when@test`.
+- **Команда сида** (9.4): `app:seed:demo` — каскадный purge, `DemoStory::load()`, сброс индексов и сверка счётчиков; `SearchIndexRebuilder` (единый порядок для двух команд), флаг `--reset` у `search:reindex`; таймаут `unit-tests` поднят 15→20 мин.
+- **Доки и smoke** (9.5): README-секция, подсекция *Seed tooling* в `ARCHITECTURE.md`, CI пре-степ в job `e2e`.
+
+### Изменения поведения
+- **CI job `e2e` теперь сидит перед Bruno** (9.5): `app:seed:demo --batch-size 500` + HTTP-проверка; осознанно переоткрывает решение 8.2 «без CI-проводки» (там — про smoke-папку; здесь — проверка другого артефакта на уже поднятом стеке).
+
+### Исправления
+- **Чекбокс 9.3 в Roadmap** (9.5): статус давно done, маркер оставался `[ ]` — чинен drive-by.
+
+### Находки в бэклог
+- Два пути создания тегов (пул 9.3 vs `TagService::resolveByNames`) — один должен проиграть (periodic review 9.5, вопрос открыт).
+
 ## Этап 8 — Тестирование и полировка (завершён 2026-10-18; smoke 12/12 journeys + 5/5 smoke)
 
 ### Фичи

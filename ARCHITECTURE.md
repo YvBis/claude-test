@@ -320,7 +320,7 @@ GitHub Actions
 ├── PHPStan (static analysis)
 ├── Rector (dry-run)
 ├── PHPUnit (tests + coverage gate ≥ 80%, каждая ветка и main)
-├── E2E (Bruno) — сквозные пользовательские пути против **собранного стека** (8.1, blocking): коллекция `.bru` в `tests/E2E/`, job поднимает `docker compose`, ждёт `/health`, применяет миграции и гоняет `bru run --env ci` (nginx → php-fpm → MySQL/Meilisearch — слой, который in-kernel `WebTestCase` не пересекает; Redis в стеке есть, но сценарии его не задействуют). Стек в CI идёт с `APP_ENV=test` (`.env` — копия `.env.test`), то есть это честный HTTP-путь, но не прод-конфиг. Выбор инструмента — `ADR/0002-e2e-client.md`, контракт коллекции — `PRD/8.1-e2e-bruno.md`. Рядом лежит локальный smoke-сабсет `tests/E2E/smoke/` (8.2: register → login → свои айтемы → гостевой поиск → admin-403; `bru run smoke --env local`). Голый `bru run` рекурсивен, поэтому smoke-запросы несут meta-тег `smoke`, а прогоны journeys идут с `--exclude-tags=smoke` — иначе CI-job гонял бы smoke вопреки решению (решение — `PRD/8.2-smoke-bruno.md`)
+├── E2E (Bruno) — сквозные пользовательские пути против **собранного стека** (8.1, blocking): коллекция `.bru` в `tests/E2E/`, job поднимает `docker compose`, ждёт `/health`, применяет миграции, загружает демо-набор (9.5: `app:seed:demo --batch-size 500` + HTTP-проверка login → коллекций ≥1 → айтемов ≥1) и гоняет `bru run --env ci` (nginx → php-fpm → MySQL/Meilisearch — слой, который in-kernel `WebTestCase` не пересекает; Redis в стеке есть, но сценарии его не задействуют). Стек в CI идёт с `APP_ENV=test` (`.env` — копия `.env.test`), то есть это честный HTTP-путь, но не прод-конфиг. Выбор инструмента — `ADR/0002-e2e-client.md`, контракт коллекции — `PRD/8.1-e2e-bruno.md`. Рядом лежит локальный smoke-сабсет `tests/E2E/smoke/` (8.2: register → login → свои айтемы → гостевой поиск → admin-403; `bru run smoke --env local`). Голый `bru run` рекурсивен, поэтому smoke-запросы несут meta-тег `smoke`, а прогоны journeys идут с `--exclude-tags=smoke` — иначе CI-job гонял бы smoke вопреки решению (решение — `PRD/8.2-smoke-bruno.md`)
 ├── Composer Audit (security, hard gate)
 ├── Symfony Diagnostics (`symfony-lsp check`) — blocking gate (5.14): один runtime-прогон с `--environment=test` (source-only снят в 5.17 — parity-зонд показал, что он не даёт диагностик; повторные зонды на бампах 0.23.0 в 5.26 и 0.24.1 в 5.37 дали тот же результат, дрейфа ни в наборе кодов (31 ≡ 31), ни в диагностиках на идентичных фикстурах нет), вердикт из JSON-артефакта выносит `scripts/symfony-lsp-gate.php` (`complete` + `projects[].complete` + `runtime.state` + `blocking`, не exit-код и не второй прогон), в `needs:` у `ci-summary`, GitHub-аннотации (задачи 5.13/5.17/5.26/5.37). Дрейф версии бинарника (Dependabot скачиваемый бинарник не видит) отслеживает отдельный advisory-workflow `dependency-drift` (еженедельно + вручную): `scripts/check-tool-version-drift.sh` сверяет оба якоря пина с новым релизом апстрима, только `::warning::`, в гейт не входит (5.14 PR-B)
 ├── Required status checks on `main` (5.18, перенесено на ruleset в 5.27): ruleset `main-protection` (id 18929859) — `OpenRabbit Review` + `CI Summary` (summary агрегирует пять блокирующих job'ов — `symfony-diagnostics` в нём с 5.14, `e2e` с 8.1), bypass владельцем только на PR (`pull_request`; прямой push в `main` невозможен) — мерж без зелёного ревью технически невозможен; новый job надо вручную добавить в `needs:` (таблицу `ci-summary` строит сам из `toJSON(needs)`, второй правки больше нет)
@@ -432,6 +432,33 @@ CI — имя сервиса на раннере не резолвится. `tes
 не тот (анонимный volume на `/var/www/html/var`), так что проверять его на хосте бессмысленно —
 файлы там недельной давности.
 
+## Seed tooling (демо-данные для фронтенда)
+
+Весь код сида — фабрики (`tests/Factory/`), каталог и Story (`tests/Story/`) и команда
+`app:seed:demo` (`tests/Story/SeedDemoCommand.php`) — живёт в `App\Tests\`, а не в `src/`.
+Причина — autoload-dev: неймспейс `App\Tests\` отсутствует в прод-установке, поэтому
+команда в `src/` заставила бы прод-контейнер резолвить класс, которого там нет.
+
+Регистрация — ресурсом `App\Tests\Story\` в `config/packages/fixtures.yaml`, ограниченным
+`when@dev`/`when@test` (безусловная регистрация уронила бы прод-контейнер). `autowire` даёт
+Story зависимости конструктора, `autoconfigure` — тег `foundry.story`, через который
+`Story::load()` резолвит Story из контейнера. Атрибут `#[AsFixture]` в этой схеме не
+участвует: он только вешает тег через autoconfiguration, но сканирования классов в бандле
+нет, так что без явной регистрации `StoryRegistry` падает в `new $class()`.
+
+Две ловушки, за которые уже заплачено отладкой:
+- `StoryRegistry` мемоизирует собранную Story на процесс — второй `Story::load()` в том же
+  процессе пропускает `build()`. Поэтому в `DemoStoryTest` один метод на Story, а тест
+  команды сбрасывает реестр между прогонами.
+- Параметр `search.items_index` — это fallback: в тестах его перекрывает переменная
+  `MEILISEARCH_ITEMS_INDEX`. Тест, читающий параметр, смотрит в чужой индекс; код, как и
+  адаптер, обязан читать env.
+
+Триггер пересмотра D3: если `grep -rni 'no[-_]dev' . --exclude-dir=vendor --exclude='*.md'`
+когда-нибудь совпадёт (сегодня — пусто), применения одного `class_exists` на dev-записях
+`bundles.php` недостаточно. Полный набор: `class_exists` на обеих dev-записях,
+`when@`-скоупинг `zenstruck_foundry.yaml`, `dev/api_doc.yaml` и ресурса в `fixtures.yaml`.
+
 ## Текущий статус
 
 | Этап | Описание | Статус |
@@ -444,6 +471,7 @@ CI — имя сервиса на раннере не резолвится. `tes
 | 6 | Поиск | ✅ завершён — 6.0–6.7 (движок, клиент, документы/порты, CI, sync, эндпоинты, breaker, закрытие); fail-open на записи, голый 500 на чтении; свежий движок требует `search:reindex` |
 | 7 | Админ | ✅ завершён — 7.1–7.7 (список/создание/блок/удаление/роль пользователей, айтемы чужого владельца, аудит-список лайков/комментариев, юнит-тесты); `/api/admin/*` — `IsGranted ROLE_ADMIN` |
 | 8 | Тестирование | ✅ завершён — 8.1–8.8 (E2E Bruno + job `e2e`, smoke-сабсет, послойный гейт покрытия, Infection, guard полноты OpenAPI, guard'ы безопасности + единый источник ограничений, TCP-healthcheck БД, закрытие этапа; smoke 12/12 journeys + 5/5 smoke) |
+| 9 | Демо-данные | ✅ завершён — 9.1–9.5 (Foundry-стек в `require-dev`, фабрики шести сущностей, `DemoStory` 50/200/1000/40/1500/800 с золотым отпечатком БД, команда `app:seed:demo` со сбросом индексов и сверкой счётчиков, доки + CI-smoke login → коллекций ≥1 → айтемов ≥1) |
 
 ---
 

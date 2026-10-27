@@ -85,6 +85,16 @@ final class DemoStoryTest extends KernelTestCase
         foreach ($users as $user) {
             self::assertTrue($user->isActive(), 'Demo accounts are active: '.$user->getEmail()->value());
         }
+
+        // README promises the literal password, so the test pins the literal,
+        // not UserFactory::DEFAULT_PASSWORD: if the factory default drifts while
+        // the document keeps promising it, this is the assertion that goes red.
+        foreach ([DemoCatalog::ADMIN_EMAIL, \sprintf(DemoCatalog::USER_EMAIL_PATTERN, 1)] as $email) {
+            self::assertTrue(
+                $byEmail[$email]->getPasswordHash()->verify('password123'),
+                'Demo account must accept the documented password: '.$email,
+            );
+        }
     }
 
     /**
