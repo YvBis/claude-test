@@ -186,10 +186,11 @@ final class ItemController extends AbstractApiController
                 required: ['name'],
                 properties: [
                     new OA\Property(property: 'name', type: 'string', maxLength: Item::MAX_NAME_LENGTH, example: '1984'),
-                    new OA\Property(property: 'tags', type: 'array', items: new OA\Items(type: 'string'), example: ['scifi', 'dystopia']),
+                    new OA\Property(property: 'tags', type: 'array', maxItems: Item::MAX_TAGS_PER_ITEM, items: new OA\Items(type: 'string'), example: ['scifi', 'dystopia']),
                     new OA\Property(
                         property: 'slots',
                         type: 'array',
+                        maxItems: SlotLimits::MAX_SLOTS_PER_ITEM,
                         description: 'Filled slots as {type, slot, value}',
                         items: new OA\Items(
                             type: 'object',
@@ -267,8 +268,8 @@ final class ItemController extends AbstractApiController
             content: new OA\JsonContent(
                 properties: [
                     new OA\Property(property: 'name', type: 'string', maxLength: Item::MAX_NAME_LENGTH, example: 'Nineteen Eighty-Four'),
-                    new OA\Property(property: 'tags', type: 'array', items: new OA\Items(type: 'string')),
-                    new OA\Property(property: 'slots', type: 'array', items: new OA\Items(type: 'object')),
+                    new OA\Property(property: 'tags', type: 'array', maxItems: Item::MAX_TAGS_PER_ITEM, items: new OA\Items(type: 'string')),
+                    new OA\Property(property: 'slots', type: 'array', maxItems: SlotLimits::MAX_SLOTS_PER_ITEM, items: new OA\Items(type: 'object')),
                 ],
                 type: 'object',
             ),
