@@ -5115,3 +5115,37 @@ DDoS на уровне L3/L4 вне скоупа; NAT-пользователи �
 без `consume()` аккаунтного лимитера 6-я попытка проходит; без XFF-директивы guard красный.
 
 **Результат:** `ci:all` 1130 тестов / 7436 ассертов / 9м13с; `openapi.json` регенерирован.
+## 2026-10-30 - review-14: продуктовые лимиты входов
+
+**Что сделано.** `Item::MAX_TAGS_PER_ITEM = 20` (продуктовое решение владельца),
+`SlotLimits::MAX_SLOTS_PER_ITEM = 12` (структурное, пинит тест к
+`count(FieldType::values()) * MAX_SLOTS_PER_TYPE`); `Assert\Count` на `tags`/`slots`
+в `CreateItemDTO`/`UpdateItemDTO`; `Assert\Length` на `ItemSlotDTO::`;
+механический гард `ValidationCardinalityTest`; `maxItems` в спеке + пин в
+`ValidationConsistencyTest`; шесть функциональных тестов на 422.
+
+**Почему в DTO, а не в домене.** Доменные `Assert\*` инертны — валидатор вызывается только
+на DTO в `deserializeAndValidate` (PR-3). Дублировать проверку в домене значило бы добавить
+мёртвую ветку: не-HTTP путей к `Item::addTag` в проекте нет.
+
+**`Assert\When` вычеркнут из плана по замеру вендора.** `LengthValidator.php:30-41`
+принимает любой scalar и пропускает null, поэтому обёртка не нужна; строковая форма `When`
+потребовала бы `symfony/expression-language`, которого нет — `WhenValidator.php:53-60`
+бросил бы `LogicException` и дал 500.
+
+**Красные доказательства.** Без `Count` на тегах 21 тег проходит → 201. Без `Length` на
+значении слота ответ остаётся 422, но с `message: 'Invalid content'` — то есть пойман
+доменным throw в контроллере, а не DTO; тест различает пути по `message`. Это важный случай:
+по статусу поведение не изменилось, изменился только путь.
+
+**Возражение техлида отклонено с доказательством.** Техлид требовал не править
+`ARCHITECTURE.md`, утверждая, что код отдаёт 500 (территория review-18). Проверено:
+`ItemController.php:249,321` ловят `InvalidArgumentException` → `unprocessable` = 422;
+review-18 про `CollectionController.php:92,328`, где `catch` нет. Правка сделана отдельным
+коммитом, узко: айтемы 422, коллекции 500 до review-18.
+
+**Принятая граница.** `CollectionController` create/update по-прежнему отдаёт 500 на доменный
+`InvalidArgumentException` — это review-18, не расширение этой задачи.
+
+**Результат:** `ci:all` 1139 тестов / 7481 ассерт; спека регенерирована (`maxItems` 20/12 на
+create и patch).
