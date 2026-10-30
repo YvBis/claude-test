@@ -273,6 +273,7 @@ Voter отвечает «как этот атрибут правится для 
 | `Admin\LikeController` | `src/Infrastructure/Api/Controller/Admin/LikeController.php` | `GET /api/admin/likes` (7.6) — сквозной аудит-список лайков, новейшие первыми, `IsGranted ROLE_ADMIN` |
 | `DoctrineUserRepository` | `src/Infrastructure/User/Repository/DoctrineUserRepository.php` | Реализация репозитория User; `findNamesByIds()` — батч-выборка отображаемых имён по списку id (fwd-5), один запрос на страницу лайков/комментариев вместо одного на строку |
 | `OwnerAccess` | `src/Infrastructure/Security/OwnerAccess.php` | Единственный предикат owner-or-admin (fwd-5, заменил `User::isOwnerOrAdminOf()`). Сравнивает id побайтно, admin-шорткат — здесь; пользуются `AbstractApiController` и `SocialContentVoter` |
+| `AuthThrottle` | `src/Infrastructure/Security/AuthThrottle.php` | Троттлинг `login`/`register` (review-13): три лимитера, нормализация email, fail-open, `Retry-After`; бросает `TooManyRequestsHttpException` |
 | `DoctrineCollectionFieldRepository` | `src/Infrastructure/Collection/Repository/DoctrineCollectionFieldRepository.php` | Реализация репозитория CollectionField |
 | `DoctrineTagRepository` | `src/Infrastructure/Tag/Repository/DoctrineTagRepository.php` | Реализация репозитория Tag; `getOrCreate` — атомарный MySQL upsert; `search` — подстрока `LIKE` (ci, wildcards-escaped), `ORDER BY name` |
 | `TagController` | `src/Infrastructure/Api/Controller/TagController.php` | `GET /api/tags` — список/поиск тегов (?search ci-подстрока, ?limit, ?offset); auth-only, bare `TagDTO[]`; non-scalar `?search` returns 400 with the API envelope (fwd-25); `ApiExceptionSubscriber` мини-этапа 5A не перемапливает 400 на query-параметрах |
@@ -285,12 +286,42 @@ Voter отвечает «как этот атрибут правится для 
 | `MonologBundle` | `config/packages/monolog.yaml` | Логирование (5.32): каналы `app`/`deprecation`/`request`, обработчики по окружениям (dev — файл + stderr, prod — JSON в stderr, test — null); необработанные исключения приходят в `request` |
 
 **Контракт ошибок API (мини-этап 5A):**
-- Канонический конверт — `{error, message?, details?}`. `401` всегда с `message` (текст Lexik или guard), `403` — generic `{error: 'Forbidden', message: 'Forbidden'}` без деталей исключения, `500` — голый `{error: 'Internal Server Error'}` без `message`.
-- **`error` — всегда HTTP reason phrase статуса** (D10, PR-3): `400 Bad Request`, `401 Unauthorized`, `403 Forbidden`, `404 Not Found`, `409 Conflict`, `422 Unprocessable Entity`. Единственный исторический выброс (`'Validation failed'` в `error`) закрыт: 422 всегда `{error: 'Unprocessable Entity', message: <string>, details?: string[]}`, а `'Validation failed'` живёт в `message` DTO-валидационного пути (`createValidationErrorResponse()` — тонкий делегат `unprocessable('Validation failed', $errors)`, литерал централизован в нём, форма байт-в-байт равна прямому вызову).
+- Канонический конверт — `{error, message?, details?}`. `401` всегда с `message` (текст Lexik или guard), `403` — generic `{error: 'Forbidden', message: 'Forbidden'}` без деталей исключения, `429` — `{error: 'Too Many Requests', message: <текст guard'а>}` плюс заголовок `Retry-After`, `500` — голый `{error: 'Internal Server Error'}` без `message`.
+- **`error` — всегда HTTP reason phrase статуса** (D10, PR-3): `400 Bad Request`, `401 Unauthorized`, `403 Forbidden`, `404 Not Found`, `409 Conflict`, `422 Unprocessable Entity`, `429 Too Many Requests`. Единственный исторический выброс (`'Validation failed'` в `error`) закрыт: 422 всегда `{error: 'Unprocessable Entity', message: <string>, details?: string[]}`, а `'Validation failed'` живёт в `message` DTO-валидационного пути (`createValidationErrorResponse()` — тонкий делегат `unprocessable('Validation failed', $errors)`, литерал централизован в нём, форма байт-в-байт равна прямому вызову).
 - **`details` — человекочитаемый диагноз, не машинный enum** (D11, PR-3): формат `string[]`, стабильны структура и триггер (422/400), содержимое — английские авторские фразы. Запрещено в `details`: debug-лексика (`get_debug_type()`), неограниченное эхо пользовательского ввода (закрыты 8 + 1 мест в `Item`/`ItemSlotMapper`), дефолтные формулировки Symfony Validator (все `Assert\Length` в Application DTO несут `maxMessage`; доменные `Assert\*`-атрибуты инертны — валидатор вызывается только на DTO в `deserializeAndValidate`, поэтому их дефолты никогда не попадают в ответы). Разрешены как ограниченная диагностика: счётчики (`got %d chars`) и отклонённое enum-значение (`Invalid theme: {{ value }}` в `CreateCollectionDTO:23` — осознанное исключение: значение короткое и говорит клиенту, что именно отвергнуто).
 - Приоритеты на `kernel.exception`: security-`ExceptionListener` (1) → `logKernelException` (0) → `ApiExceptionSubscriber` (-10) → `ErrorListener::onKernelException` (-128). Свой listener ставить только в интервал (-128, 1): раньше security — увидит исходный `AccessDeniedException`, позже — уже переписанный `AccessDeniedHttpException`.
 - `setResponse()` останавливает распространение (`RequestEvent`), `setThrowable()` — нет. Поэтому уже отвеченные события (`getResponse() !== null`) и `HttpExceptionInterface` — no-op, иначе 500-конверт перекроет легитимный 401/403.
 - `500` логирует только фреймворк (`logKernelException`, `['exception' => $throwable]`) — в канал `request`, не `app`. Свой лог в subscriber запрещён (двойная запись). Локальные `catch (\Throwable)` с ручным 500 запрещены — исключение обязано дойти до `kernel.exception`.
+
+**Rate limiting (review-13).** Два неаутентифицированных write-эндпоинта защищены
+`symfony/rate-limiter` (`config/packages/rate_limiter.yaml`): `login_account` (5/15 мин по
+нормализованному email), `login_ip` (20/мин), `register_ip` (5/час). Логин имеет две оси,
+потому что угрозы разные — подбор пароля ограничивается по аккаунту, сжигание CPU на
+bcrypt-13 — по IP.
+
+Списание идёт **после валидации DTO** (`AuthThrottle::checkLogin/checkRegistration` из
+контроллеров), поэтому битый JSON остаётся 400/422, а ключ аккаунта берётся из валидированного
+DTO. Отказ бросает `TooManyRequestsHttpException`, конверт строит
+`ApiExceptionSubscriber` — отдельной веткой **перед** общим `HttpExceptionInterface`, иначе
+429 ушёл бы фреймворковым рендером без конверта. `Retry-After` считается из
+`RateLimit::getRetryAfter()`.
+
+Хранилище: дефолтный `cache.rate_limiter` → `cache.app` → Redis. В `when@test` лимитеры
+переключаются на `InMemoryStorage` (`storage_service`): пул не годится, потому что у каждого
+пула есть тег `kernel.reset`, и счётчики вычищаются между запросами даже при
+`disableReboot()`, то есть enforcement нечем доказать. Выключать лимитер в тестах
+отвергнуто — тогда не проверяется реальный путь.
+
+**Fail-open:** недоступное хранилище → запрос пропускается, пишется `warning`. Обратный выбор
+превратил бы аварию Redis в аварию логина. Принятое ограничение: пока хранилище лежит,
+защиты от подбора нет.
+
+**IP-ключ.** `trusted_proxies` содержит `REMOTE_ADDR` (`config/packages/framework.yaml`), а
+Symfony подставляет вместо него адрес каждого клиента — то есть доверены все. Поэтому nginx
+**перезаписывает** `X-Forwarded-For` реальным `$remote_addr`
+(`docker/nginx/default.conf`, пин — `NginxForwardedForConfigTest`); `$proxy_add_x_forwarded_for`
+запрещён гардом, потому что приклеивает клиентское значение. За LB/CDN `$remote_addr` — адрес
+балансировщика: для прода нужен `real_ip`, это записано как принятое ограничение.
 
 **Логирование (5.32).** `symfony/monolog-bundle` ^3.11, `logger` → `monolog.logger` (канал `app`). Объявлены каналы `app`, `deprecation` и `request`; **необработанные исключения фреймворк пишет в `request`** (его `ErrorListener` получает логгер этого канала, а не `app`), поэтому ассерты на 500-лог в тестах вешаются на `monolog.logger.request`, а сервиса `monolog.logger.app` не существует. Обработчики по окружениям: `dev` — `main` в `var/log/dev.log` (debug) плюс оперативное зеркало в `php://stderr` (info, без каналов `event`/`deprecation`/`console`), `prod` — буферизованный handler с JSON-форматтером в stderr, `test` — `type: null`: suite не пишет логи, тесты прикрепляют `TestHandler`. Логи не коммитятся (`.gitignore` перекрывает `var/log` правилом ниже), а сам `var/log` — анонимный volume (`docker-compose.yml:11`), поэтому читать логи нужно из контейнера. 4xx-конверты наших контроллеров (`400`/`404`) строятся напрямую и до `kernel.exception` не доходят; `403` доходит и логируется. Свой `LoggerInterface` в контроллеры не инжектится — решение fwd-21 остаётся в силе (monolog дал autowiring, но потребности нет).
 

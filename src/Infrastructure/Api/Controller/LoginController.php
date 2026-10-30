@@ -12,6 +12,7 @@ use App\Domain\User\Exception\InvalidCredentialsException;
 use App\Domain\User\Exception\UserDeactivatedException;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
+use App\Infrastructure\Security\AuthThrottle;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -64,13 +65,15 @@ final class LoginController extends AbstractApiController
             new OA\Response(response: 422, description: 'Validation error', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 401, description: 'Invalid credentials', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 403, description: 'User account deactivated', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 429, description: 'Too many attempts (rate limited); see the Retry-After header', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ]
     )]
     public function login(
         Request $request,
         AuthenticationService $authenticationService,
         SerializerInterface $serializer,
-        ValidatorInterface $validator
+        ValidatorInterface $validator,
+        AuthThrottle $throttle,
     ): JsonResponse {
         try {
             $dto = $this->deserializeAndValidate($request->getContent(), LoginUserDTO::class, $serializer, $validator);
@@ -79,6 +82,9 @@ final class LoginController extends AbstractApiController
         } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         }
+
+        // After validation: malformed bodies stay 400/422, and the key comes from the DTO.
+        $throttle->checkLogin($request->getClientIp(), $dto->email);
 
         try {
             $result = $authenticationService->authenticate($dto);

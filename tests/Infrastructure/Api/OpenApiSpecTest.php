@@ -72,9 +72,9 @@ final class OpenApiSpecTest extends TestCase
         'POST /api/collections/{collectionId}/items' => ['201', '400', '401', '403', '404', '422'],
         'POST /api/items/{itemId}/comments' => ['201', '400', '401', '404', '422'],
         'POST /api/items/{itemId}/likes' => ['200', '401', '404'],
-        'POST /api/login' => ['200', '400', '401', '403', '422'],
+        'POST /api/login' => ['200', '400', '401', '403', '422', '429'],
         'POST /api/logout' => ['204', '401'],
-        'POST /api/register' => ['201', '400', '409', '422'],
+        'POST /api/register' => ['201', '400', '409', '422', '429'],
     ];
 
     private const SCHEMA_REQUIRED_PATHS = [

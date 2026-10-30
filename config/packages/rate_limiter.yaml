@@ -1,0 +1,36 @@
+framework:
+    rate_limiter:
+        # Login has two threats: password guessing (per account) and bcrypt CPU
+        # burn (per IP). Registration has no victim account, so IP is enough.
+        limiters:
+            login_account:
+                policy: 'sliding_window'
+                limit: 5
+                interval: '15 minutes'
+            login_ip:
+                policy: 'sliding_window'
+                limit: 20
+                interval: '1 minute'
+            register_ip:
+                policy: 'sliding_window'
+                limit: 5
+                interval: '1 hour'
+
+when@test:
+    services:
+        # A cache pool cannot isolate counters: every pool carries kernel.reset,
+        # so state is wiped between requests even under disableReboot(). This
+        # store has no reset hook - one container, one store.
+        limiter_storage.test:
+            class: Symfony\Component\RateLimiter\Storage\InMemoryStorage
+            public: false
+
+    framework:
+        rate_limiter:
+            limiters:
+                login_account:
+                    storage_service: 'limiter_storage.test'
+                login_ip:
+                    storage_service: 'limiter_storage.test'
+                register_ip:
+                    storage_service: 'limiter_storage.test'

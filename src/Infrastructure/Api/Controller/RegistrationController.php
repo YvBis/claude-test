@@ -11,6 +11,7 @@ use App\Domain\User\Entity\User;
 use App\Domain\User\Exception\UserAlreadyExistsException;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
+use App\Infrastructure\Security\AuthThrottle;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -63,13 +64,15 @@ final class RegistrationController extends AbstractApiController
             new OA\Response(response: 400, description: 'Bad request (malformed body)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 422, description: 'Validation error', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 409, description: 'User with this email already exists', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 429, description: 'Too many attempts (rate limited); see the Retry-After header', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ]
     )]
     public function register(
         Request $request,
         RegistrationService $registrationService,
         SerializerInterface $serializer,
-        ValidatorInterface $validator
+        ValidatorInterface $validator,
+        AuthThrottle $throttle,
     ): JsonResponse {
         try {
             $dto = $this->deserializeAndValidate($request->getContent(), RegisterUserDTO::class, $serializer, $validator);
@@ -78,6 +81,9 @@ final class RegistrationController extends AbstractApiController
         } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         }
+
+        // After validation: malformed bodies stay 400/422.
+        $throttle->checkRegistration($request->getClientIp());
 
         try {
             $user = $registrationService->register($dto);
