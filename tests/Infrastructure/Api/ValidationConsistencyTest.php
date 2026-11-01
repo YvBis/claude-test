@@ -166,12 +166,16 @@ final class ValidationConsistencyTest extends TestCase
             'paths POST /api/items/{itemId}/comments requestBody/properties/content/maxLength' => ['scalar', CommentContent::MAX_LENGTH],
             'paths PATCH /api/comments/{id} requestBody/properties/content/maxLength' => ['scalar', CommentContent::MAX_LENGTH],
             'paths POST /api/collections/{collectionId}/items requestBody/properties/name/maxLength' => ['scalar', Item::MAX_NAME_LENGTH],
+            'paths POST /api/collections/{collectionId}/items requestBody/properties/tags/maxItems' => ['scalar', Item::MAX_TAGS_PER_ITEM],
+            'paths POST /api/collections/{collectionId}/items requestBody/properties/slots/maxItems' => ['scalar', SlotLimits::MAX_SLOTS_PER_ITEM],
             'paths POST /api/collections/{collectionId}/items requestBody/properties/slots/items/properties/type/enum' => ['enum', FieldType::values()],
             // Slot indexes are 1-based by structure, not by a business bound:
             // the only domain number here is the maximum.
             'paths POST /api/collections/{collectionId}/items requestBody/properties/slots/items/properties/slot/minimum' => ['scalar', 1],
             'paths POST /api/collections/{collectionId}/items requestBody/properties/slots/items/properties/slot/maximum' => ['scalar', SlotLimits::MAX_SLOTS_PER_TYPE],
             'paths PATCH /api/items/{id} requestBody/properties/name/maxLength' => ['scalar', Item::MAX_NAME_LENGTH],
+            'paths PATCH /api/items/{id} requestBody/properties/tags/maxItems' => ['scalar', Item::MAX_TAGS_PER_ITEM],
+            'paths PATCH /api/items/{id} requestBody/properties/slots/maxItems' => ['scalar', SlotLimits::MAX_SLOTS_PER_ITEM],
             'paths POST /api/login requestBody/properties/email/maxLength' => ['scalar', Email::MAX_LENGTH],
             'paths POST /api/login requestBody/properties/password/minLength' => ['scalar', PasswordHash::MIN_PLAIN_LENGTH],
             'paths POST /api/login requestBody/properties/password/maxLength' => ['scalar', PasswordHash::MAX_PLAIN_LENGTH],
@@ -224,7 +228,7 @@ final class ValidationConsistencyTest extends TestCase
 
         $found = [];
         $walk = function (array $schema, string $pointer) use (&$walk, &$found): void {
-            foreach (['maxLength', 'minLength', 'enum', 'minimum', 'maximum'] as $kind) {
+            foreach (['maxLength', 'minLength', 'maxItems', 'enum', 'minimum', 'maximum'] as $kind) {
                 if (\array_key_exists($kind, $schema)) {
                     $found[$pointer.'/'.$kind] = $schema[$kind];
                 }

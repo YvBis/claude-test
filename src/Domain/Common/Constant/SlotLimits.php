@@ -12,4 +12,11 @@ namespace App\Domain\Common\Constant;
 final class SlotLimits
 {
     public const int MAX_SLOTS_PER_TYPE = 3;
+
+    /**
+     * Structural, not a product choice (review-14): every (type, slot) pair is
+     * one column, so a request cannot legitimately carry more entries than
+     * that. Pinned to count(FieldType::values()) * MAX_SLOTS_PER_TYPE by test.
+     */
+    public const int MAX_SLOTS_PER_ITEM = 12;
 }

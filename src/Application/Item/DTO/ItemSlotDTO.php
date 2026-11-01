@@ -6,6 +6,7 @@ namespace App\Application\Item\DTO;
 
 use App\Domain\Collection\ValueObject\FieldType;
 use App\Domain\Common\Constant\SlotLimits;
+use App\Domain\Item\Entity\Item;
 use Symfony\Component\Validator\Constraints as Assert;
 
 final readonly class ItemSlotDTO
@@ -25,6 +26,10 @@ final readonly class ItemSlotDTO
     )]
     public int $slot;
 
+    #[Assert\Length(
+        max: Item::MAX_TEXT_SLOT_LENGTH,
+        maxMessage: 'Slot value cannot exceed {{ limit }} characters',
+    )]
     public string|int|float|bool|null $value;
 
     public function __construct(

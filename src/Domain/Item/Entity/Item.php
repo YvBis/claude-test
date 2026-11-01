@@ -30,6 +30,12 @@ final class Item
 
     public const int MAX_NAME_LENGTH = 100;
 
+    /**
+     * Product limit (review-14): every tag name is an upsert in `TagService`,
+     * so an unbounded list is a write amplifier, not just a big payload.
+     */
+    public const int MAX_TAGS_PER_ITEM = 20;
+
     public const int MAX_TEXT_SLOT_LENGTH = 1000;
 
     /**
