@@ -34,7 +34,6 @@ final readonly class AuthThrottle
      */
     public function checkLogin(?string $clientIp, string $email): void
     {
-        // Case variants must share one budget: "Admin@Example.com" is the same account.
         $this->consume($this->loginAccountLimiter, 'account:'.$this->normalize($email));
         $this->consume($this->loginIpLimiter, 'ip:'.$this->ipKey($clientIp));
     }
@@ -55,7 +54,6 @@ final readonly class AuthThrottle
         try {
             $limit = $factory->create($key)->consume();
         } catch (\Throwable $throwable) {
-            // Fail-open, see class docblock.
             $this->logger->warning('Rate limiter storage unavailable; request allowed.', [
                 'exception' => $throwable,
             ]);
