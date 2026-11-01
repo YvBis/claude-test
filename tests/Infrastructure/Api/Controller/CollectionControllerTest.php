@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Tests\Infrastructure\Api\Controller;
 
+use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\Repository\CollectionRepositoryInterface;
+use App\Domain\Collection\ValueObject\CollectionName;
+use App\Domain\Collection\ValueObject\Theme;
+use App\Domain\Common\ValueObject\OwnerId;
+use App\Domain\User\ValueObject\UserId;
 use Monolog\Handler\TestHandler;
 use Monolog\Level;
 use Monolog\Logger;
@@ -289,6 +294,65 @@ final class CollectionControllerTest extends WebTestCase
             $this->assertInstanceOf(\RuntimeException::class, $record->context['exception']);
             $this->assertSame('DB exploded', $record->context['exception']->getMessage());
         }
+    }
+
+    public function testCreateMapsDomainInvalidArgumentToUnprocessableInsteadOfInternalError(): void
+    {
+        // review-18: the domain rejects input the DTO let through (e.g. after a
+        // future VO check), so the controller must answer 422, not let the
+        // throwable reach the bare 500 envelope. CollectionService is final, so
+        // the failure is injected one layer down - same technique as the 500
+        // test below, which keeps proving that RuntimeException still bubbles.
+        $failingRepository = $this->createMock(CollectionRepositoryInterface::class);
+        $failingRepository->method('save')->willThrowException(new \InvalidArgumentException('Collection name cannot exceed 100 characters'));
+
+        static::ensureKernelShutdown();
+        $this->client = static::createClient();
+        static::getContainer()->set(CollectionRepositoryInterface::class, $failingRepository);
+
+        $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
+            'name' => 'My Books',
+            'theme' => 'books',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(422);
+        $this->assertSame(
+            [
+                'error' => 'Unprocessable Entity',
+                'message' => 'Invalid content',
+                'details' => ['Collection name cannot exceed 100 characters'],
+            ],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR),
+        );
+    }
+
+    public function testUpdateMapsDomainInvalidArgumentToUnprocessableInsteadOfInternalError(): void
+    {
+        $collectionId = $this->createCollectionId($this->token);
+
+        $existing = Collection::create(
+            OwnerId::fromBytes(UserId::fromString($this->userId)->toBytes()),
+            CollectionName::fromString('Existing'),
+            Theme::books(),
+        );
+
+        $failingRepository = $this->createMock(CollectionRepositoryInterface::class);
+        $failingRepository->method('findById')->willReturn($existing);
+        $failingRepository->method('save')->willThrowException(new \InvalidArgumentException('Collection name must be at least 3 characters'));
+
+        static::ensureKernelShutdown();
+        $this->client = static::createClient();
+        static::getContainer()->set(CollectionRepositoryInterface::class, $failingRepository);
+
+        $this->client->request('PATCH', '/api/collections/'.$collectionId, [], [], $this->authHeaders(), \json_encode([
+            'name' => 'Renamed',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(422);
+        $payload = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Unprocessable Entity', $payload['error']);
+        $this->assertSame('Invalid content', $payload['message']);
+        $this->assertSame(['Collection name must be at least 3 characters'], $payload['details']);
     }
 
     public function testListWithoutTokenReturns400WithControllerEnvelope(): void
