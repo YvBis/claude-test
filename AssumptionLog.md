@@ -5149,3 +5149,39 @@ review-18 про `CollectionController.php:92,328`, где `catch` нет. Пр�
 
 **Результат:** `ci:all` 1139 тестов / 7481 ассерт; спека регенерирована (`maxItems` 20/12 на
 create и patch).
+## 2026-11-01 - review-18: доменный InvalidArgumentException в write-пути коллекций
+
+**Дефект.** `CollectionController::create` (:92) и `::update` (:328) строили VO вне
+`try`, поэтому доменный `InvalidArgumentException` доходил до `kernel.exception`, где
+`ApiExceptionSubscriber` не маппит его в `HttpException`, и клиент получал голый 500 вместо
+422. Живого HTTP-триггера сегодня нет: DTO зеркалит домен (`Length` в кодовых точках —
+`Length::COUNT_CODEPOINTS` по умолчанию, тот же `mb_strlen`, что в `CollectionName`;
+тема — `Choice` по `Theme::values()`). Это латентный класс отказа.
+
+**Форма фикса — второй узкий try, а не расширение существующего.** Расширение накрыло бы
+`OwnerId::fromBytes` (`UuidBinaryValue:21-23` бросает `InvalidArgumentException` на битых
+байтах — битая строка пользователя обязана быть 500) и исключения сериализатора из
+`deserialize` (`AbstractApiController:51`). Итог — дословное зеркало
+`ItemController:248-252`.
+
+**Слой не менялся.** `InvalidCollectionDataException` отвергнут: исключение ради одной пары
+вызовов, второго потребителя нет, а айтемы уже живут по этому правилу. Широкий `\InvalidArgumentException`
+в узком scope безопасен: внутри `CollectionService::create/update` его бросают только
+`CollectionName::fromString` и `Theme::fromString`. Формально тем же типом является
+`ORMInvalidArgumentException` из persist/flush — недостижим на этих маппингах, принято как
+паритет с `ItemController`.
+
+**Тесты — постоянные, без временных фикстур** (решение принято по ревью): `CollectionService`
+`final`, поэтому сбой инжектится моком `CollectionRepositoryInterface::save`, бросающим
+`InvalidArgumentException`; проверяется реальный стек контроллер → подписчик. Существующий
+тест на `RuntimeException → 500` остаётся и доказывает, что не всё стало 422 — это и есть
+различение «доменная ошибка ввода» от «настоящей поломки».
+
+**Правило на будущее.** Новый write-эндпоинт, строящий value objects из входных данных, обязан
+обернуть именно вызов сервиса (не всю обработку) и ответить 422 `Invalid content`; инфраструктурные
+сбои и битые идентификаторы остаются 500.
+
+**Красное доказательство.** Убран `catch` в `create` → тест красный (500 вместо 422), после
+возврата зелёный. `openapi.json` не дрейфует: 422 был задокументирован на обоих эндпоинтах.
+
+**Результат:** `ci:all` 1141 тест / 7492 ассерта.

@@ -89,7 +89,13 @@ final class CollectionController extends AbstractApiController
             return $this->badRequest('Malformed request body');
         }
 
-        $collection = $collectionService->create($dto, OwnerId::fromBytes($user->getId()->toBytes()));
+        $ownerId = OwnerId::fromBytes($user->getId()->toBytes());
+
+        try {
+            $collection = $collectionService->create($dto, $ownerId);
+        } catch (\InvalidArgumentException $invalidArgumentException) {
+            return $this->unprocessable('Invalid content', [$invalidArgumentException->getMessage()]);
+        }
 
         return new JsonResponse(
             $collectionService->toDTO($collection)->toArray(),
@@ -325,7 +331,11 @@ final class CollectionController extends AbstractApiController
             return $this->unprocessable('At least one field must be provided for update');
         }
 
-        $updatedCollection = $collectionService->update($dto, $collection);
+        try {
+            $updatedCollection = $collectionService->update($dto, $collection);
+        } catch (\InvalidArgumentException $invalidArgumentException) {
+            return $this->unprocessable('Invalid content', [$invalidArgumentException->getMessage()]);
+        }
 
         return new JsonResponse(
             $collectionService->toDTO($updatedCollection)->toArray(),
