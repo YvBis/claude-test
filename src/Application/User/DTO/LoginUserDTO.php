@@ -17,6 +17,7 @@ final readonly class LoginUserDTO
 
     #[Assert\NotBlank(message: 'Password cannot be empty')]
     #[Assert\Length(min: PasswordHash::MIN_PLAIN_LENGTH, max: PasswordHash::MAX_PLAIN_LENGTH, minMessage: 'Password must be at least {{ limit }} characters', maxMessage: 'Password cannot exceed {{ limit }} characters')]
+    #[Assert\Regex(pattern: '/\x00/', match: false, message: 'Password must not contain null bytes')]
     public string $password;
 
     public function __construct(
