@@ -37,7 +37,7 @@ final class RegistrationController extends AbstractApiController
                 properties: [
                     new OA\Property(property: 'name', type: 'string', minLength: User::MIN_NAME_LENGTH, maxLength: User::MAX_NAME_LENGTH, example: 'John Doe'),
                     new OA\Property(property: 'email', type: 'string', format: 'email', maxLength: Email::MAX_LENGTH, example: 'john@example.com'),
-                    new OA\Property(property: 'password', type: 'string', minLength: PasswordHash::MIN_PLAIN_LENGTH, maxLength: PasswordHash::MAX_PLAIN_LENGTH, example: 'securePassword123'),
+                    new OA\Property(property: 'password', type: 'string', minLength: PasswordHash::MIN_PLAIN_LENGTH, maxLength: PasswordHash::MAX_PLAIN_LENGTH, description: 'At most 72 bytes (UTF-8): bcrypt ignores the remainder.', example: 'securePassword123'),
                 ],
                 type: 'object'
             )

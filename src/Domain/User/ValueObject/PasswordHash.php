@@ -23,6 +23,8 @@ final readonly class PasswordHash implements \Stringable
 
     public const int MAX_PLAIN_LENGTH = 255;
 
+    public const int BCRYPT_MAX_BYTES = 72;
+
     /**
      * Storage bound for the hash column: bcrypt hashes are 60 chars, 255 is
      * headroom. Not a validation bound — the plain-text limit lives above.
@@ -54,9 +56,14 @@ final readonly class PasswordHash implements \Stringable
             throw new \InvalidArgumentException(\sprintf('Password must be at least %d characters', self::MIN_PLAIN_LENGTH));
         }
 
-        // `password_hash()` with hardcoded valid params cannot fail: PHPStan 2.2
-        // models its return as `non-empty-string` (verified via dumpType),
-        // so a `false` branch would be statically dead (`varTag.nativeType`).
+        if (\str_contains($plainPassword, "\0")) {
+            throw new \InvalidArgumentException('Password must not contain null bytes');
+        }
+
+        if (\strlen($plainPassword) > self::BCRYPT_MAX_BYTES) {
+            throw new \InvalidArgumentException(\sprintf('Password cannot exceed %d bytes', self::BCRYPT_MAX_BYTES));
+        }
+
         $hash = \password_hash($plainPassword, PASSWORD_BCRYPT, ['cost' => self::BCRYPT_COST]);
 
         return new self($hash);

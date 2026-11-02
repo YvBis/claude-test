@@ -8,20 +8,23 @@ use App\Domain\User\Entity\User;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Constraints\Length;
 
 final readonly class RegisterUserDTO
 {
     #[Assert\NotBlank(message: 'Name cannot be empty')]
-    #[Assert\Length(min: User::MIN_NAME_LENGTH, max: User::MAX_NAME_LENGTH, minMessage: 'Name must be at least {{ limit }} characters', maxMessage: 'Name cannot exceed {{ limit }} characters')]
+    #[Length(min: User::MIN_NAME_LENGTH, max: User::MAX_NAME_LENGTH, minMessage: 'Name must be at least {{ limit }} characters', maxMessage: 'Name cannot exceed {{ limit }} characters')]
     public string $name;
 
     #[Assert\NotBlank(message: 'Email cannot be empty')]
     #[Assert\Email(mode: 'html5', message: 'Invalid email format')]
-    #[Assert\Length(max: Email::MAX_LENGTH, maxMessage: 'Email cannot exceed {{ limit }} characters')]
+    #[Length(max: Email::MAX_LENGTH, maxMessage: 'Email cannot exceed {{ limit }} characters')]
     public string $email;
 
     #[Assert\NotBlank(message: 'Password cannot be empty')]
-    #[Assert\Length(min: PasswordHash::MIN_PLAIN_LENGTH, max: PasswordHash::MAX_PLAIN_LENGTH, minMessage: 'Password must be at least {{ limit }} characters', maxMessage: 'Password cannot exceed {{ limit }} characters')]
+    #[Length(min: PasswordHash::MIN_PLAIN_LENGTH, max: PasswordHash::MAX_PLAIN_LENGTH, minMessage: 'Password must be at least {{ limit }} characters', maxMessage: 'Password cannot exceed {{ limit }} characters')]
+    #[Length(max: PasswordHash::BCRYPT_MAX_BYTES, countUnit: Length::COUNT_BYTES, maxMessage: 'Password cannot exceed {{ limit }} bytes')]
+    #[Assert\Regex(pattern: '/\x00/', match: false, message: 'Password must not contain null bytes')]
     public string $password;
 
     public function __construct(

@@ -46,8 +46,8 @@ final class MultibyteLengthGuardTest extends TestCase
             'reason' => 'a UUID is 16 binary bytes by type, not text',
         ],
         'src/Domain/User/ValueObject/PasswordHash.php' => [
-            'count' => 1,
-            'reason' => 'plain-password minimum; code-point parity is owned by review-15',
+            'count' => 2,
+            'reason' => 'both are genuinely bytes: the plain minimum and the 72-byte bcrypt input bound (review-15); codepoint parity for the minimum is owned by review-15 as well',
         ],
     ];
 

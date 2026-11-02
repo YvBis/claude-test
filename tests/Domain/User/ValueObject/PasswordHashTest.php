@@ -33,6 +33,31 @@ final class PasswordHashTest extends TestCase
         PasswordHash::createFromPlain('');
     }
 
+    public function testCreateFromPlainThrowsWhenPasswordExceedsBcryptInputBytes(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage(PasswordHash::BCRYPT_MAX_BYTES.' bytes');
+
+        PasswordHash::createFromPlain(\str_repeat('a', PasswordHash::BCRYPT_MAX_BYTES + 1));
+    }
+
+    public function testCreateFromPlainAcceptsExactlyBcryptInputBytes(): void
+    {
+        $plain = \str_repeat('a', PasswordHash::BCRYPT_MAX_BYTES);
+
+        $hash = PasswordHash::createFromPlain($plain);
+
+        self::assertTrue($hash->verify($plain));
+    }
+
+    public function testCreateFromPlainThrowsOnNullByte(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('null bytes');
+
+        PasswordHash::createFromPlain("password\0tail");
+    }
+
     public function testFromHashAcceptsValidBcryptHash(): void
     {
         $hash = PasswordHash::createFromPlain('password123');
