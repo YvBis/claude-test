@@ -20,7 +20,7 @@ final readonly class ItemSlotDTO
 
     #[Assert\NotBlank]
     #[Assert\Range(
-        min: 1,
+        min: SlotLimits::MIN_SLOT,
         max: SlotLimits::MAX_SLOTS_PER_TYPE,
         notInRangeMessage: 'Slot index must be between {{ min }} and {{ max }}',
     )]
