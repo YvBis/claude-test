@@ -196,7 +196,7 @@ final class ItemController extends AbstractApiController
                             type: 'object',
                             properties: [
                                 new OA\Property(property: 'type', type: 'string', enum: ['text', 'number', 'date', 'bool']),
-                                new OA\Property(property: 'slot', type: 'integer', minimum: 1, maximum: SlotLimits::MAX_SLOTS_PER_TYPE),
+                                new OA\Property(property: 'slot', type: 'integer', minimum: SlotLimits::MIN_SLOT, maximum: SlotLimits::MAX_SLOTS_PER_TYPE),
                                 new OA\Property(property: 'value', type: 'string'),
                             ],
                         ),

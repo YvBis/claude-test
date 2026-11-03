@@ -16,3 +16,9 @@ parameters:
         - migrations/*
         - public/*
         - src/Kernel.php
+
+services:
+    -
+        class: App\Tests\PHPStan\NoLiteralBoundRule
+        tags:
+            - phpstan.rules.rule

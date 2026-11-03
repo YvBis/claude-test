@@ -11,6 +11,8 @@ namespace App\Domain\Common\Constant;
  */
 final class SlotLimits
 {
+    public const int MIN_SLOT = 1;
+
     public const int MAX_SLOTS_PER_TYPE = 3;
 
     /**
