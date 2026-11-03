@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Comment\ValueObject;
 
+use App\Domain\Common\Constant\TextEncoding;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
@@ -37,7 +38,7 @@ final readonly class CommentContent implements \Stringable
 
         $value = \trim($stripped);
 
-        $length = \mb_strlen($value, 'UTF-8');
+        $length = \mb_strlen($value, TextEncoding::UTF8);
 
         if ($length < self::MIN_LENGTH) {
             throw new \InvalidArgumentException('Comment content cannot be empty');

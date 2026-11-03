@@ -120,6 +120,27 @@ final class FieldNameTest extends TestCase
         $this->assertSame($max, $name->value());
     }
 
+    public function testFromStringAcceptsMaxCodePointsOfMultibyteText(): void
+    {
+        // 50 Cyrillic letters are 50 code points but 100 bytes: a byte-based
+        // bound would reject a value inside the contract (review-19).
+        $max = \str_repeat('б', 50);
+
+        $name = FieldName::fromString($max);
+
+        $this->assertSame($max, $name->value());
+    }
+
+    public function testFromStringRejectsSingleLetterBelowMinCodePoints(): void
+    {
+        // one Cyrillic letter is 1 code point but 2 bytes: a byte-based minimum would
+        // accept what the contract rejects (review-19).
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('at least');
+
+        FieldName::fromString('б');
+    }
+
     public function testMultibyteCharactersPassValidation(): void
     {
         // 8 Cyrillic chars = 24 bytes, should pass (min 2, max 50 chars)

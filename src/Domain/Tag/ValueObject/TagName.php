@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Tag\ValueObject;
 
+use App\Domain\Common\Constant\TextEncoding;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Validator\Constraints as Assert;
 
@@ -39,11 +40,11 @@ final readonly class TagName implements \Stringable
         $value = \trim($value);
         $value = \preg_replace('/\s+/u', ' ', $value) ?? '';
 
-        if (\mb_strlen($value, 'UTF-8') < self::MIN_LENGTH) {
+        if (\mb_strlen($value, TextEncoding::UTF8) < self::MIN_LENGTH) {
             throw new \InvalidArgumentException(\sprintf('Tag name must be at least %d characters', self::MIN_LENGTH));
         }
 
-        if (\mb_strlen($value, 'UTF-8') > self::MAX_LENGTH) {
+        if (\mb_strlen($value, TextEncoding::UTF8) > self::MAX_LENGTH) {
             throw new \InvalidArgumentException(\sprintf('Tag name cannot exceed %d characters', self::MAX_LENGTH));
         }
 

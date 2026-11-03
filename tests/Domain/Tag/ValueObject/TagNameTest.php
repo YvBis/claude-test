@@ -89,6 +89,27 @@ final class TagNameTest extends TestCase
         $this->assertSame($max, $name->value());
     }
 
+    public function testFromStringAcceptsMaxCodePointsOfMultibyteText(): void
+    {
+        // 30 Cyrillic letters are 30 code points but 60 bytes: a byte-based
+        // bound would reject a value inside the contract (review-19).
+        $max = \str_repeat('б', 30);
+
+        $name = TagName::fromString($max);
+
+        $this->assertSame($max, $name->value());
+    }
+
+    public function testFromStringRejectsSingleLetterBelowMinCodePoints(): void
+    {
+        // one Cyrillic letter is 1 code point but 2 bytes: a byte-based minimum would
+        // accept what the contract rejects (review-19).
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('at least');
+
+        TagName::fromString('б');
+    }
+
     public function testFromStringThrowsOnTooLong(): void
     {
         $this->expectException(\InvalidArgumentException::class);
