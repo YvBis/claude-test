@@ -179,6 +179,18 @@ final class MultibyteLengthGuardTest extends TestCase
         );
     }
 
+    public function testCharsetMatcherAcceptsFullyQualifiedConstant(): void
+    {
+        // the matcher checks the tail of the reference, so a fully-qualified
+        // constant passes without needing the short import
+        self::assertSame(
+            [],
+            self::implicitCharsetSites([
+                'src/Domain/Fake/Fixture.php' => "<?php\n\nif (\\mb_strlen(\$value, \\App\\Domain\\Common\\Constant\\TextEncoding::UTF8) > 3) {\n}",
+            ]),
+        );
+    }
+
     /**
      * @param array<string, list<string>>                      $sites   path => hits
      * @param array<string, array{count: int, reason: string}> $allowed path => allowance
