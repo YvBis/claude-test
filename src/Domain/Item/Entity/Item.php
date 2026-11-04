@@ -7,6 +7,7 @@ namespace App\Domain\Item\Entity;
 use App\Domain\Collection\Entity\Collection;
 use App\Domain\Collection\ValueObject\FieldType;
 use App\Domain\Common\Constant\SlotLimits;
+use App\Domain\Common\Constant\TextEncoding;
 use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\Tag\Entity\Tag;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -313,13 +314,14 @@ final class Item
             ));
         }
 
-        if (\mb_strlen($value) > self::MAX_TEXT_SLOT_LENGTH) {
+        $length = \mb_strlen($value, TextEncoding::UTF8);
+        if ($length > self::MAX_TEXT_SLOT_LENGTH) {
             throw new \InvalidArgumentException(\sprintf(
                 'Slot %d of type "%s" exceeds max length %d, got %d chars',
                 $slot,
                 $type->value(),
                 self::MAX_TEXT_SLOT_LENGTH,
-                \mb_strlen($value),
+                $length,
             ));
         }
 
@@ -402,7 +404,7 @@ final class Item
             throw new \InvalidArgumentException('Item name must not be empty');
         }
 
-        if (\mb_strlen($name, 'UTF-8') > self::MAX_NAME_LENGTH) {
+        if (\mb_strlen($name, TextEncoding::UTF8) > self::MAX_NAME_LENGTH) {
             throw new \InvalidArgumentException(\sprintf('Item name cannot exceed %d characters', self::MAX_NAME_LENGTH));
         }
 

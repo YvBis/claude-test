@@ -98,6 +98,26 @@ final class ItemTest extends TestCase
         Item::create($this->collection, \str_repeat('a', 101));
     }
 
+    public function testCreateAcceptsExactlyMaxLengthName(): void
+    {
+        $name = \str_repeat('a', Item::MAX_NAME_LENGTH);
+
+        $item = Item::create($this->collection, $name);
+
+        $this->assertSame($name, $item->getName());
+    }
+
+    public function testCreateAcceptsMaxCodePointsOfMultibyteName(): void
+    {
+        // 100 Cyrillic letters are 100 code points but 200 bytes: a byte-based
+        // bound would reject a value inside the contract (review-19).
+        $name = \str_repeat('б', Item::MAX_NAME_LENGTH);
+
+        $item = Item::create($this->collection, $name);
+
+        $this->assertSame($name, $item->getName());
+    }
+
     public function testCreateThrowsOnInvalidCharacters(): void
     {
         $this->expectException(\InvalidArgumentException::class);
@@ -367,6 +387,23 @@ final class ItemTest extends TestCase
         $this->expectExceptionMessage('got 1001 chars');
 
         $item->setSlotValue(FieldType::text(), 1, \str_repeat('б', Item::MAX_TEXT_SLOT_LENGTH + 1));
+    }
+
+    public function testSetTextSlotCountsCodePointsRegardlessOfInternalEncoding(): void
+    {
+        // ADR/0003: the charset argument, not mb_internal_encoding, defines the
+        // unit. Without it a Windows-1251 process would count these as 1001.
+        $item = Item::create($this->collection, '1984');
+        $previous = \mb_internal_encoding();
+        \mb_internal_encoding('Windows-1251');
+
+        try {
+            $this->expectException(\InvalidArgumentException::class);
+            $this->expectExceptionMessage('got 1001 chars');
+            $item->setSlotValue(FieldType::text(), 1, \str_repeat('б', Item::MAX_TEXT_SLOT_LENGTH + 1));
+        } finally {
+            \mb_internal_encoding($previous);
+        }
     }
 
     public function testSetSlotValueTouchesEntity(): void

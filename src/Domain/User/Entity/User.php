@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\User\Entity;
 
+use App\Domain\Common\Constant\TextEncoding;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
 use App\Domain\User\ValueObject\Role;
@@ -153,7 +154,7 @@ final class User implements UserInterface, PasswordAuthenticatedUserInterface
             throw new \InvalidArgumentException('Name cannot be empty');
         }
 
-        if (\mb_strlen($name, 'UTF-8') > self::MAX_NAME_LENGTH) {
+        if (\mb_strlen($name, TextEncoding::UTF8) > self::MAX_NAME_LENGTH) {
             throw new \InvalidArgumentException(\sprintf('Name cannot exceed %d characters', self::MAX_NAME_LENGTH));
         }
 

@@ -19,9 +19,11 @@ use PHPUnit\Framework\TestCase;
  *    accepted by the DTO's `Assert\Length` and by the published `maxLength` —
  *    but 120 UTF-8 bytes, so a byte-based bound threw an exception no layer
  *    translated and the client got a 500 envelope instead of 201.
- * 2. Every `mb_strlen(` states `'UTF-8'` explicitly. Without the charset the
- *    unit depends on `mb_internal_encoding`, which is UTF-8 by default today
- *    and is therefore a silent trap rather than a bug.
+ * 2. Every `mb_strlen(` passes `TextEncoding::UTF8` explicitly. Without the
+ *    charset the unit depends on `mb_internal_encoding`, which is UTF-8 by
+ *    default today and is therefore a silent trap rather than a bug. The
+ *    constant (Domain\Common\Constant\TextEncoding) replaced the bare literal
+ *    so the value has one home; this guard keeps it from drifting back.
  *
  * Both allowlists are exhaustive rather than pattern-based: adding an entry
  * requires editing this file with a reason, which is the moment a reviewer
@@ -54,12 +56,7 @@ final class MultibyteLengthGuardTest extends TestCase
     /**
      * @var array<string, array{count: int, reason: string}> path => allowance and why
      */
-    private const ALLOWED_IMPLICIT_CHARSETS = [
-        'src/Domain/Item/Entity/Item.php' => [
-            'count' => 2,
-            'reason' => 'deferred to review-19: aligning these lines widens the mutation surface of a defect fix (measured 60s timeouts)',
-        ],
-    ];
+    private const ALLOWED_IMPLICIT_CHARSETS = [];
 
     public function testSourceDoesNotMeasureTextLengthInBytes(): void
     {
@@ -67,7 +64,7 @@ final class MultibyteLengthGuardTest extends TestCase
             [],
             self::violations(self::byteSitesByPath(), self::ALLOWED_BYTE_CHECKS),
             'src must measure text in code points, like Assert\\Length does. '
-            .'If the check measures text, use mb_strlen($value, \'UTF-8\'); '
+            .'If the check measures text, use mb_strlen($value, TextEncoding::UTF8); '
             .'if bytes are genuinely correct, add it to ALLOWED_BYTE_CHECKS with a reason.',
         );
     }
@@ -77,7 +74,7 @@ final class MultibyteLengthGuardTest extends TestCase
         self::assertSame(
             [],
             self::violations(self::implicitCharsetSitesByPath(), self::ALLOWED_IMPLICIT_CHARSETS),
-            'Every mb_strlen must pass \'UTF-8\' explicitly (ADR/0003): without it the unit '
+            'Every mb_strlen must pass TextEncoding::UTF8 explicitly (ADR/0003): without it the unit '
             .'depends on mb_internal_encoding. If the site is knowingly deferred, add it to '
             .'ALLOWED_IMPLICIT_CHARSETS with the reason.',
         );
@@ -166,6 +163,16 @@ final class MultibyteLengthGuardTest extends TestCase
     {
         self::assertSame(
             [],
+            self::implicitCharsetSites([
+                'src/Domain/Fake/Fixture.php' => "<?php\n\nif (\\mb_strlen(\$value, TextEncoding::UTF8) > 3) {\n}",
+            ]),
+        );
+    }
+
+    public function testCharsetMatcherFlagsTheBareLiteral(): void
+    {
+        self::assertSame(
+            ['src/Domain/Fake/Fixture.php' => ['src/Domain/Fake/Fixture.php:3']],
             self::implicitCharsetSites([
                 'src/Domain/Fake/Fixture.php' => "<?php\n\nif (\\mb_strlen(\$value, 'UTF-8') > 3) {\n}",
             ]),
@@ -283,8 +290,9 @@ final class MultibyteLengthGuardTest extends TestCase
                 }
 
                 $arguments = \substr($source, $open + 1, $closing - $open - 1);
-                // single quotes only: php-cs-fixer's single_quote rule normalizes string literals
-                if (!\str_contains($arguments, "'UTF-8'")) {
+                // php-cs-fixer's single_quote rule normalizes string literals, so
+                // the constant reference is matched by its exact class-constant form
+                if (!\str_contains($arguments, 'TextEncoding::UTF8')) {
                     $line = \substr_count(\substr($source, 0, $position), "\n") + 1;
                     $sites[$path][] = \sprintf('%s:%d', $path, $line);
                 }
