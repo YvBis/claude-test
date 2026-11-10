@@ -17,10 +17,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity]
-#[ORM\Table(name: 'users', indexes: [
-    new ORM\Index(name: 'idx_user_email', columns: ['email']),
-    new ORM\Index(name: 'idx_user_is_active', columns: ['is_active']),
-])]
+#[ORM\Table(name: 'users')]
 #[ORM\HasLifecycleCallbacks]
 final class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
