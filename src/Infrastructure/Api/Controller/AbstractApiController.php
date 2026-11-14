@@ -17,6 +17,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
+use Symfony\Component\Serializer\Exception\MissingConstructorArgumentsException;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
@@ -41,6 +42,10 @@ abstract class AbstractApiController extends BaseAbstractController
     /**
      * Deserialize and validate a DTO from request content.
      *
+     * A body that parses but omits required constructor arguments is reported
+     * as a validation failure rather than allowed to escape as a 500: the shape
+     * is readable, the values are missing, and `details` tells the client which.
+     *
      * @param class-string<object> $dtoClass
      *
      * @throws \Symfony\Component\Serializer\Exception\ExceptionInterface
@@ -48,7 +53,14 @@ abstract class AbstractApiController extends BaseAbstractController
      */
     protected function deserializeAndValidate(string $content, string $dtoClass, SerializerInterface $serializer, ValidatorInterface $validator): object
     {
-        $dto = $serializer->deserialize($content, $dtoClass, 'json');
+        try {
+            $dto = $serializer->deserialize($content, $dtoClass, 'json');
+        } catch (MissingConstructorArgumentsException $missingConstructorArgumentsException) {
+            throw new ValidationException('Validation failed', \array_map(
+                $this->toWireFieldName(...),
+                $missingConstructorArgumentsException->getMissingConstructorArguments(),
+            ));
+        }
 
         $errors = $validator->validate($dto);
         if (\count($errors) > 0) {
@@ -61,6 +73,16 @@ abstract class AbstractApiController extends BaseAbstractController
         }
 
         return $dto;
+    }
+
+    /**
+     * The serializer reports constructor parameter names (`isActive`), while
+     * the wire contract is snake_case (`is_active`) because framework.yaml
+     * installs CamelCaseToSnakeCaseNameConverter.
+     */
+    private function toWireFieldName(string $parameter): string
+    {
+        return \sprintf('Missing required field: %s', \strtolower((string) \preg_replace('/(?<!^)[A-Z]/', '_$0', $parameter)));
     }
 
     /**

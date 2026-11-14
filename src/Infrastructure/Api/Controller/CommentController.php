@@ -6,6 +6,7 @@ namespace App\Infrastructure\Api\Controller;
 
 use App\Application\Comment\DTO\CommentRequestDTO;
 use App\Application\Comment\Service\CommentService;
+use App\Application\Exception\ValidationException;
 use App\Application\Item\Service\ItemService;
 use App\Domain\Comment\Entity\Comment;
 use App\Domain\Comment\ValueObject\CommentContent;
@@ -82,6 +83,8 @@ final class CommentController extends AbstractApiController
         try {
             $content = $this->parseContent($request);
             $comment = $commentService->create($user, $item, $content);
+        } catch (ValidationException $validationException) {
+            return $this->createValidationErrorResponse($validationException->getDetails());
         } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         } catch (\InvalidArgumentException $invalidArgumentException) {
@@ -226,6 +229,8 @@ final class CommentController extends AbstractApiController
 
         try {
             $commentService->changeContent($comment, $this->parseContent($request));
+        } catch (ValidationException $validationException) {
+            return $this->createValidationErrorResponse($validationException->getDetails());
         } catch (NotEncodableValueException|NotNormalizableValueException) {
             return $this->badRequest('Malformed request body');
         } catch (\InvalidArgumentException $invalidArgumentException) {

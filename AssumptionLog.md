@@ -5348,3 +5348,17 @@ chars`, восстанавливает кодировку в `finally`. Крас
 **Гарды:** нет `Assert\Email` в Application-DTO (короткая и FQCN-формы); каждый request-DTO с `$email` несёт `StrictEmail` (`UserDTO` — output, в allowlist); юнит-тест на трёх DTO + поведенческий на constraint.
 
 **Красные доказательства:** возврат `Assert\Email` в `RegisterUserDTO` → HTTP 500 на register и красный гард; откатено.
+
+## 2026-11-14 — 10.4: пустое тело — не 500, а 422
+
+**Дефект:** DTO с обязательными аргументами конструктора на `{}` бросают `MissingConstructorArgumentsException` — сериализаторный `RuntimeException`, а не `UnexpectedValueException`, поэтому catch-блоки `NotEncodable|NotNormalizable` его не видели → голый 500.
+
+**Инвентарь (проверен по конструкторам):** 500 давали ровно пять эндпоинтов — register, login, collections, items, admin users. `PATCH` item/collection/user и `POST` comment на `{}` уже отвечали 422 по `hasChanges()`/`CommentContent`; это подтверждено существующими тестами (`ItemControllerTest:602`, `CollectionControllerTest`, `Admin/UserControllerTest`), поэтому «`{}` на девяти эндпоинтах → 400» из первого плана было бы регрессией.
+
+**Решение:** одна точка — `deserializeAndValidate()` ловит `MissingConstructorArgumentsException` и перебрасывает `ValidationException('Validation failed', ['Missing required field: <name>', …])`; контроллеры его уже ловят и отдают 422 с `details`. Контроллеры не менялись, импорты не осиротели.
+
+**Почему 422, а не 400:** `PATCH` с `{}` уже 422, и тот же статус держит контракт ровным — 400 остаётся за нечитаемым телом и неверным типом. Широкий `catch (ExceptionInterface)` отвергнут: затянул бы `MappingException`/`LogicException`/`CircularReferenceException` (баги сервера) в 400, плюс в `CommentController:82-89` `try` оборачивает вызов сервиса.
+
+**Красное доказательство:** stash правки хелпера → тот же матричный тест получает 500 и падает.
+
+**Roadmap:** 10.4 done; 10.3 разбита на 10.3a (лайки: upsert, `toggle` удалить) и 10.3b (UoW-трансляция + регистрация) по решению техлида — разные слои и радиусы. Счётчики этапа 4/17, итог 64/77.
