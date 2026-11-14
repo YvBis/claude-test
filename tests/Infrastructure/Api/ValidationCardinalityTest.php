@@ -44,6 +44,10 @@ final class ValidationCardinalityTest extends TestCase
             $reflection = new \ReflectionClass($class);
 
             foreach ($reflection->getProperties() as $property) {
+                if ($property->getDeclaringClass()->getName() !== $class) {
+                    continue;
+                }
+
                 $type = $property->getType();
                 if (!$type instanceof \ReflectionNamedType || 'array' !== $type->getName()) {
                     continue;
@@ -116,6 +120,12 @@ final class ValidationCardinalityTest extends TestCase
         $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($base));
         foreach ($iterator as $file) {
             if (!$file instanceof \SplFileInfo || 'php' !== $file->getExtension()) {
+                continue;
+            }
+
+            // Rule scope is DTOs; framework types such as Constraint carry
+            // inherited array properties that are not request input.
+            if (!\str_ends_with($file->getFilename(), 'DTO.php')) {
                 continue;
             }
 

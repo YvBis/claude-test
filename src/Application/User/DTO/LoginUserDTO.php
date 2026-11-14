@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\User\DTO;
 
+use App\Application\Common\Validation\StrictEmail;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -11,7 +12,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 final readonly class LoginUserDTO
 {
     #[Assert\NotBlank(message: 'Email cannot be empty')]
-    #[Assert\Email(mode: 'html5', message: 'Invalid email format')]
+    #[StrictEmail(message: 'Invalid email format')]
     #[Assert\Length(max: Email::MAX_LENGTH, maxMessage: 'Email cannot exceed {{ limit }} characters')]
     public string $email;
 
