@@ -5333,3 +5333,18 @@ chars`, восстанавливает кодировку в `finally`. Крас
 **Гард:** `SchemaIndexDriftTest` — 4 инварианта (нет `CREATE INDEX`; нет `DROP INDEX` вне allowlist; `DROP FOREIGN KEY` только для трёх ручных `owner_id`-каскадов; в `src/Domain` не возвращается инертный `indexes:`). Три красных доказательства сняты и откатаны. «Дифф пуст» не пиним — platform-шум меняется между версиями Doctrine.
 
 **Ограничение, зафиксированное честно:** Doctrine не предлагает `DROP INDEX` для индекса, который MySQL держит под FK (проверено на `idx_like_item`), поэтому удаление такого объявления гард не поймает; удаление обычного индекса — поймает.
+
+## 2026-11-14 — 10.2: email-валидация сведена к домену
+
+**Дефект:** `Assert\Email(mode: 'html5')` в DTO и `filter_var` в `Email::fromString` расходятся на точечной локальной части (`a.@example.com`, `.a@example.com`): адрес проходил валидацию, домен бросал, контроллер не ловил → голый 500.
+
+**Три поправки к аудиту, проверенные по коду и замером в контейнере (PHP 8.3.35):**
+- `a@b` не расходится — PATTERN_HTML5 требует точку в домене (`vendor/symfony/validator/Constraints/EmailValidator.php:30`), поэтому даёт 422 и без правки;
+- `POST /api/admin/users` идёт через `RegistrationService::register` (`Admin/UserController:81`), `UserService` Email не трогает;
+- trim-асимметрии нет: DTO тримит и приводит регистр в конструкторе (`RegisterUserDTO:36`) до валидации, валидатор пробелов не видит — тест на `'  trimmed@…  '` фиксирует поведение, а не чинит его.
+
+**Решение:** constraint `StrictEmail` делегирует `Email::fromString` (одно правило, расхождение не может возникнуть снова), сообщение фиксированное — доменное `Invalid email: %s` эхом отдаёт ввод (D11). Домен `Email.php:17` оставлен как есть: доменные `Assert\*` инертны, а импорт Application-constraint в Domain инвертировал бы зависимость. Отвергнут вариант с копией `filter_var` в валидаторе — это второй источник истины, то есть ровно тот дефект, который закрываем.
+
+**Гарды:** нет `Assert\Email` в Application-DTO (короткая и FQCN-формы); каждый request-DTO с `$email` несёт `StrictEmail` (`UserDTO` — output, в allowlist); юнит-тест на трёх DTO + поведенческий на constraint.
+
+**Красные доказательства:** возврат `Assert\Email` в `RegisterUserDTO` → HTTP 500 на register и красный гард; откатено.
