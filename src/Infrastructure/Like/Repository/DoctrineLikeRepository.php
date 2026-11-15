@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Infrastructure\Like\Repository;
 
 use App\Domain\Common\ValueObject\OwnerId;
+use App\Domain\Item\Entity\Item;
 use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\Like\Entity\Like;
 use App\Domain\Like\Repository\LikeRepositoryInterface;
 use App\Domain\Like\ValueObject\LikeId;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -24,9 +26,26 @@ final class DoctrineLikeRepository extends ServiceEntityRepository implements Li
     }
 
     #[\Override]
-    public function save(Like $like): void
+    public function likeOrGet(OwnerId $ownerId, Item $item): Like
     {
-        $this->getEntityManager()->persist($like);
+        $connection = $this->getEntityManager()->getConnection();
+
+        if ($connection->isTransactionActive()) {
+            throw new \LogicException('likeOrGet must not run inside a transaction: its re-select needs the winning row committed (PRD/10.3a).');
+        }
+
+        $like = Like::create($ownerId, $item);
+        $this->upsert($like, $ownerId, $item);
+
+        $found = $this->findByOwnerAndItem($ownerId, $item->getId());
+        if ($found instanceof Like) {
+            return $found;
+        }
+
+        $this->upsert($like, $ownerId, $item);
+
+        return $this->findByOwnerAndItem($ownerId, $item->getId())
+            ?? throw new \RuntimeException(\sprintf('Like for item "%s" not found after upsert', $item->getId()->toString()));
     }
 
     #[\Override]
@@ -106,6 +125,34 @@ final class DoctrineLikeRepository extends ServiceEntityRepository implements Li
             ->setParameter('itemId', $itemId->toBytes(), 'binary')
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    /**
+     * Atomic upsert: the losing INSERT becomes a no-op and InnoDB holds the
+     * unique-pair lock until the winner commits, so a following SELECT reads the
+     * canonical row. `$like` is a transient value object used only for its id and
+     * timestamp — it must never be persisted, or the next flush would add a
+     * second INSERT for the same pair.
+     */
+    private function upsert(Like $like, OwnerId $ownerId, Item $item): void
+    {
+        $this->getEntityManager()->getConnection()->executeStatement(
+            'INSERT INTO likes (id, created_at, owner_id, item_id)
+             VALUES (:id, :createdAt, :ownerId, :itemId)
+             ON DUPLICATE KEY UPDATE id = id',
+            [
+                'id' => $like->getId()->toBytes(),
+                'createdAt' => $like->getCreatedAt()->format('Y-m-d H:i:s.u'),
+                'ownerId' => $ownerId->toBytes(),
+                'itemId' => $item->getId()->toBytes(),
+            ],
+            [
+                'id' => ParameterType::BINARY,
+                'createdAt' => ParameterType::STRING,
+                'ownerId' => ParameterType::BINARY,
+                'itemId' => ParameterType::BINARY,
+            ],
+        );
     }
 
     /**

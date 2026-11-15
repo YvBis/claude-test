@@ -26,27 +26,14 @@ final readonly class LikeService
     }
 
     /**
-     * Idempotently likes an item: an existing like for the pair
-     * (owner, item) is returned as-is, otherwise a new one is created.
-     *
-     * Note: this is a find-then-insert, so a concurrent duplicate for the same
-     * pair can still hit the UNIQUE (owner_id, item_id) index and surface as a
-     * UniqueConstraintViolation, which the API layer maps to an error. A
-     * race-safe atomic upsert (like TagRepository::getOrCreate) is tracked as a
-     * follow-up; see PRD/5.3 and AssumptionLog.
+     * Idempotently likes an item. The pair is resolved by an atomic upsert in
+     * the repository, so a concurrent duplicate is absorbed by
+     * `uniq_like_owner_item` and never surfaces as an exception; the call
+     * commits itself and does not need `flush()`.
      */
     public function like(User $owner, Item $item): Like
     {
-        $existing = $this->findLike($owner, $item);
-        if ($existing instanceof Like) {
-            return $existing;
-        }
-
-        $like = Like::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item);
-        $this->likeRepository->save($like);
-        $this->unitOfWork->flush();
-
-        return $like;
+        return $this->likeRepository->likeOrGet(OwnerId::fromBytes($owner->getId()->toBytes()), $item);
     }
 
     /**
@@ -61,27 +48,6 @@ final readonly class LikeService
 
         $this->likeRepository->remove($existing);
         $this->unitOfWork->flush();
-    }
-
-    /**
-     * Toggles the like and returns the resulting state (true = liked).
-     * Both branches commit their change with a single flush. Like like(), the
-     * like branch is a find-then-insert and shares the same concurrency note.
-     */
-    public function toggle(User $owner, Item $item): bool
-    {
-        $existing = $this->findLike($owner, $item);
-        if ($existing instanceof Like) {
-            $this->likeRepository->remove($existing);
-            $this->unitOfWork->flush();
-
-            return false;
-        }
-
-        $this->likeRepository->save(Like::create(OwnerId::fromBytes($owner->getId()->toBytes()), $item));
-        $this->unitOfWork->flush();
-
-        return true;
     }
 
     public function isLikedBy(?User $owner, Item $item): bool

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Like\Repository;
 
 use App\Domain\Common\ValueObject\OwnerId;
+use App\Domain\Item\Entity\Item;
 use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\Like\Entity\Like;
 use App\Domain\Like\ValueObject\LikeId;
@@ -12,9 +13,20 @@ use App\Domain\Like\ValueObject\LikeId;
 interface LikeRepositoryInterface
 {
     /**
-     * Schedules the like for insertion (UoW); flush() commits the transaction.
+     * Idempotently likes an item for an owner: an existing pair resolves to the
+     * stored like, otherwise the row is inserted.
+     *
+     * Atomic on purpose — the INSERT carries `ON DUPLICATE KEY UPDATE id = id`,
+     * so a concurrent duplicate becomes a no-op instead of a UNIQUE violation.
+     * It writes and reads the canonical row itself; the caller must NOT wrap it
+     * in `UnitOfWorkInterface::transactional()`: the follow-up SELECT needs the
+     * winner's row committed, and a REPEATABLE READ snapshot older than that
+     * commit would read nothing (see PRD/10.3a).
+     *
+     * @throws \LogicException   when called inside an active transaction
+     * @throws \RuntimeException when the row cannot be read back after the upsert
      */
-    public function save(Like $like): void;
+    public function likeOrGet(OwnerId $ownerId, Item $item): Like;
 
     /**
      * Schedules the like for removal (UoW); flush() commits the transaction.
