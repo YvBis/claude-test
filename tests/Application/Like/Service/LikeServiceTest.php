@@ -63,31 +63,21 @@ final class LikeServiceTest extends TestCase
         );
     }
 
-    public function testLikeCreatesAndFlushes(): void
+    public function testLikeDelegatesToTheAtomicUpsert(): void
     {
-        $this->likeRepository->method('findByOwnerAndItem')->willReturn(null);
+        $expectedOwnerId = OwnerId::fromBytes($this->owner->getId()->toBytes());
+        $like = Like::create($expectedOwnerId, $this->item);
         $this->likeRepository
             ->expects($this->once())
-            ->method('save')
-            ->with($this->callback(
-                fn (Like $like): bool => $like->getOwnerId()->equals(OwnerId::fromBytes($this->owner->getId()->toBytes())) && $like->getItem() === $this->item,
-            ));
-        $this->unitOfWork->expects($this->once())->method('flush');
-
-        $like = $this->service->like($this->owner, $this->item);
-
-        $this->assertTrue($like->getOwnerId()->equals(OwnerId::fromBytes($this->owner->getId()->toBytes())));
-        $this->assertSame($this->item, $like->getItem());
-    }
-
-    public function testLikeIsIdempotentWhenAlreadyLiked(): void
-    {
-        $existing = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
-        $this->likeRepository->method('findByOwnerAndItem')->willReturn($existing);
-        $this->likeRepository->expects($this->never())->method('save');
+            ->method('likeOrGet')
+            ->with(
+                $this->callback(fn (OwnerId $ownerId): bool => $ownerId->equals($expectedOwnerId)),
+                $this->identicalTo($this->item),
+            )
+            ->willReturn($like);
         $this->unitOfWork->expects($this->never())->method('flush');
 
-        $this->assertSame($existing, $this->service->like($this->owner, $this->item));
+        $this->assertSame($like, $this->service->like($this->owner, $this->item));
     }
 
     public function testUnlikeRemovesAndFlushes(): void
@@ -109,30 +99,6 @@ final class LikeServiceTest extends TestCase
         $this->service->unlike($this->owner, $this->item);
     }
 
-    public function testToggleLikesWhenNotLiked(): void
-    {
-        $this->likeRepository->method('findByOwnerAndItem')->willReturn(null);
-        $this->likeRepository
-            ->expects($this->once())
-            ->method('save')
-            ->with($this->callback(
-                fn (Like $like): bool => $like->getOwnerId()->equals(OwnerId::fromBytes($this->owner->getId()->toBytes())) && $like->getItem() === $this->item,
-            ));
-        $this->unitOfWork->expects($this->once())->method('flush');
-
-        $this->assertTrue($this->service->toggle($this->owner, $this->item));
-    }
-
-    public function testToggleUnlikesWhenLiked(): void
-    {
-        $existing = Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item);
-        $this->likeRepository->method('findByOwnerAndItem')->willReturn($existing);
-        $this->likeRepository->expects($this->once())->method('remove')->with($existing);
-        $this->unitOfWork->expects($this->once())->method('flush');
-
-        $this->assertFalse($this->service->toggle($this->owner, $this->item));
-    }
-
     public function testIsLikedByTrueWhenLiked(): void
     {
         $this->likeRepository->method('findByOwnerAndItem')->willReturn(Like::create(OwnerId::fromBytes($this->owner->getId()->toBytes()), $this->item));
@@ -152,22 +118,6 @@ final class LikeServiceTest extends TestCase
         $this->likeRepository->expects($this->never())->method('findByOwnerAndItem');
 
         $this->assertFalse($this->service->isLikedBy(null, $this->item));
-    }
-
-    public function testFindByOwnerAndItemUsesOwnerIdFromUser(): void
-    {
-        $expectedOwnerId = OwnerId::fromBytes($this->owner->getId()->toBytes());
-        $this->likeRepository
-            ->expects($this->once())
-            ->method('findByOwnerAndItem')
-            ->with(
-                $this->callback(fn (OwnerId $ownerId): bool => $ownerId->equals($expectedOwnerId)),
-                $this->callback(fn ($itemId): bool => $itemId->equals($this->item->getId())),
-            )
-            ->willReturn(null);
-        $this->likeRepository->method('save');
-
-        $this->service->like($this->owner, $this->item);
     }
 
     public function testGetByIdDelegatesAndReturnsLike(): void

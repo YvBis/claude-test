@@ -68,6 +68,60 @@ final class DoctrineLikeRepositoryTest extends KernelTestCase
         return $like;
     }
 
+    public function testLikeOrGetInsertsOnceForTheSamePair(): void
+    {
+        $owner = $this->createUser();
+        $item = $this->createItem($owner);
+        $this->em->flush();
+
+        $repo = self::getContainer()->get(LikeRepositoryInterface::class);
+        $first = $repo->likeOrGet($this->ownerId($owner), $item);
+        $second = $repo->likeOrGet($this->ownerId($owner), $item);
+
+        $this->assertSame($first->getId()->toString(), $second->getId()->toString());
+        $this->assertSame(1, $repo->countByItemId($item->getId()));
+    }
+
+    public function testLikeOrGetKeepsOneRowPerItemAndOwner(): void
+    {
+        $owner = $this->createUser();
+        $other = $this->createUser();
+        $item = $this->createItem($owner);
+        $secondItem = $this->createItem($owner);
+        $this->em->flush();
+
+        $repo = self::getContainer()->get(LikeRepositoryInterface::class);
+        $first = $repo->likeOrGet($this->ownerId($owner), $item);
+        $sameOwnerOtherItem = $repo->likeOrGet($this->ownerId($owner), $secondItem);
+
+        $this->assertNotSame($first->getId()->toString(), $sameOwnerOtherItem->getId()->toString());
+        $this->assertSame(1, $repo->countByItemId($item->getId()));
+        $this->assertSame(1, $repo->countByItemId($secondItem->getId()));
+
+        $repo->likeOrGet($this->ownerId($other), $item);
+
+        $this->assertSame(2, $repo->countByItemId($item->getId()));
+    }
+
+    public function testLikeOrGetRefusesToRunInsideATransaction(): void
+    {
+        $owner = $this->createUser();
+        $item = $this->createItem($owner);
+        $this->em->flush();
+
+        $repo = self::getContainer()->get(LikeRepositoryInterface::class);
+        $connection = $this->em->getConnection();
+        $connection->beginTransaction();
+
+        try {
+            $this->expectException(\LogicException::class);
+            $this->expectExceptionMessage('likeOrGet must not run inside a transaction');
+            $repo->likeOrGet($this->ownerId($owner), $item);
+        } finally {
+            $connection->rollBack();
+        }
+    }
+
     public function testFindByOwnerAndItem(): void
     {
         $owner = $this->createUser();
