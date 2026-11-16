@@ -6,6 +6,7 @@ namespace App\Tests\Application\User\Service;
 
 use App\Application\Common\Transaction\UnitOfWorkInterface;
 use App\Application\DTO\RegisterUserDTO;
+use App\Application\Exception\ConflictException;
 use App\Application\User\Service\RegistrationService;
 use App\Domain\User\Entity\User;
 use App\Domain\User\Exception\UserAlreadyExistsException;
@@ -78,6 +79,32 @@ final class RegistrationServiceTest extends TestCase
         $this->unitOfWork->expects($this->never())->method('flush');
 
         $this->service->register($dto);
+    }
+
+    public function testRegisterMapsAUniqueViolationOnFlushToAlreadyExists(): void
+    {
+        $dto = new RegisterUserDTO('John Doe', 'john@example.com', 'securePassword123');
+
+        $this->userRepository
+            ->expects($this->once())
+            ->method('existsByEmail')
+            ->willReturn(false);
+        $this->userRepository->expects($this->once())->method('save');
+        $this->unitOfWork
+            ->expects($this->once())
+            ->method('flush')
+            ->willThrowException(new ConflictException('Duplicate entry'));
+
+        $this->expectException(UserAlreadyExistsException::class);
+        $this->expectExceptionMessage('User with email "john@example.com" already exists');
+
+        try {
+            $this->service->register($dto);
+        } catch (UserAlreadyExistsException $alreadyExists) {
+            $this->assertInstanceOf(ConflictException::class, $alreadyExists->getPrevious());
+
+            throw $alreadyExists;
+        }
     }
 
     public function testRegisterTrimsNameAndLowercasesEmail(): void

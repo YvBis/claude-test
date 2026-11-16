@@ -6,6 +6,7 @@ namespace App\Application\User\Service;
 
 use App\Application\Common\Transaction\UnitOfWorkInterface;
 use App\Application\DTO\RegisterUserDTO;
+use App\Application\Exception\ConflictException;
 use App\Domain\User\Entity\User;
 use App\Domain\User\Exception\UserAlreadyExistsException;
 use App\Domain\User\Repository\UserRepositoryInterface;
@@ -37,7 +38,12 @@ final readonly class RegistrationService
         $user = User::register($dto->name, $email, $passwordHash, $role);
 
         $this->userRepository->save($user);
-        $this->unitOfWork->flush();
+
+        try {
+            $this->unitOfWork->flush();
+        } catch (ConflictException $conflictException) {
+            throw UserAlreadyExistsException::withEmail($email->value(), $conflictException);
+        }
 
         return $user;
     }
