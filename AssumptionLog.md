@@ -5378,3 +5378,21 @@ chars`, восстанавливает кодировку в `finally`. Крас
 **Замеры:** красное доказательство — без `ON DUPLICATE KEY UPDATE` второй вызов падает на UNIQUE; после правки 55 тестов лайков зелёные, `ci:all` 1190/7634.
 
 **Roadmap:** 10.3a done → этап 5/17, итог 65/77. Дальше 10.3b (трансляция UoW + гонка регистрации).
+
+## 2026-11-16 — 10.3b: гонка регистрации маппится в 409, а не в 500
+
+**Дефект:** `existsByEmail` затем insert+flush; параллельная регистрация того же email проходила проверку и падала на `UNIQ_1483A5E9E7927C74 (email)`. Контроллеры ловят только `UserAlreadyExistsException` → голый 500.
+
+**Решение:** `App\Application\Exception\ConflictException` (Application, рядом с `ValidationException`, причина в `previous`); `DoctrineUnitOfWork::flush()` и `::transactional()` ловят **только** DBAL `UniqueConstraintViolationException` и бросают его; `RegistrationService` мапит в `UserAlreadyExistsException` → существующий 409. `existsByEmail` остаётся advisory-путём.
+
+**Почему `transactional()` тоже:** `EntityManager::wrapInTransaction()` сам вызывает `flush()` (`EntityManager.php:191`), поэтому без второго catch гонка внутри `ItemService::create/update` отдала бы сырой DBAL.
+
+**Почему не upsert, как в 10.3a:** upsert поглотил бы дубль и вернул чужую строку, а контракт регистрации требует 409; к тому же `User::register()` создаёт новый id и хеширует пароль.
+
+**Вендорная проверка:** DBAL MySQL конвертирует 1062 в `UniqueConstraintViolationException`; ORM его не оборачивает (`BasicEntityPersister` пропускает наружу, `UnitOfWork::commit()` превращает в `OptimisticLockException` только неудачный commit). Конструктор исключения — `(Driver\Exception, ?Query)`, строковый аргумент дал бы `TypeError`, поэтому тест строит драйверное исключение анонимным классом.
+
+**Blast radius:** через flush достижимы `users.email`, `tags.name`, `likes.(owner_id,item_id)` и дормантный `collection_fields.(collection_id,field_type,slot_index)`; все станут `ConflictException`. Ничего их не ловит → поведение не меняется, но в доках зафиксировано, что новый ключ, для которого 409 неверен, потребует своего маппинга.
+
+**Замеры:** красное доказательство — без catch в UoW тест получает `UniqueConstraintViolationException`; после правки 12 тестов UoW+сервиса зелёные, `ci:all` ниже.
+
+**Roadmap:** 10.3b done → этап 6/17, итог 66/77.

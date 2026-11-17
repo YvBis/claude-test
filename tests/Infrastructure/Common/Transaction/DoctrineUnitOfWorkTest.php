@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Infrastructure\Common\Transaction;
 
+use App\Application\Exception\ConflictException;
 use App\Infrastructure\Common\Transaction\DoctrineUnitOfWork;
+use Doctrine\DBAL\Driver\Exception as DriverException;
+use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
@@ -59,5 +63,87 @@ final class DoctrineUnitOfWorkTest extends TestCase
         $this->expectExceptionMessage('boom');
 
         $uow->transactional($callback);
+    }
+
+    public function testFlushTranslatesUniqueConstraintViolationIntoConflict(): void
+    {
+        $violation = $this->uniqueViolation();
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('flush')->willThrowException($violation);
+
+        $uow = new DoctrineUnitOfWork($em);
+
+        try {
+            $uow->flush();
+            $this->fail('Expected ConflictException');
+        } catch (ConflictException $conflictException) {
+            $this->assertSame($violation, $conflictException->getPrevious());
+            $this->assertSame('Duplicate entry', $conflictException->getMessage());
+        }
+    }
+
+    public function testFlushPassesOtherDatabaseErrorsThrough(): void
+    {
+        $foreignKeyViolation = $this->foreignKeyViolation();
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('flush')->willThrowException($foreignKeyViolation);
+
+        $uow = new DoctrineUnitOfWork($em);
+
+        try {
+            $uow->flush();
+            $this->fail('Expected the DBAL exception to pass through');
+        } catch (ForeignKeyConstraintViolationException $caught) {
+            $this->assertSame($foreignKeyViolation, $caught);
+        }
+    }
+
+    public function testTransactionalPassesOtherDatabaseErrorsThrough(): void
+    {
+        $foreignKeyViolation = $this->foreignKeyViolation();
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('wrapInTransaction')->willThrowException($foreignKeyViolation);
+
+        $uow = new DoctrineUnitOfWork($em);
+
+        $this->expectException(ForeignKeyConstraintViolationException::class);
+
+        $uow->transactional(static fn (): string => 'unreachable');
+    }
+
+    public function testTransactionalTranslatesUniqueConstraintViolationIntoConflict(): void
+    {
+        $violation = $this->uniqueViolation();
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('wrapInTransaction')->willThrowException($violation);
+
+        $uow = new DoctrineUnitOfWork($em);
+
+        try {
+            $uow->transactional(static fn (): string => 'unreachable');
+            $this->fail('Expected ConflictException');
+        } catch (ConflictException $conflictException) {
+            $this->assertSame($violation, $conflictException->getPrevious());
+        }
+    }
+
+    private function foreignKeyViolation(): ForeignKeyConstraintViolationException
+    {
+        return new ForeignKeyConstraintViolationException($this->driverException('Foreign key violation'), null);
+    }
+
+    private function uniqueViolation(): UniqueConstraintViolationException
+    {
+        return new UniqueConstraintViolationException($this->driverException('Duplicate entry'), null);
+    }
+
+    private function driverException(string $message): DriverException
+    {
+        return new class ($message) extends \Exception implements DriverException {
+            public function getSQLState(): ?string
+            {
+                return '23000';
+            }
+        };
     }
 }
