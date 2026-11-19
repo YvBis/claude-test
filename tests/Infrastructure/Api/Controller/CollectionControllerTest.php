@@ -714,6 +714,133 @@ final class CollectionControllerTest extends WebTestCase
         $this->assertSame($name, $response['name']);
     }
 
+    public function testUpdateClearsDescriptionWhenNullIsExplicit(): void
+    {
+        $id = $this->createCollectionId($this->token);
+        $this->patchCollection($id, ['description' => 'Temporary description']);
+        $this->assertResponseStatusCodeSame(200);
+
+        $this->patchCollection($id, ['description' => null]);
+
+        $this->assertResponseStatusCodeSame(200);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertNull($response['description']);
+    }
+
+    public function testUpdateClearsImageWhenNullIsExplicit(): void
+    {
+        $id = $this->createCollectionId($this->token);
+        $this->patchCollection($id, ['image' => 'https://example.com/temp.jpg']);
+        $this->assertResponseStatusCodeSame(200);
+
+        $this->patchCollection($id, ['image' => null]);
+
+        $this->assertResponseStatusCodeSame(200);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertNull($response['image']);
+    }
+
+    public function testUpdateClearsDescriptionWhenEmptyStringIsSent(): void
+    {
+        $id = $this->createCollectionId($this->token);
+        $this->patchCollection($id, ['description' => 'Temporary description']);
+        $this->assertResponseStatusCodeSame(200);
+
+        $this->patchCollection($id, ['description' => '']);
+
+        $this->assertResponseStatusCodeSame(200);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertNull($response['description']);
+    }
+
+    public function testUpdateChangesTheme(): void
+    {
+        $id = $this->createCollectionId($this->token);
+
+        $this->client->request('PATCH', '/api/collections/'.$id, [], [], $this->authHeaders(), \json_encode([
+            'theme' => 'games',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(200);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('games', $response['theme']);
+    }
+
+    public function testUpdateRejectsUnknownTheme(): void
+    {
+        $id = $this->createCollectionId($this->token);
+
+        $this->client->request('PATCH', '/api/collections/'.$id, [], [], $this->authHeaders(), \json_encode([
+            'theme' => 'garbage',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(422);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('Unprocessable Entity', $data['error']);
+        $this->assertStringContainsString('Invalid theme', \implode(' ', $data['details']));
+    }
+
+    public function testUpdateRejectsNullTheme(): void
+    {
+        $id = $this->createCollectionId($this->token);
+
+        $this->client->request('PATCH', '/api/collections/'.$id, [], [], $this->authHeaders(), \json_encode([
+            'theme' => null,
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(422);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertContains('Theme cannot be null', $data['details']);
+    }
+
+    public function testUpdateRejectsNullName(): void
+    {
+        $id = $this->createCollectionId($this->token);
+
+        $this->client->request('PATCH', '/api/collections/'.$id, [], [], $this->authHeaders(), \json_encode([
+            'name' => null,
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(422);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertContains('Collection name cannot be null', $data['details']);
+    }
+
+    public function testUpdateRejectsUnknownOnlyBody(): void
+    {
+        $id = $this->createCollectionId($this->token);
+
+        $this->client->request('PATCH', '/api/collections/'.$id, [], [], $this->authHeaders(), \json_encode([
+            'unknown' => 'value',
+        ], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(422);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('At least one field must be provided for update', $data['message']);
+    }
+
+    public function testUpdateRejectsWhitespaceOnlyName(): void
+    {
+        $id = $this->createCollectionId($this->token);
+
+        $this->patchCollection($id, ['name' => '   ']);
+
+        $this->assertResponseStatusCodeSame(422);
+        $data = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertContains('Collection name cannot be null', $data['details']);
+    }
+
+    public function testUpdateAcceptsThemeWithSurroundingWhitespaceAndCase(): void
+    {
+        $id = $this->createCollectionId($this->token);
+
+        $this->patchCollection($id, ['theme' => ' Games ']);
+
+        $this->assertResponseStatusCodeSame(200);
+        $response = \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertSame('games', $response['theme']);
+    }
+
     public function testUpdateReturns422WhenNoChanges(): void
     {
         $this->client->request('POST', '/api/collections', [], [], $this->authHeaders(), \json_encode([
@@ -888,6 +1015,14 @@ final class CollectionControllerTest extends WebTestCase
             'Moderated name',
             \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR)['name'],
         );
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     */
+    private function patchCollection(string $id, array $body): void
+    {
+        $this->client->request('PATCH', '/api/collections/'.$id, [], [], $this->authHeaders(), \json_encode($body, \JSON_THROW_ON_ERROR));
     }
 
     private function createCollectionId(string $token): string

@@ -161,6 +161,7 @@ final class ValidationConsistencyTest extends TestCase
             'paths POST /api/collections requestBody/properties/image/maxLength' => ['scalar', Collection::MAX_IMAGE_LENGTH],
             'paths PATCH /api/collections/{id} requestBody/properties/name/minLength' => ['scalar', CollectionName::MIN_NAME_LENGTH],
             'paths PATCH /api/collections/{id} requestBody/properties/name/maxLength' => ['scalar', CollectionName::MAX_NAME_LENGTH],
+            'paths PATCH /api/collections/{id} requestBody/properties/theme/enum' => ['enum', Theme::values()],
             'paths PATCH /api/collections/{id} requestBody/properties/description/maxLength' => ['scalar', Collection::MAX_DESCRIPTION_LENGTH],
             'paths PATCH /api/collections/{id} requestBody/properties/image/maxLength' => ['scalar', Collection::MAX_IMAGE_LENGTH],
             'paths POST /api/items/{itemId}/comments requestBody/properties/content/maxLength' => ['scalar', CommentContent::MAX_LENGTH],

@@ -53,26 +53,56 @@ abstract class AbstractApiController extends BaseAbstractController
      */
     protected function deserializeAndValidate(string $content, string $dtoClass, SerializerInterface $serializer, ValidatorInterface $validator): object
     {
+        $dto = $this->deserialize($content, $dtoClass, $serializer);
+        $this->assertValid($dto, $validator);
+
+        return $dto;
+    }
+
+    /**
+     * Deserializes request content into a DTO without validating it.
+     *
+     * Callers that enrich the DTO after deserialization (e.g. with presence
+     * flags the serializer cannot see) validate once afterwards via
+     * {@see self::assertValid()}, so a client-supplied constructor argument
+     * cannot skew the pre-enrichment pass.
+     *
+     * @param class-string<object> $dtoClass
+     *
+     * @throws \Symfony\Component\Serializer\Exception\ExceptionInterface
+     * @throws ValidationException
+     */
+    protected function deserialize(string $content, string $dtoClass, SerializerInterface $serializer): object
+    {
         try {
-            $dto = $serializer->deserialize($content, $dtoClass, 'json');
+            return $serializer->deserialize($content, $dtoClass, 'json');
         } catch (MissingConstructorArgumentsException $missingConstructorArgumentsException) {
             throw new ValidationException('Validation failed', \array_map(
                 $this->toWireFieldName(...),
                 $missingConstructorArgumentsException->getMissingConstructorArguments(),
             ));
         }
+    }
 
+    /**
+     * Validates an already built DTO (e.g. after the controller enriched it)
+     * and reports violations through the same 422 path as deserializeAndValidate().
+     *
+     * @throws ValidationException
+     */
+    protected function assertValid(object $dto, ValidatorInterface $validator): void
+    {
         $errors = $validator->validate($dto);
-        if (\count($errors) > 0) {
-            $messages = [];
-            foreach ($errors as $error) {
-                $messages[] = $error->getMessage();
-            }
-
-            throw new ValidationException('Validation failed', $messages);
+        if (0 === \count($errors)) {
+            return;
         }
 
-        return $dto;
+        $messages = [];
+        foreach ($errors as $error) {
+            $messages[] = $error->getMessage();
+        }
+
+        throw new ValidationException('Validation failed', $messages);
     }
 
     /**

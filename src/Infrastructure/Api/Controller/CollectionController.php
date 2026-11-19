@@ -256,7 +256,7 @@ final class CollectionController extends AbstractApiController
         path: '/api/collections/{id}',
         security: [['Bearer' => []]],
         summary: 'Update a collection',
-        description: 'Updates an existing collection (only name, description, image can be changed). Requires the caller to own the collection or to be an administrator.',
+        description: 'Updates an existing collection. Only the fields present in the body change: an omitted key is left untouched, an explicit null clears description or image. An empty object or an object with only unknown keys yields 422. Requires the caller to own the collection or to be an administrator.',
         parameters: [
             new OA\Parameter(
                 name: 'id',
@@ -270,8 +270,9 @@ final class CollectionController extends AbstractApiController
             content: new OA\JsonContent(
                 properties: [
                     new OA\Property(property: 'name', type: 'string', minLength: CollectionName::MIN_NAME_LENGTH, maxLength: CollectionName::MAX_NAME_LENGTH, example: 'My Updated Book Collection'),
-                    new OA\Property(property: 'description', type: 'string', maxLength: Collection::MAX_DESCRIPTION_LENGTH, example: 'An updated description'),
-                    new OA\Property(property: 'image', type: 'string', maxLength: Collection::MAX_IMAGE_LENGTH, example: 'https://example.com/new-cover.jpg'),
+                    new OA\Property(property: 'theme', type: 'string', enum: ['books', 'games', 'movies', 'drinks'], example: 'games'),
+                    new OA\Property(property: 'description', type: 'string', maxLength: Collection::MAX_DESCRIPTION_LENGTH, nullable: true, example: 'An updated description'),
+                    new OA\Property(property: 'image', type: 'string', maxLength: Collection::MAX_IMAGE_LENGTH, nullable: true, example: 'https://example.com/new-cover.jpg'),
                 ],
                 type: 'object'
             )
@@ -287,8 +288,8 @@ final class CollectionController extends AbstractApiController
                         new OA\Property(property: 'id', type: 'string', format: 'uuid', example: '018f0a1b-2c3d-4e5f-6789-0123456789ab'),
                         new OA\Property(property: 'name', type: 'string', example: 'My Updated Book Collection'),
                         new OA\Property(property: 'theme', type: 'string', example: 'books'),
-                        new OA\Property(property: 'description', type: 'string', example: 'An updated description'),
-                        new OA\Property(property: 'image', type: 'string', example: 'https://example.com/new-cover.jpg'),
+                        new OA\Property(property: 'description', type: 'string', nullable: true, example: 'An updated description'),
+                        new OA\Property(property: 'image', type: 'string', nullable: true, example: 'https://example.com/new-cover.jpg'),
                         new OA\Property(property: 'owner_id', type: 'string', format: 'uuid', example: '018f0a1b-2c3d-4e5f-6789-0123456789ab'),
                         new OA\Property(property: 'created_at', type: 'string', format: 'date-time', example: '2026-07-17T12:00:00Z'),
                         new OA\Property(property: 'updated_at', type: 'string', format: 'date-time', example: '2026-07-17T12:00:00Z'),
@@ -312,7 +313,10 @@ final class CollectionController extends AbstractApiController
         }
 
         try {
-            $dto = $this->deserializeAndValidate($request->getContent(), UpdateCollectionDTO::class, $serializer, $validator);
+            $dto = $this->deserialize($request->getContent(), UpdateCollectionDTO::class, $serializer);
+            $decoded = \json_decode($request->getContent(), true);
+            $dto = $dto->withProvidedFields(\is_array($decoded) ? \array_keys($decoded) : []);
+            $this->assertValid($dto, $validator);
         } catch (ValidationException $validationException) {
             return $this->createValidationErrorResponse($validationException->getDetails());
         } catch (NotEncodableValueException|NotNormalizableValueException) {
