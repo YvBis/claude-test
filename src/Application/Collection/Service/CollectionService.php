@@ -63,18 +63,22 @@ final readonly class CollectionService
         // The VO is built once and compared before mutation: comparing raw
         // strings would fan out on a same-value "rename" (whitespace aside),
         // and comparing after changeName could never see a difference.
-        $newName = null !== $dto->name ? CollectionName::fromString($dto->name) : null;
+        $newName = $dto->hasName() && null !== $dto->name ? CollectionName::fromString($dto->name) : null;
         $renamed = $newName instanceof CollectionName && !$collection->getName()->equals($newName);
 
         if ($newName instanceof CollectionName) {
             $collection->changeName($newName);
         }
 
-        if (null !== $dto->description) {
+        if ($dto->hasTheme() && null !== $dto->theme) {
+            $collection->changeTheme(Theme::fromString($dto->theme));
+        }
+
+        if ($dto->hasDescription()) {
             $collection->changeDescription($dto->description);
         }
 
-        if (null !== $dto->image) {
+        if ($dto->hasImage()) {
             $collection->changeImage($dto->image);
         }
 

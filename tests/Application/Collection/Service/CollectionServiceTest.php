@@ -302,6 +302,39 @@ final class CollectionServiceTest extends TestCase
         $this->assertSame('books', $updated->getTheme()->value()); // unchanged
     }
 
+    public function testUpdateChangesTheme(): void
+    {
+        $collection = Collection::create(
+            ownerId: $this->ownerId,
+            name: CollectionName::fromString('Old Name'),
+            theme: Theme::fromString('books'),
+        );
+
+        $this->collectionRepository->expects($this->once())->method('save');
+        $this->unitOfWork->expects($this->once())->method('flush');
+
+        $updated = $this->service->update(new UpdateCollectionDTO(theme: 'movies'), $collection);
+
+        $this->assertSame('movies', $updated->getTheme()->value());
+    }
+
+    public function testUpdateIgnoresProvidedNameAndThemeWithoutValue(): void
+    {
+        $collection = Collection::create(
+            ownerId: $this->ownerId,
+            name: CollectionName::fromString('Old Name'),
+            theme: Theme::fromString('books'),
+        );
+
+        $this->collectionRepository->expects($this->once())->method('save');
+        $this->unitOfWork->expects($this->once())->method('flush');
+
+        $updated = $this->service->update(new UpdateCollectionDTO(provided: ['name', 'theme']), $collection);
+
+        $this->assertSame('Old Name', $updated->getName()->value());
+        $this->assertSame('books', $updated->getTheme()->value());
+    }
+
     public function testGetByIdThrowsWhenNotFound(): void
     {
         $id = CollectionId::generate()->toString();
