@@ -102,6 +102,14 @@ jobs:
       # OpenAI-compatible protocol, so "llm_provider: groq" is the transport for
       # the NVIDIA NIM endpoint and model below.
       #
+      # The model is not permanent: NVIDIA retires catalog models with a 410
+      # ("reached its end of life"). `openai/gpt-oss-20b` was retired on
+      # 2026-11-18, which is why this is `z-ai/glm-5.3-flash` (task 10.18).
+      # When the fallback starts failing with 410, list the live catalog at
+      # https://integrate.api.nvidia.com/v1/models, pick a chat/completions-capable
+      # model (the catalog is mostly embed/rerank/safety entries), and update the
+      # model here AND the pin in tests/Infrastructure/Ci/CodeReviewConfigTest.php.
+      #
       # The condition is a fail-open test, not a failure test: it runs the fallback
       # whenever a verdict is not *known* to exist - `missing`, `unverified` (the
       # API was unreadable), or an output that never got written. That costs one
@@ -125,7 +133,7 @@ jobs:
           llm_api_key: ${{ secrets.NVIDIA_API_KEY }}
           llm_provider: groq
           llm_api_url: https://integrate.api.nvidia.com/v1
-          llm_model: openai/gpt-oss-20b
+          llm_model: z-ai/glm-5.3-flash
           review_mode: both
           tone_mode: balanced
 
