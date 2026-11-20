@@ -1,0 +1,46 @@
+name: NIM model probe
+
+# Manual only: measures which NVIDIA NIM chat model answers reliably and how
+# fast, so the AI-review fallback is pinned from data instead of guesswork
+# (task 10.19). Never runs on push or PR and is not a required check.
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: 'Space-separated model ids; empty uses the script defaults'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe NIM models
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          MODELS: ${{ inputs.models }}
+        run: |
+          set -euo pipefail
+          read -r -a models <<< "${MODELS}"
+          if [[ ${#models[@]} -eq 0 ]]; then
+            bash scripts/probe-nim-models.sh | tee probe.md
+          else
+            bash scripts/probe-nim-models.sh "${models[@]}" | tee probe.md
+          fi
+          cat probe.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload probe output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nim-model-probe
+          path: probe.md
+          if-no-files-found: ignore
