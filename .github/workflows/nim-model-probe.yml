@@ -23,6 +23,10 @@ on:
         description: 'Per-request timeout in seconds'
         required: false
         default: '120'
+      reasoning_effort:
+        description: 'reasoning_effort sent to the API (OpenRabbit always sends medium)'
+        required: false
+        default: 'medium'
 
 permissions:
   contents: read
@@ -42,6 +46,7 @@ jobs:
           NIM_PROBE_MAX_TOKENS: ${{ inputs.max_tokens }}
           NIM_PROBE_ATTEMPTS: ${{ inputs.attempts }}
           NIM_PROBE_TIMEOUT: ${{ inputs.timeout }}
+          NIM_PROBE_REASONING_EFFORT: ${{ inputs.reasoning_effort }}
         run: |
           set -euo pipefail
           read -r -a models <<< "${MODELS}"

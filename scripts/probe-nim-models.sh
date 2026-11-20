@@ -8,6 +8,9 @@
 #                         prompt so latency reflects real review generation
 #   NIM_PROBE_ATTEMPTS    attempts per model (default 2)
 #   NIM_PROBE_TIMEOUT     curl --max-time seconds (default 120)
+#   NIM_PROBE_REASONING_EFFORT  sent as reasoning_effort (default medium) because
+#                         OpenRabbit's groq transport always sends it; a model that
+#                         rejects the parameter must fail here, not in the gate
 #   NIM_API_URL           endpoint (default NVIDIA NIM chat/completions)
 #
 # Prints a markdown table: successes, fastest/slowest seconds, HTTP status of
@@ -70,7 +73,8 @@ EOF
 payload() {
   local model="$1"
   jq -n --arg model "$model" --arg prompt "$(prompt)" --argjson max "$MAX_TOKENS" \
-    '{model: $model, messages: [{role: "user", content: $prompt}], max_tokens: $max, temperature: 0}'
+    --arg effort "${NIM_PROBE_REASONING_EFFORT:-medium}" \
+    '{model: $model, messages: [{role: "user", content: $prompt}], max_tokens: $max, temperature: 1, reasoning_effort: $effort}'
 }
 
 echo "| model | attempts | ok | fastest s | slowest s | last HTTP | last error |"
