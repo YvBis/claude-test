@@ -164,9 +164,9 @@ final class CodeReviewConfigTest extends TestCase
             'The fallback endpoint is pinned: pointing it elsewhere silently switches providers.',
         );
         self::assertSame(
-            'z-ai/glm-5.3-flash',
+            'nvidia/nemotron-3-ultra-550b-a55b',
             $fallbackWith['llm_model'],
-            'The fallback model is pinned: NVIDIA retires catalog models with a 410, so a silent swap or a stale pin both need a deliberate edit (task 10.18).',
+            'The fallback model is pinned: NVIDIA retires catalog models with a 410, so a silent swap or a stale pin both need a deliberate edit (tasks 10.18/10.19).',
         );
         self::assertSame('${{ secrets.NVIDIA_API_KEY }}', $fallbackWith['llm_api_key']);
         self::assertSame('both', $fallbackWith['review_mode']);
