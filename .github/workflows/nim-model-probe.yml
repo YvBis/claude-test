@@ -11,6 +11,18 @@ on:
         description: 'Space-separated model ids; empty uses the script defaults'
         required: false
         default: ''
+      max_tokens:
+        description: 'Output cap; >32 switches to a review-like prompt'
+        required: false
+        default: '16'
+      attempts:
+        description: 'Attempts per model'
+        required: false
+        default: '2'
+      timeout:
+        description: 'Per-request timeout in seconds'
+        required: false
+        default: '120'
 
 permissions:
   contents: read
@@ -27,6 +39,9 @@ jobs:
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           MODELS: ${{ inputs.models }}
+          NIM_PROBE_MAX_TOKENS: ${{ inputs.max_tokens }}
+          NIM_PROBE_ATTEMPTS: ${{ inputs.attempts }}
+          NIM_PROBE_TIMEOUT: ${{ inputs.timeout }}
         run: |
           set -euo pipefail
           read -r -a models <<< "${MODELS}"

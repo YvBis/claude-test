@@ -3,14 +3,22 @@
 #
 # Usage: NVIDIA_API_KEY=... scripts/probe-nim-models.sh [model ...]
 #
-# Prints one markdown table row per model and exits non-zero when no model
-# answered. The list defaults to the chat-capable candidates that were in the
-# catalog when the fallback model had to be replaced (task 10.19).
+# Env:
+#   NIM_PROBE_MAX_TOKENS  output cap (default 16); >32 switches to a review-like
+#                         prompt so latency reflects real review generation
+#   NIM_PROBE_ATTEMPTS    attempts per model (default 2)
+#   NIM_PROBE_TIMEOUT     curl --max-time seconds (default 120)
+#   NIM_API_URL           endpoint (default NVIDIA NIM chat/completions)
+#
+# Prints a markdown table: successes, fastest/slowest seconds, HTTP status of
+# the last failure and a short error snippet. Exits non-zero only when no model
+# answered at all.
 set -euo pipefail
 
 API_URL="${NIM_API_URL:-https://integrate.api.nvidia.com/v1/chat/completions}"
 TIMEOUT="${NIM_PROBE_TIMEOUT:-120}"
 ATTEMPTS="${NIM_PROBE_ATTEMPTS:-2}"
+MAX_TOKENS="${NIM_PROBE_MAX_TOKENS:-16}"
 
 DEFAULT_MODELS=(
   "z-ai/glm-5.3-flash"
@@ -34,13 +42,39 @@ if [[ -z "${NVIDIA_API_KEY:-}" ]]; then
   exit 2
 fi
 
-payload() {
-  local model="$1"
-  printf '{"model":"%s","messages":[{"role":"user","content":"Reply with the single word OK."}],"max_tokens":16,"temperature":0}' "$model"
+prompt() {
+  if [[ "$MAX_TOKENS" -gt 32 ]]; then
+    cat <<'EOF'
+Review this diff and answer with five short bullet points: one correctness risk, one
+security concern, one performance note, one test gap, one readability nit.
+
+--- a/src/Service/PaymentService.php
++++ b/src/Service/PaymentService.php
+@@
+-    public function charge(int $userId, int $amount): void
+-    {
+-        $this->gateway->charge($userId, $amount);
+-    }
++    public function charge(string $userId, int $amount): void
++    {
++        $user = $this->users->find($userId);
++        $this->gateway->charge($user->id, $amount);
++        $this->logger->info('charged ' . $user->email);
++    }
+EOF
+  else
+    echo 'Reply with the single word OK.'
+  fi
 }
 
-echo "| model | attempts | ok | fastest s | slowest s | last error |"
-echo "|---|---|---|---|---|---|"
+payload() {
+  local model="$1"
+  jq -n --arg model "$model" --arg prompt "$(prompt)" --argjson max "$MAX_TOKENS" \
+    '{model: $model, messages: [{role: "user", content: $prompt}], max_tokens: $max, temperature: 0}'
+}
+
+echo "| model | attempts | ok | fastest s | slowest s | last HTTP | last error |"
+echo "|---|---|---|---|---|---|---|"
 
 any_ok=0
 
@@ -48,35 +82,39 @@ for model in "${MODELS[@]}"; do
   ok=0
   fastest=""
   slowest=""
+  last_http="—"
   last_error=""
 
   for ((attempt = 1; attempt <= ATTEMPTS; attempt++)); do
     body_file="$(mktemp)"
-    code_file="$(mktemp)"
-    seconds="$(curl -sS --max-time "$TIMEOUT" -o "$body_file" -w '%{time_total}' \
+    meta_file="$(mktemp)"
+    meta="$(curl -sS --max-time "$TIMEOUT" -o "$body_file" -w '%{http_code} %{time_total}' \
       -H "Authorization: Bearer ${NVIDIA_API_KEY}" \
       -H 'Content-Type: application/json' \
       -d "$(payload "$model")" \
-      "$API_URL" 2>"$code_file" || true)"
-    curl_error="$(tr -d '\n' <"$code_file")"
+      "$API_URL" 2>"$meta_file" || true)"
+    curl_error="$(tr -d '\n' <"$meta_file")"
+    http_code="${meta%% *}"
+    seconds="${meta##* }"
     content="$(jq -r '.choices[0].message.content // empty' "$body_file" 2>/dev/null || true)"
-    status="$(jq -r '.error.message // empty' "$body_file" 2>/dev/null || true)"
 
-    if [[ -n "$seconds" && -n "$content" ]]; then
+    if [[ "$http_code" == "200" && -n "$content" ]]; then
       ok=$((ok + 1))
       fastest="$(printf '%s\n%s\n' "$fastest" "$seconds" | sed '/^$/d' | sort -n | head -1)"
       slowest="$(printf '%s\n%s\n' "$slowest" "$seconds" | sed '/^$/d' | sort -n | tail -1)"
     else
-      last_error="${curl_error:-${status:-no content}}"
-      last_error="${last_error:0:120}"
+      last_http="${http_code:-—}"
+      snippet="$(jq -c '.error // .' "$body_file" 2>/dev/null | head -c 160 || true)"
+      last_error="${curl_error:-${snippet:-empty body}}"
+      last_error="${last_error:0:160}"
     fi
 
-    rm -f "$body_file" "$code_file"
+    rm -f "$body_file" "$meta_file"
   done
 
   [[ "$ok" -gt 0 ]] && any_ok=1
-  printf '| %s | %s | %s | %s | %s | %s |\n' \
-    "$model" "$ATTEMPTS" "$ok" "${fastest:-—}" "${slowest:-—}" "${last_error:-—}"
+  printf '| %s | %s | %s | %s | %s | %s | %s |\n' \
+    "$model" "$ATTEMPTS" "$ok" "${fastest:-—}" "${slowest:-—}" "$last_http" "${last_error:-—}"
 done
 
 if [[ "$any_ok" -eq 0 ]]; then
