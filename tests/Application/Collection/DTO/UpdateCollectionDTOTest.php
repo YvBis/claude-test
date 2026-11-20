@@ -73,6 +73,16 @@ final class UpdateCollectionDTOTest extends TestCase
         self::assertTrue($dto->hasTheme());
     }
 
+    public function testTextFieldsAreTrimmedAndBlankBecomesNull(): void
+    {
+        $dto = new UpdateCollectionDTO(description: '  padded  ', image: "   \t ");
+
+        self::assertSame('padded', $dto->description);
+        self::assertNull($dto->image);
+        self::assertTrue($dto->hasDescription());
+        self::assertFalse($dto->hasImage());
+    }
+
     public function testUnknownKeysAreIgnored(): void
     {
         $dto = (new UpdateCollectionDTO())->withProvidedFields(['unknown', 'provided']);
