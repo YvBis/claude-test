@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Api\Controller\Admin;
 
 use App\Application\DTO\RegisterUserDTO;
+use App\Application\Exception\ConflictException;
 use App\Application\Exception\ValidationException;
 use App\Application\User\DTO\CreateUserDTO;
 use App\Application\User\DTO\UpdateUserDTO;
@@ -161,6 +162,7 @@ final class UserController extends AbstractApiController
                 content: new OA\JsonContent(ref: '#/components/schemas/User'),
             ),
             new OA\Response(response: 400, description: 'Bad request (malformed body)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 409, description: 'Concurrent modification, retry', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 422, description: 'Validation error (empty body) or last admin', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 403, description: 'Forbidden (non-admin, or own account)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
@@ -201,6 +203,10 @@ final class UserController extends AbstractApiController
             return $this->forbidden($selfActionForbiddenException->getMessage());
         } catch (LastAdminException $lastAdminException) {
             return $this->unprocessable($lastAdminException->getMessage());
+        } catch (UserNotFoundException) {
+            return $this->notFound('User not found');
+        } catch (ConflictException $conflictException) {
+            return $this->conflict($conflictException->getMessage());
         }
 
         return new JsonResponse(UserDTO::fromEntity($updated)->toArray(), Response::HTTP_OK);
@@ -222,6 +228,7 @@ final class UserController extends AbstractApiController
             new OA\Response(response: 401, description: 'Unauthorized', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 403, description: 'Forbidden (non-admin, or own account)', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 404, description: 'User not found', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
+            new OA\Response(response: 409, description: 'Concurrent modification, retry', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
             new OA\Response(response: 422, description: 'Last admin cannot be deleted', content: new OA\JsonContent(ref: '#/components/schemas/Error')),
         ],
     )]
@@ -242,6 +249,10 @@ final class UserController extends AbstractApiController
             return $this->forbidden($selfActionForbiddenException->getMessage());
         } catch (LastAdminException $lastAdminException) {
             return $this->unprocessable($lastAdminException->getMessage());
+        } catch (UserNotFoundException) {
+            return $this->notFound('User not found');
+        } catch (ConflictException $conflictException) {
+            return $this->conflict($conflictException->getMessage());
         }
 
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);

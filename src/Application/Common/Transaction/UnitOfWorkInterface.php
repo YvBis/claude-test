@@ -18,9 +18,11 @@ interface UnitOfWorkInterface
      *
      * A uniqueness collision in persistence surfaces as
      * {@see \App\Application\Exception\ConflictException} carrying the DBAL
-     * exception as its previous; any other DBAL failure is propagated unchanged.
-     * The EntityManager is closed after a failed flush, so a caller cannot retry
-     * on the same instance — map the conflict to a domain error and return.
+     * exception as its previous, and so does a lost lock race (lock-wait
+     * timeout or deadlock) — "Concurrent modification, retry". Any other DBAL
+     * failure is propagated unchanged. The EntityManager is closed after a
+     * failed flush, so a caller cannot retry on the same instance — map the
+     * conflict to a domain error and return.
      */
     public function flush(): void;
 
@@ -29,10 +31,12 @@ interface UnitOfWorkInterface
      * committed after the callback returns and rolled back on any throwable.
      * The callback's return value is passed through unchanged.
      *
-     * The ORM flushes before committing, so a uniqueness collision raised by the
-     * wrapped flush is translated to {@see \App\Application\Exception\ConflictException}
-     * here exactly as in {@see self::flush()}. A commit-time failure is not a
-     * unique-constraint violation and is propagated unchanged.
+     * The ORM flushes before committing, so the same translations as in
+     * {@see self::flush()} apply here: a uniqueness collision becomes
+     * {@see \App\Application\Exception\ConflictException} ("Duplicate entry"),
+     * a lock-wait timeout or deadlock becomes one too ("Concurrent
+     * modification, retry"). A commit-time failure that is neither is
+     * propagated unchanged.
      *
      * @template T
      *

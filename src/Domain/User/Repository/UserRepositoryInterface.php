@@ -56,7 +56,20 @@ interface UserRepositoryInterface
     public function existsByEmail(Email $email): bool;
 
     /**
-     * How many users carry the role — the last-admin guard.
+     * Counts the role's users under an exclusive read, locking the matching
+     * rows until the surrounding transaction ends. The last-admin guard needs
+     * this form: a plain count outside a transaction lets two concurrent
+     * demotions both observe "two admins" and leave none.
+     *
+     * Must be called inside {@see \App\Application\Common\Transaction\UnitOfWorkInterface::transactional()};
+     * the lock is released when that transaction commits or rolls back.
      */
-    public function countByRole(Role $role): int;
+    public function countByRoleExclusively(Role $role): int;
+
+    /**
+     * Loads the user with an exclusive lock on its row and refreshes the
+     * already-managed instance from the database, so guards see the committed
+     * state rather than a stale identity-map copy.
+     */
+    public function findByIdForUpdate(UserId $id): ?User;
 }
