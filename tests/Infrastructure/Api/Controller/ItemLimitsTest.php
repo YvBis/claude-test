@@ -54,15 +54,14 @@ final class ItemLimitsTest extends WebTestCase
 
     public function testCreatingAnItemWithTooManySlotsIsRejectedByDtoValidation(): void
     {
-        $slots = [];
-        for ($i = 0; $i <= SlotLimits::MAX_SLOTS_PER_ITEM; ++$i) {
-            $slots[] = ['type' => 'text', 'slot' => 1, 'value' => 'v'.$i];
-        }
+        $slots = $this->thirteenSlots();
 
         $this->createItem(['name' => 'Overloaded', 'slots' => $slots]);
 
         self::assertSame('Validation failed', $this->errorPayload()['message'] ?? null);
-        self::assertStringContainsString('Too many slots', \implode(' ', $this->errorPayload()['details'] ?? []));
+        $details = \implode(' ', $this->errorPayload()['details'] ?? []);
+        self::assertStringContainsString('Too many slots', $details);
+        self::assertStringContainsString('Duplicate slot', $details, 'the 13th entry repeats (text, 1)');
     }
 
     public function testCreatingAnItemWithAnOverlongTextSlotIsRejectedByDtoValidation(): void
@@ -95,16 +94,15 @@ final class ItemLimitsTest extends WebTestCase
     public function testUpdatingAnItemWithTooManySlotsIsRejectedByDtoValidation(): void
     {
         $itemId = $this->createValidItem();
-        $slots = [];
-        for ($i = 0; $i <= SlotLimits::MAX_SLOTS_PER_ITEM; ++$i) {
-            $slots[] = ['type' => 'text', 'slot' => 1, 'value' => 'v'.$i];
-        }
+        $slots = $this->thirteenSlots();
 
         $this->client->request('PATCH', '/api/items/'.$itemId, [], [], $this->headers(), \json_encode(['slots' => $slots], \JSON_THROW_ON_ERROR));
 
         self::assertResponseStatusCodeSame(422);
         self::assertSame('Validation failed', $this->errorPayload()['message'] ?? null);
-        self::assertStringContainsString('Too many slots', \implode(' ', $this->errorPayload()['details'] ?? []));
+        $details = \implode(' ', $this->errorPayload()['details'] ?? []);
+        self::assertStringContainsString('Too many slots', $details);
+        self::assertStringContainsString('Duplicate slot', $details, 'the 13th entry repeats (text, 1)');
     }
 
     public function testUpdatingAnItemWithAnOverlongTextSlotIsRejectedByDtoValidation(): void
@@ -135,6 +133,28 @@ final class ItemLimitsTest extends WebTestCase
         $this->client->request('POST', '/api/collections/'.$collectionId.'/items', [], [], $this->headers(), \json_encode($payload, \JSON_THROW_ON_ERROR));
 
         self::assertResponseStatusCodeSame(422);
+    }
+
+    /**
+     * 12 distinct pairs (4 types × 3 slots) plus one repeat of (text, 1): the
+     * list is over the per-item limit and contains exactly one duplicate, so
+     * both messages must appear.
+     *
+     * @return list<array{type: string, slot: int, value: string|int|bool}>
+     */
+    private function thirteenSlots(): array
+    {
+        $slots = [];
+
+        foreach (['text' => 'v', 'number' => 1, 'date' => '2026-01-01', 'bool' => true] as $type => $value) {
+            for ($slot = 1; $slot <= SlotLimits::MAX_SLOTS_PER_TYPE; ++$slot) {
+                $slots[] = ['type' => $type, 'slot' => $slot, 'value' => $value];
+            }
+        }
+
+        $slots[] = ['type' => 'text', 'slot' => 1, 'value' => 'repeat'];
+
+        return $slots;
     }
 
     private function createValidItem(): string

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Application\Item\DTO;
 
+use App\Application\Item\Validation\SlotDuplicates;
 use App\Domain\Common\Constant\SlotLimits;
 use App\Domain\Item\Entity\Item;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 final readonly class CreateItemDTO
 {
@@ -36,5 +38,17 @@ final readonly class CreateItemDTO
         $this->name = \trim($name);
         $this->tags = \array_values($tags);
         $this->slots = \array_values($slots);
+    }
+
+    #[Assert\Callback]
+    public function validateUniqueSlots(ExecutionContextInterface $context): void
+    {
+        foreach (SlotDuplicates::in($this->slots) as $duplicate) {
+            $context->buildViolation('Duplicate slot: type "{{ type }}", slot {{ slot }}.')
+                ->setParameter('{{ type }}', $duplicate['type'])
+                ->setParameter('{{ slot }}', (string) $duplicate['slot'])
+                ->atPath('slots')
+                ->addViolation();
+        }
     }
 }
