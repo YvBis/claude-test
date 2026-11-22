@@ -7,7 +7,9 @@ namespace App\Tests\Infrastructure\Common\Transaction;
 use App\Application\Exception\ConflictException;
 use App\Infrastructure\Common\Transaction\DoctrineUnitOfWork;
 use Doctrine\DBAL\Driver\Exception as DriverException;
+use Doctrine\DBAL\Exception\DeadlockException;
 use Doctrine\DBAL\Exception\ForeignKeyConstraintViolationException;
+use Doctrine\DBAL\Exception\LockWaitTimeoutException;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
@@ -124,6 +126,53 @@ final class DoctrineUnitOfWorkTest extends TestCase
             $this->fail('Expected ConflictException');
         } catch (ConflictException $conflictException) {
             $this->assertSame($violation, $conflictException->getPrevious());
+        }
+    }
+
+    public function testTransactionalTranslatesLockWaitTimeoutIntoConflict(): void
+    {
+        $timeout = new LockWaitTimeoutException($this->driverException('Lock wait timeout exceeded'), null);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('wrapInTransaction')->willThrowException($timeout);
+
+        $uow = new DoctrineUnitOfWork($em);
+
+        try {
+            $uow->transactional(static fn (): string => 'unreachable');
+            $this->fail('Expected ConflictException');
+        } catch (ConflictException $conflictException) {
+            $this->assertSame('Concurrent modification, retry', $conflictException->getMessage());
+            $this->assertSame($timeout, $conflictException->getPrevious());
+        }
+    }
+
+    public function testFlushTranslatesLockWaitTimeoutIntoConflict(): void
+    {
+        $timeout = new LockWaitTimeoutException($this->driverException('Lock wait timeout exceeded'), null);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('flush')->willThrowException($timeout);
+
+        $uow = new DoctrineUnitOfWork($em);
+
+        $this->expectException(ConflictException::class);
+
+        $uow->flush();
+    }
+
+    public function testTransactionalTranslatesDeadlockIntoConflict(): void
+    {
+        $deadlock = new DeadlockException($this->driverException('Deadlock found'), null);
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->method('wrapInTransaction')->willThrowException($deadlock);
+
+        $uow = new DoctrineUnitOfWork($em);
+
+        try {
+            $uow->transactional(static fn (): string => 'unreachable');
+            $this->fail('Expected ConflictException');
+        } catch (ConflictException $conflictException) {
+            $this->assertSame('Concurrent modification, retry', $conflictException->getMessage());
+            $this->assertSame($deadlock, $conflictException->getPrevious());
         }
     }
 

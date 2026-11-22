@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Tests\Infrastructure\Api\Controller\Admin;
 
+use App\Application\Common\Transaction\UnitOfWorkInterface;
+use App\Application\Exception\ConflictException;
 use App\Infrastructure\Search\MeilisearchSearchAdapter;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -251,6 +253,38 @@ final class UserControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(404);
     }
 
+    public function testUpdateReturns409WhenTheTransactionLosesTheLock(): void
+    {
+        $admin = $this->registerAdmin();
+        $target = $this->registerUser('race-target');
+
+        $this->loseTheLock();
+
+        $this->client->request('PATCH', '/api/admin/users/'.$target['id'], [], [], $this->authHeaders($admin['token']), \json_encode(['role' => 'user'], \JSON_THROW_ON_ERROR));
+
+        $this->assertResponseStatusCodeSame(409);
+        self::assertSame(
+            ['error' => 'Conflict', 'message' => 'Concurrent modification, retry'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR),
+        );
+    }
+
+    public function testDeleteReturns409WhenTheTransactionLosesTheLock(): void
+    {
+        $admin = $this->registerAdmin();
+        $target = $this->registerUser('race-delete');
+
+        $this->loseTheLock();
+
+        $this->client->request('DELETE', '/api/admin/users/'.$target['id'], [], [], $this->authHeaders($admin['token']));
+
+        $this->assertResponseStatusCodeSame(409);
+        self::assertSame(
+            ['error' => 'Conflict', 'message' => 'Concurrent modification, retry'],
+            \json_decode($this->client->getResponse()->getContent(), true, 512, \JSON_THROW_ON_ERROR),
+        );
+    }
+
     public function testMalformedIdIsA404(): void
     {
         $admin = $this->registerAdmin();
@@ -423,6 +457,20 @@ final class UserControllerTest extends WebTestCase
 
         $this->client->request('PATCH', '/api/admin/users/'.$admin['id'], [], [], $this->authHeaders($admin['token']), \json_encode(['role' => 'user'], \JSON_THROW_ON_ERROR));
         $this->assertResponseStatusCodeSame(403);
+    }
+
+    /**
+     * Replaces the unit of work with one that loses every lock race, so the
+     * controller's 409 arm is exercised without a real concurrent transaction.
+     */
+    private function loseTheLock(): void
+    {
+        $uow = $this->createStub(UnitOfWorkInterface::class);
+        $uow->method('transactional')->willThrowException(new ConflictException('Concurrent modification, retry'));
+
+        static::ensureKernelShutdown();
+        $this->client = static::createClient();
+        static::getContainer()->set(UnitOfWorkInterface::class, $uow);
     }
 
     /** @return array{token: string, id: string} */

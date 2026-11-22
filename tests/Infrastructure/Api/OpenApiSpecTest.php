@@ -40,7 +40,7 @@ final class OpenApiSpecTest extends TestCase
     ];
 
     private const RESPONSE_CODES = [
-        'DELETE /api/admin/users/{id}' => ['204', '401', '403', '404', '422'],
+        'DELETE /api/admin/users/{id}' => ['204', '401', '403', '404', '409', '422'],
         'DELETE /api/collections/{id}' => ['204', '401', '403', '404'],
         'DELETE /api/comments/{id}' => ['204', '401', '403', '404'],
         'DELETE /api/items/{id}' => ['204', '401', '403', '404'],
@@ -63,7 +63,7 @@ final class OpenApiSpecTest extends TestCase
         'GET /api/search/items' => ['200', '400', '401'],
         'GET /api/tags' => ['200', '400', '401'],
         'GET /health' => ['200'],
-        'PATCH /api/admin/users/{id}' => ['200', '400', '401', '403', '404', '422'],
+        'PATCH /api/admin/users/{id}' => ['200', '400', '401', '403', '404', '409', '422'],
         'PATCH /api/collections/{id}' => ['200', '400', '401', '403', '404', '422'],
         'PATCH /api/comments/{id}' => ['200', '400', '401', '403', '404', '422'],
         'PATCH /api/items/{id}' => ['200', '400', '401', '403', '404', '422'],

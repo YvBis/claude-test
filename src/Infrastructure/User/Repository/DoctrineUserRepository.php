@@ -11,6 +11,7 @@ use App\Domain\User\ValueObject\Role;
 use App\Domain\User\ValueObject\UserId;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\DBAL\ArrayParameterType;
+use Doctrine\DBAL\LockMode;
 use Doctrine\Persistence\ManagerRegistry;
 
 /**
@@ -103,14 +104,30 @@ final class DoctrineUserRepository extends ServiceEntityRepository implements Us
     }
 
     #[\Override]
-    public function countByRole(Role $role): int
+    public function countByRoleExclusively(Role $role): int
     {
-        return (int) $this->createQueryBuilder('u')
-            ->select('COUNT(u.id)')
+        $ids = $this->createQueryBuilder('u')
+            ->select('u.id')
             ->where('u.role.role = :role')
+            ->orderBy('u.id', \SortDirection::Ascending)
             ->setParameter('role', $role->value())
             ->getQuery()
-            ->getSingleScalarResult();
+            ->setLockMode(LockMode::PESSIMISTIC_WRITE)
+            ->getScalarResult();
+
+        return \count($ids);
+    }
+
+    #[\Override]
+    public function findByIdForUpdate(UserId $id): ?User
+    {
+        $user = $this->find($id->toBytes());
+
+        if ($user instanceof User) {
+            $this->getEntityManager()->refresh($user, LockMode::PESSIMISTIC_WRITE);
+        }
+
+        return $user;
     }
 
     #[\Override]

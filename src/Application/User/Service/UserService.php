@@ -48,81 +48,82 @@ final readonly class UserService
 
     /**
      * Applies an admin-driven state change: active flag, role, or both.
-     * Guards run before any mutation and the unit of work flushes at most
-     * once, so a combined request can never partially commit.
+     *
+     * The whole operation runs in one transaction and reloads the target under
+     * a row lock first: the last-admin guard counts admins with a locking read,
+     * so two concurrent demotions serialize instead of both seeing "two
+     * admins". The reload also drops a stale identity-map copy — a concurrent
+     * block would otherwise leave `isActive()` lying. The reloaded entity is
+     * managed, so the mutation is written by dirty checking when the
+     * transaction commits; no explicit save() is needed.
      */
     public function update(User $target, User $actor, ?bool $isActive, ?Role $role): User
     {
-        $self = $target->getId()->toString() === $actor->getId()->toString();
-        $changed = false;
+        return $this->unitOfWork->transactional(function () use ($target, $actor, $isActive, $role): User {
+            $target = $this->reloadForUpdate($target);
+            $self = $target->getId()->toString() === $actor->getId()->toString();
 
-        if (false === $isActive) {
-            if ($self) {
-                throw SelfActionForbiddenException::block();
+            if (false === $isActive) {
+                if ($self) {
+                    throw SelfActionForbiddenException::block();
+                }
+
+                if ($this->isLastAdmin($target)) {
+                    throw LastAdminException::block();
+                }
+
+                $target->deactivate();
+            } elseif (true === $isActive) {
+                if ($self) {
+                    throw SelfActionForbiddenException::unblock();
+                }
+
+                $target->activate();
             }
 
-            if ($this->isLastAdmin($target)) {
-                throw LastAdminException::block();
+            // instanceof over null !== : rector's rule (both equivalent here —
+            // the controller only ever passes null or a fromString() Role).
+            if ($role instanceof Role && !$target->getRole()->equals($role)) {
+                if ($self) {
+                    throw SelfActionForbiddenException::changeRole();
+                }
+
+                if ($role->isUser() && $this->isLastAdmin($target)) {
+                    throw LastAdminException::demote();
+                }
+
+                if ($role->isAdmin()) {
+                    $target->promoteToAdmin();
+                } else {
+                    $target->demoteToUser();
+                }
             }
 
-            // Always flushes, preserving the old block behavior (touch() bumps
-            // updatedAt even on re-block); only the role path may skip.
-            $target->deactivate();
-            $changed = true;
-        } elseif (true === $isActive) {
-            if ($self) {
-                throw SelfActionForbiddenException::unblock();
-            }
-
-            $target->activate();
-            $changed = true;
-        }
-
-        // instanceof over null !== : rector's rule (both equivalent here —
-        // the controller only ever passes null or a fromString() Role).
-        if ($role instanceof Role && !$target->getRole()->equals($role)) {
-            if ($self) {
-                throw SelfActionForbiddenException::changeRole();
-            }
-
-            if ($role->isUser() && $this->isLastAdmin($target)) {
-                throw LastAdminException::demote();
-            }
-
-            if ($role->isAdmin()) {
-                $target->promoteToAdmin();
-            } else {
-                $target->demoteToUser();
-            }
-
-            $changed = true;
-        }
-
-        if ($changed) {
-            $this->userRepository->save($target);
-            $this->unitOfWork->flush();
-        }
-
-        return $target;
+            return $target;
+        });
     }
 
     public function deleteUser(User $target, User $actor): void
     {
-        $this->denySelf($target, $actor, SelfActionForbiddenException::delete(...));
+        [$itemIds, $collectionIds] = $this->unitOfWork->transactional(function () use ($target, $actor): array {
+            $target = $this->reloadForUpdate($target);
+            $this->denySelf($target, $actor, SelfActionForbiddenException::delete(...));
 
-        if ($this->isLastAdmin($target)) {
-            throw LastAdminException::delete();
-        }
+            if ($this->isLastAdmin($target)) {
+                throw LastAdminException::delete();
+            }
 
-        // Ids are collected BEFORE remove(): the DB cascade deletes the rows
-        // without the application ever enumerating them (same hazard as the
-        // 6.5 collection delete), which would orphan the search documents.
-        $ownerId = OwnerId::fromString($target->getId()->toString());
-        $itemIds = $this->itemRepository->findIdsByOwnerId($ownerId);
-        $collectionIds = $this->collectionRepository->findIdsByOwnerId($ownerId);
+            // Ids are collected BEFORE remove(): the DB cascade deletes the rows
+            // without the application ever enumerating them (same hazard as the
+            // 6.5 collection delete), which would orphan the search documents.
+            $ownerId = OwnerId::fromString($target->getId()->toString());
+            $itemIds = $this->itemRepository->findIdsByOwnerId($ownerId);
+            $collectionIds = $this->collectionRepository->findIdsByOwnerId($ownerId);
 
-        $this->userRepository->remove($target);
-        $this->unitOfWork->flush();
+            $this->userRepository->remove($target);
+
+            return [$itemIds, $collectionIds];
+        });
 
         foreach ($itemIds as $itemId) {
             $this->searchIndexer->removeItem($itemId);
@@ -141,10 +142,22 @@ final readonly class UserService
         }
     }
 
+    private function reloadForUpdate(User $target): User
+    {
+        $userId = $target->getId();
+        $reloaded = $this->userRepository->findByIdForUpdate($userId);
+
+        if (!$reloaded instanceof User) {
+            throw UserNotFoundException::withId($userId);
+        }
+
+        return $reloaded;
+    }
+
     private function isLastAdmin(User $target): bool
     {
         return $target->isActive()
             && $target->getRole()->isAdmin()
-            && 1 === $this->userRepository->countByRole(Role::admin());
+            && 1 === $this->userRepository->countByRoleExclusively(Role::admin());
     }
 }

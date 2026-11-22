@@ -14,10 +14,12 @@ use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\User\Entity\User;
 use App\Domain\User\Exception\LastAdminException;
 use App\Domain\User\Exception\SelfActionForbiddenException;
+use App\Domain\User\Exception\UserNotFoundException;
 use App\Domain\User\Repository\UserRepositoryInterface;
 use App\Domain\User\ValueObject\Email;
 use App\Domain\User\ValueObject\PasswordHash;
 use App\Domain\User\ValueObject\Role;
+use App\Domain\User\ValueObject\UserId;
 use PHPUnit\Framework\TestCase;
 
 final class UserServiceTest extends TestCase
@@ -39,13 +41,12 @@ final class UserServiceTest extends TestCase
         self::assertSame($users, $service->listUsers(10, 5));
     }
 
-    public function testBlockDeactivatesAndFlushes(): void
+    public function testBlockDeactivates(): void
     {
         $admin = $this->admin('admin@example.com');
         $target = $this->user('target@example.com');
 
-        $uow = $this->createMock(UnitOfWorkInterface::class);
-        $uow->expects($this->once())->method('flush');
+        $uow = $this->unitOfWork();
 
         $indexer = $this->createMock(SearchIndexerInterface::class);
         foreach (['removeItem', 'removeCollection', 'indexItem', 'indexCollection'] as $method) {
@@ -83,6 +84,7 @@ final class UserServiceTest extends TestCase
         $admin = $this->admin('admin@example.com');
 
         $users = $this->createMock(UserRepositoryInterface::class);
+        $users->method('findByIdForUpdate')->willReturn($admin);
         $users->expects($this->never())->method('save');
         $service = new UserService($users, $this->unitOfWork(), $this->items(), $this->collections(), $this->indexer());
 
@@ -115,8 +117,7 @@ final class UserServiceTest extends TestCase
         $target = $this->user('target@example.com');
         $target->deactivate();
 
-        $uow = $this->createMock(UnitOfWorkInterface::class);
-        $uow->expects($this->once())->method('flush');
+        $uow = $this->unitOfWork();
         $service = new UserService($this->userRepository([$admin, $target], 1), $uow, $this->items(), $this->collections(), $this->indexer());
 
         $service->update($target, $admin, true, null);
@@ -134,7 +135,8 @@ final class UserServiceTest extends TestCase
 
         $calls = [];
         $users = $this->createMock(UserRepositoryInterface::class);
-        $users->method('countByRole')->willReturn(1);
+        $users->method('countByRoleExclusively')->willReturn(1);
+        $users->method('findByIdForUpdate')->willReturn($target);
         $users->expects($this->once())->method('remove')->willReturnCallback(
             static function () use (&$calls): void {
                 $calls[] = 'remove';
@@ -147,12 +149,7 @@ final class UserServiceTest extends TestCase
         $collections = $this->createStub(CollectionRepositoryInterface::class);
         $collections->method('findIdsByOwnerId')->willReturn($collectionIds);
 
-        $uow = $this->createMock(UnitOfWorkInterface::class);
-        $uow->expects($this->once())->method('flush')->willReturnCallback(
-            static function () use (&$calls): void {
-                $calls[] = 'flush';
-            },
-        );
+        $uow = $this->unitOfWork();
 
         $indexer = $this->createMock(SearchIndexerInterface::class);
         $indexer->expects($this->exactly(2))->method('removeItem')->willReturnCallback(
@@ -169,7 +166,7 @@ final class UserServiceTest extends TestCase
         $service = new UserService($users, $uow, $items, $collections, $indexer);
         $service->deleteUser($target, $admin);
 
-        self::assertSame(['remove', 'flush', 'index', 'index', 'index'], $calls);
+        self::assertSame(['remove', 'index', 'index', 'index'], $calls);
     }
 
     public function testDeleteSelfIsForbidden(): void
@@ -212,13 +209,12 @@ final class UserServiceTest extends TestCase
         return User::register('Admin', Email::fromString($email), PasswordHash::createFromPlain('secret123'), Role::admin());
     }
 
-    public function testUpdatePromotesAndFlushesOnce(): void
+    public function testUpdatePromotes(): void
     {
         $admin = $this->admin('admin@example.com');
         $target = $this->user('target@example.com');
 
-        $uow = $this->createMock(UnitOfWorkInterface::class);
-        $uow->expects($this->once())->method('flush');
+        $uow = $this->unitOfWork();
         $service = $this->service($this->userRepository([$admin, $target], 2), $uow);
 
         $updated = $service->update($target, $admin, null, Role::admin());
@@ -231,8 +227,7 @@ final class UserServiceTest extends TestCase
         $admin = $this->admin('admin@example.com');
         $target = $this->admin('target@example.com');
 
-        $uow = $this->createMock(UnitOfWorkInterface::class);
-        $uow->expects($this->once())->method('flush');
+        $uow = $this->unitOfWork();
         $service = $this->service($this->userRepository([$admin, $target], 2), $uow);
 
         $updated = $service->update($target, $admin, null, Role::user());
@@ -240,27 +235,28 @@ final class UserServiceTest extends TestCase
         self::assertTrue($updated->getRole()->isUser());
     }
 
-    public function testUpdateNoopsOnSameRoleWithoutFlush(): void
+    public function testUpdateNoopsOnSameRoleWithoutSave(): void
     {
         $admin = $this->admin('admin@example.com');
         $target = $this->admin('target@example.com');
 
-        $uow = $this->createMock(UnitOfWorkInterface::class);
-        $uow->expects($this->never())->method('flush');
-        $service = $this->service($this->userRepository([$admin, $target], 2), $uow);
+        $users = $this->createMock(UserRepositoryInterface::class);
+        $users->method('findByIdForUpdate')->willReturn($target);
+        $users->expects($this->never())->method('save');
+
+        $service = $this->service($users);
 
         $updated = $service->update($target, $admin, null, Role::admin());
 
         self::assertTrue($updated->getRole()->isAdmin());
     }
 
-    public function testUpdateAppliesBothFieldsWithOneFlush(): void
+    public function testUpdateAppliesBothFields(): void
     {
         $admin = $this->admin('admin@example.com');
         $target = $this->user('target@example.com');
 
-        $uow = $this->createMock(UnitOfWorkInterface::class);
-        $uow->expects($this->once())->method('flush');
+        $uow = $this->unitOfWork();
         $service = $this->service($this->userRepository([$admin, $target], 1), $uow);
 
         $updated = $service->update($target, $admin, false, Role::admin());
@@ -306,6 +302,21 @@ final class UserServiceTest extends TestCase
         }
     }
 
+    public function testUpdateFailsWithNotFoundWhenTheTargetVanishesBeforeTheLock(): void
+    {
+        $admin = $this->admin('admin@example.com');
+        $target = $this->user('target@example.com');
+
+        $users = $this->createStub(UserRepositoryInterface::class);
+        $users->method('findByIdForUpdate')->willReturn(null);
+
+        $service = $this->service($users);
+
+        $this->expectException(UserNotFoundException::class);
+
+        $service->update($target, $admin, false, null);
+    }
+
     private function service(
         UserRepositoryInterface $users,
         ?UnitOfWorkInterface $uow = null,
@@ -329,14 +340,26 @@ final class UserServiceTest extends TestCase
     {
         $repository = $this->createStub(UserRepositoryInterface::class);
         $repository->method('findAll')->willReturn($users);
-        $repository->method('countByRole')->willReturn($adminCount);
+        $repository->method('countByRoleExclusively')->willReturn($adminCount);
+        $repository->method('findByIdForUpdate')->willReturnCallback(static function (UserId $id) use ($users): ?User {
+            foreach ($users as $user) {
+                if ($user->getId()->toString() === $id->toString()) {
+                    return $user;
+                }
+            }
+
+            return null;
+        });
 
         return $repository;
     }
 
     private function unitOfWork(): UnitOfWorkInterface
     {
-        return $this->createStub(UnitOfWorkInterface::class);
+        $uow = $this->createStub(UnitOfWorkInterface::class);
+        $uow->method('transactional')->willReturnCallback(static fn (callable $callback): mixed => $callback());
+
+        return $uow;
     }
 
     private function items(): ItemRepositoryInterface
