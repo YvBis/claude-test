@@ -139,10 +139,7 @@ final readonly class CollectionService
         $this->collectionRepository->remove($collection);
         $this->unitOfWork->flush();
 
-        foreach ($itemIds as $itemId) {
-            $this->searchIndexer->removeItem($itemId);
-        }
-
+        $this->searchIndexer->removeItems($itemIds);
         $this->searchIndexer->removeCollection($collectionId);
     }
 

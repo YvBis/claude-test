@@ -7,10 +7,12 @@ namespace App\Tests\Infrastructure\Search;
 use App\Application\Search\CollectionDocument;
 use App\Application\Search\ItemDocument;
 use App\Domain\Collection\Entity\Collection;
+use App\Domain\Collection\ValueObject\CollectionId;
 use App\Domain\Collection\ValueObject\CollectionName;
 use App\Domain\Collection\ValueObject\Theme;
 use App\Domain\Common\ValueObject\OwnerId;
 use App\Domain\Item\Entity\Item;
+use App\Domain\Item\ValueObject\ItemId;
 use App\Domain\Tag\Entity\Tag;
 use App\Domain\Tag\ValueObject\TagName;
 use App\Infrastructure\Search\IndexSettings;
@@ -84,6 +86,57 @@ final class MeilisearchEngineAcceptanceTest extends EngineBackedSearchTestCase
             $document->toArray(),
             $this->waitForDocument($this->collectionsIndex, $document->id),
         );
+    }
+
+    public function testBulkRemoveDropsEveryDocument(): void
+    {
+        $items = [];
+        $ids = [];
+        for ($i = 0; $i < 5; ++$i) {
+            $document = ItemDocument::fromEntity($this->createItem());
+            $items[] = $document;
+            $ids[] = ItemId::fromString($document->id);
+        }
+
+        foreach ($items as $document) {
+            $this->adapter->indexItem($document);
+        }
+
+        foreach ($items as $document) {
+            $this->waitForDocument($this->itemsIndex, $document->id);
+        }
+
+        $this->adapter->removeItems($ids);
+
+        $this->waitForDocumentCount($this->itemsIndex, 0);
+    }
+
+    public function testBulkRemoveOfCollectionsDropsEveryDocument(): void
+    {
+        $documents = [];
+        $ids = [];
+        for ($i = 0; $i < 3; ++$i) {
+            $collection = Collection::create(
+                ownerId: OwnerId::generate(),
+                name: CollectionName::fromString('Bulk '.$i),
+                theme: Theme::games(),
+            );
+            $document = CollectionDocument::fromEntity($collection);
+            $documents[] = $document;
+            $ids[] = CollectionId::fromString($document->id);
+        }
+
+        foreach ($documents as $document) {
+            $this->adapter->indexCollection($document);
+        }
+
+        foreach ($documents as $document) {
+            $this->waitForDocument($this->collectionsIndex, $document->id);
+        }
+
+        $this->adapter->removeCollections($ids);
+
+        $this->waitForDocumentCount($this->collectionsIndex, 0);
     }
 
     private function createItem(): Item

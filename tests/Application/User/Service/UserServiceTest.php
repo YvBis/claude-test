@@ -49,7 +49,7 @@ final class UserServiceTest extends TestCase
         $uow = $this->unitOfWork();
 
         $indexer = $this->createMock(SearchIndexerInterface::class);
-        foreach (['removeItem', 'removeCollection', 'indexItem', 'indexCollection'] as $method) {
+        foreach (['removeItem', 'removeItems', 'removeCollection', 'removeCollections', 'indexItem', 'indexCollection'] as $method) {
             $indexer->expects($this->never())->method($method);
         }
 
@@ -152,21 +152,21 @@ final class UserServiceTest extends TestCase
         $uow = $this->unitOfWork();
 
         $indexer = $this->createMock(SearchIndexerInterface::class);
-        $indexer->expects($this->exactly(2))->method('removeItem')->willReturnCallback(
+        $indexer->expects($this->once())->method('removeItems')->with($itemIds)->willReturnCallback(
             static function () use (&$calls): void {
-                $calls[] = 'index';
+                $calls[] = 'removeItems';
             },
         );
-        $indexer->expects($this->once())->method('removeCollection')->willReturnCallback(
+        $indexer->expects($this->once())->method('removeCollections')->with($collectionIds)->willReturnCallback(
             static function () use (&$calls): void {
-                $calls[] = 'index';
+                $calls[] = 'removeCollections';
             },
         );
 
         $service = new UserService($users, $uow, $items, $collections, $indexer);
         $service->deleteUser($target, $admin);
 
-        self::assertSame(['remove', 'index', 'index', 'index'], $calls);
+        self::assertSame(['remove', 'removeItems', 'removeCollections'], $calls);
     }
 
     public function testDeleteSelfIsForbidden(): void

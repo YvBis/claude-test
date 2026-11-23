@@ -153,6 +153,64 @@ final class MeilisearchSearchAdapterTest extends TestCase
         self::assertStringContainsString('/indexes/collections/documents/', $this->requests[0]['url']);
     }
 
+    public function testRemoveItemsDeletesABatchOfStringIds(): void
+    {
+        $first = ItemId::generate();
+        $second = ItemId::generate();
+
+        $this->createAdapter()->removeItems([$first, $second]);
+
+        self::assertCount(1, $this->requests);
+        self::assertSame('POST', $this->requests[0]['method']);
+        self::assertStringContainsString('/indexes/items/documents/delete-batch', $this->requests[0]['url']);
+        // A plain list of strings, not [{"ids": …}] and not serialised VOs:
+        // the engine accepts the latter with 202 and fails the task later.
+        self::assertSame(
+            [$first->toString(), $second->toString()],
+            \json_decode($this->requests[0]['body'], true, flags: JSON_THROW_ON_ERROR),
+        );
+    }
+
+    public function testRemoveItemsWithAnEmptyListMakesNoRequest(): void
+    {
+        $this->createAdapter()->removeItems([]);
+
+        self::assertCount(0, $this->requests, 'An empty list must not reach the engine.');
+    }
+
+    public function testRemoveCollectionsDeletesABatchOfStringIds(): void
+    {
+        $first = CollectionId::generate();
+        $second = CollectionId::generate();
+
+        $this->createAdapter()->removeCollections([$first, $second]);
+
+        self::assertCount(1, $this->requests);
+        self::assertStringContainsString('/indexes/collections/documents/delete-batch', $this->requests[0]['url']);
+        self::assertSame(
+            [$first->toString(), $second->toString()],
+            \json_decode($this->requests[0]['body'], true, flags: JSON_THROW_ON_ERROR),
+        );
+    }
+
+    public function testRemoveCollectionsWithAnEmptyListMakesNoRequest(): void
+    {
+        $this->createAdapter()->removeCollections([]);
+
+        self::assertCount(0, $this->requests, 'An empty list must not reach the engine.');
+    }
+
+    public function testRemoveItemsSwallowsAnEngineError(): void
+    {
+        $this->createAdapter(override: static fn (): MockResponse => new MockResponse(
+            '{"message":"boom","code":"internal","type":"internal"}',
+            ['http_code' => 500, 'response_headers' => ['Content-Type: application/json']],
+        ))->removeItems([ItemId::generate()]);
+
+        self::assertCount(1, $this->requests);
+        self::assertCount(1, $this->logger->logs, 'The swallowed bulk failure must be logged, not silent.');
+    }
+
     public function testEnsureIndexesCreatesBothIndexesAndPushesSettings(): void
     {
         $this->createAdapter()->ensureIndexes();

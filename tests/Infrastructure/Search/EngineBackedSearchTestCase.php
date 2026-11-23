@@ -101,6 +101,35 @@ abstract class EngineBackedSearchTestCase extends KernelTestCase
     }
 
     /**
+     * Waits until the index holds the expected number of documents. The adapter
+     * enqueues tasks without awaiting them, so a count read right after a bulk
+     * delete races the engine.
+     */
+    protected function waitForDocumentCount(string $index, int $expected): void
+    {
+        $deadline = \microtime(true) + 5.0;
+
+        do {
+            try {
+                if ($this->client->index($index)->stats()['numberOfDocuments'] === $expected) {
+                    return;
+                }
+            } catch (ExceptionInterface) {
+                // Same reasoning as waitForDocument: a dead engine must fail
+                // with the convergence message below, not a transport trace.
+            }
+
+            \usleep(50_000);
+        } while (\microtime(true) < $deadline);
+
+        self::fail(\sprintf(
+            'Index %s did not converge to %d documents within 5 s.',
+            $index,
+            $expected,
+        ));
+    }
+
+    /**
      * Reads index settings, waiting for the settings task to land. Same
      * reasoning as waitForDocument: ensureIndexes() awaits creation, not the
      * settings push that follows it.

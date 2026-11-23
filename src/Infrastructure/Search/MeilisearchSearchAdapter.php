@@ -70,6 +70,27 @@ final readonly class MeilisearchSearchAdapter implements SearchIndexerInterface,
         $this->write(fn () => $this->client->index($this->itemsIndex)->deleteDocument($id->toString()));
     }
 
+    /**
+     * The vendor's `deleteDocuments()` takes a plain list and performs no
+     * per-element validation, unlike `deleteDocument()`. Passing value objects
+     * would serialise to `[{}, {}]`, which the engine accepts with 202 and then
+     * fails the task asynchronously — invisible to `write()`, so the deletion
+     * would silently do nothing. Hence the explicit `toString()` mapping.
+     *
+     * An empty list is a no-op: the vendor would post `[]`, and an empty
+     * delete-batch is not a contract worth depending on.
+     */
+    public function removeItems(array $ids): void
+    {
+        if ([] === $ids) {
+            return;
+        }
+
+        $this->write(fn () => $this->client->index($this->itemsIndex)->deleteDocuments(
+            \array_map(static fn (ItemId $id): string => $id->toString(), $ids),
+        ));
+    }
+
     public function indexCollection(CollectionDocument $document): void
     {
         $this->write(fn () => $this->client->index($this->collectionsIndex)->addDocuments([$document->toArray()], 'id'));
@@ -78,6 +99,22 @@ final readonly class MeilisearchSearchAdapter implements SearchIndexerInterface,
     public function removeCollection(CollectionId $id): void
     {
         $this->write(fn () => $this->client->index($this->collectionsIndex)->deleteDocument($id->toString()));
+    }
+
+    /**
+     * Same id-mapping and empty-list rationale as {@see self::removeItems()}.
+     *
+     * @param list<CollectionId> $ids
+     */
+    public function removeCollections(array $ids): void
+    {
+        if ([] === $ids) {
+            return;
+        }
+
+        $this->write(fn () => $this->client->index($this->collectionsIndex)->deleteDocuments(
+            \array_map(static fn (CollectionId $id): string => $id->toString(), $ids),
+        ));
     }
 
     /**
