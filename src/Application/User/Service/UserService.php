@@ -125,13 +125,8 @@ final readonly class UserService
             return [$itemIds, $collectionIds];
         });
 
-        foreach ($itemIds as $itemId) {
-            $this->searchIndexer->removeItem($itemId);
-        }
-
-        foreach ($collectionIds as $collectionId) {
-            $this->searchIndexer->removeCollection($collectionId);
-        }
+        $this->searchIndexer->removeItems($itemIds);
+        $this->searchIndexer->removeCollections($collectionIds);
     }
 
     /** @param callable(): SelfActionForbiddenException $factory */

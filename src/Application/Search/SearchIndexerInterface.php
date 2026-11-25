@@ -31,7 +31,26 @@ interface SearchIndexerInterface
 
     public function removeItem(ItemId $id): void;
 
+    /**
+     * Removes many item documents in one engine call — a collection or user
+     * delete cascades in the database and would otherwise cost one HTTP
+     * request per item. An empty list removes nothing and is not an error:
+     * an empty collection is a legal state, so callers pass the collected ids
+     * unconditionally.
+     *
+     * @param list<ItemId> $ids
+     */
+    public function removeItems(array $ids): void;
+
     public function indexCollection(CollectionDocument $document): void;
 
     public function removeCollection(CollectionId $id): void;
+
+    /**
+     * Removes many collection documents in one engine call. An empty list
+     * removes nothing, for the same reason as {@see self::removeItems()}.
+     *
+     * @param list<CollectionId> $ids
+     */
+    public function removeCollections(array $ids): void;
 }

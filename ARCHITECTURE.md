@@ -417,6 +417,17 @@ fail-open. Документы удалённых строк не вычищае�
 бы саму коллекцию, и `remove()` бросил бы на detached-сущности, а каскад БД удалил бы строки,
 не дав приложению их перечислить.
 
+**Bulk-удаление (10.9).** Оба места, где каскад БД удаляет много документов, зовут
+bulk-методы порта: `CollectionService::delete` — `removeItems($itemIds)` (плюс
+`removeCollection` для самой коллекции), `UserService::deleteUser` — `removeItems` +
+`removeCollections` после `transactional()`. Адаптер выполняет это одним
+`deleteDocuments($ids)` (delete-batch) внутри `write()`, поэтому fail-open и breaker
+считают один сбой на вызов, а не на документ. Ids маппятся `toString()`: vendor не
+валидирует элементы batch-запроса, и VO ушёл бы как `{}` — движок принял бы 202 и
+уронил таск асинхронно, то есть удаление молча не произошло бы. Пустой список — no-op
+на уровне порта и ранний `return` в адаптере. Singular-методы оставлены для одиночных
+путей (`ItemService::delete`).
+
 **Эндпоинты (6.6).** `GET /api/search/items` + `GET /api/search/collections` через
 `Application\Search\SearchService` и read-порт (`SearchReaderInterface` — тот же адаптер,
 другой контракт: чтение не fail-open, мёртвый движок = 500). `q` обязателен, blank → 400;

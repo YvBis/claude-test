@@ -163,8 +163,10 @@ final class CollectionServiceTest extends TestCase
         // Every port method must stay silent on all three paths.
         $this->searchIndexer->expects($this->never())->method('indexItem');
         $this->searchIndexer->expects($this->never())->method('removeItem');
+        $this->searchIndexer->expects($this->never())->method('removeItems');
         $this->searchIndexer->expects($this->never())->method('indexCollection');
         $this->searchIndexer->expects($this->never())->method('removeCollection');
+        $this->searchIndexer->expects($this->never())->method('removeCollections');
         $this->itemRepository->expects($this->never())->method('findByCollectionId');
 
         $collection = $this->collectionNamed('Old Name');
@@ -211,11 +213,13 @@ final class CollectionServiceTest extends TestCase
             $calls[] = 'flush';
         });
         // remove() on a detached collection throws, so ids-before-remove is
-        // load-bearing, not stylistic. Method names pin the order: every
-        // removeItem lands after flush and before removeCollection.
-        $this->searchIndexer->method('removeItem')
+        // load-bearing, not stylistic. The bulk call also pins the N+1 fix:
+        // one engine request per deleted collection, not one per item.
+        $this->searchIndexer->expects($this->once())
+            ->method('removeItems')
+            ->with([$itemId])
             ->willReturnCallback(static function () use (&$calls): void {
-                $calls[] = 'removeItem';
+                $calls[] = 'removeItems';
             });
         $this->searchIndexer->method('removeCollection')
             ->willReturnCallback(static function () use (&$calls): void {
@@ -224,7 +228,7 @@ final class CollectionServiceTest extends TestCase
 
         $this->service->delete($collection);
 
-        $this->assertSame(['findIds', 'remove', 'flush', 'removeItem', 'removeCollection'], $calls);
+        $this->assertSame(['findIds', 'remove', 'flush', 'removeItems', 'removeCollection'], $calls);
     }
 
     private function collectionNamed(string $name): Collection
@@ -413,6 +417,10 @@ final class CollectionServiceTest extends TestCase
             ->with($this->identicalTo($collection));
 
         $this->unitOfWork->expects($this->once())->method('flush');
+
+        // No items in this fixture: the bulk call still happens with an empty
+        // list, and the adapter is what turns that into a no-op.
+        $this->searchIndexer->expects($this->once())->method('removeItems')->with([]);
 
         $this->service->delete($collection);
         // No return value to assert, just verifying no exception thrown
