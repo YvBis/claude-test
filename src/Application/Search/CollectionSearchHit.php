@@ -20,16 +20,22 @@ final readonly class CollectionSearchHit
     }
 
     /**
+     * Validates the untrusted engine document: every scalar written by
+     * CollectionDocument is required, so absence or a wrong type means the
+     * index drifted and the read must fail instead of serving filler values.
+     * `description` is the exception — the write path normalises null to the
+     * empty string, so an empty description is a legitimate document.
+     *
      * @param array<string, mixed> $document
      */
     public static function fromArray(array $document): self
     {
         return new self(
-            (string) ($document['id'] ?? ''),
-            (string) ($document['name'] ?? ''),
-            (string) ($document['theme'] ?? ''),
-            (string) ($document['description'] ?? ''),
-            (string) ($document['owner_id'] ?? ''),
+            SearchDocumentFields::nonEmptyString($document, self::class, 'id'),
+            SearchDocumentFields::nonEmptyString($document, self::class, 'name'),
+            SearchDocumentFields::nonEmptyString($document, self::class, 'theme'),
+            SearchDocumentFields::string($document, self::class, 'description'),
+            SearchDocumentFields::nonEmptyString($document, self::class, 'owner_id'),
         );
     }
 
