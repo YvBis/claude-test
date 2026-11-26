@@ -19,11 +19,15 @@ security:
         # is answered with denied. Relaxing it would hand anonymous access to
         # any attribute nobody votes on.
 
+    # Order is contract: PasswordHasherFactory stops at the first matching class
+    # (PasswordHasherFactory.php:44-49), so listing the generic interface entry
+    # first would shadow this per-class pin and let YAML key order pick the
+    # policy. Guarded by SecurityConfigTest (10.13).
     password_hashers:
-        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
         App\Domain\User\Entity\User:
             algorithm: bcrypt
             cost: 13
+        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
 
     providers:
         app_user_provider:
@@ -86,10 +90,3 @@ security:
         # Authenticated endpoints
         - { path: ^/api/logout, roles: IS_AUTHENTICATED_FULLY }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
-
-when@test:
-    security:
-        password_hashers:
-            App\Domain\User\Entity\User:
-                algorithm: bcrypt
-                cost: 4

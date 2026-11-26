@@ -23,7 +23,7 @@ use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
  * be predictable, and a random one would make every seeded account unusable.
  *
  * The hash is memoized for the process: `PasswordHash::createFromPlain()` always
- * uses the domain cost (13), not the framework hasher's test cost, so hashing
+ * uses the domain cost (13) and the framework hasher is never involved, so hashing
  * per user would add ~0.4 s to each creation. One hash for one fixed password is
  * not a security concern in tests and keeps a 50-user story fast.
  *
