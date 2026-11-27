@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Infrastructure\Search;
 
 use App\Application\Search\CollectionSearchHit;
+use App\Application\Search\InvalidSearchDocumentException;
 use App\Application\Search\ItemSearchHit;
 use App\Infrastructure\Search\MeilisearchSearchAdapter;
 use Meilisearch\Client;
@@ -94,6 +95,36 @@ final class MeilisearchSearchReaderTest extends TestCase
         self::assertCount(1, $hits);
         self::assertInstanceOf(ItemSearchHit::class, $hits[0]);
         self::assertSame($doc, $hits[0]->toArray());
+    }
+
+    public function testSearchItemsRejectsAHitWithoutAnId(): void
+    {
+        $adapter = $this->createAdapter(
+            static fn (): MockResponse => new MockResponse(
+                \json_encode(['hits' => [['name' => 'Dune']], 'offset' => 0, 'limit' => 20, 'estimatedTotalHits' => 1, 'processingTimeMs' => 0, 'query' => 'dune'], JSON_THROW_ON_ERROR),
+                ['http_code' => 200, 'response_headers' => ['Content-Type: application/json']],
+            ),
+        );
+
+        $this->expectException(InvalidSearchDocumentException::class);
+        $this->expectExceptionMessage('ItemSearchHit received a document without a valid "id" field');
+
+        $adapter->searchItems('dune', [], 20, 0);
+    }
+
+    public function testSearchCollectionsRejectsAHitWithoutAName(): void
+    {
+        $adapter = $this->createAdapter(
+            static fn (): MockResponse => new MockResponse(
+                \json_encode(['hits' => [['id' => 'c1', 'theme' => 'books']], 'offset' => 0, 'limit' => 20, 'estimatedTotalHits' => 1, 'processingTimeMs' => 0, 'query' => 'books'], JSON_THROW_ON_ERROR),
+                ['http_code' => 200, 'response_headers' => ['Content-Type: application/json']],
+            ),
+        );
+
+        $this->expectException(InvalidSearchDocumentException::class);
+        $this->expectExceptionMessage('CollectionSearchHit received a document without a valid "name" field');
+
+        $adapter->searchCollections('books', [], 20, 0);
     }
 
     public function testSearchCollectionsPostsToTheCollectionsIndex(): void

@@ -433,7 +433,11 @@ bulk-методы порта: `CollectionService::delete` — `removeItems($item
 другой контракт: чтение не fail-open, мёртвый движок = 500). `q` обязателен, blank → 400;
 фильтры `owner` (uuid|`me`), `collection_id`, `tags[]` (AND) / `theme`; `owner=me` без
 аутентификации → 401. Ответы — engine-документы как есть (без слотов и timestamps),
-гидратации из БД нет. `security.yaml` уже держал строку `^/api/search` (PUBLIC_ACCESS);
+гидратации из БД нет. Хиты (`ItemSearchHit`/`CollectionSearchHit`) проверяют контракт
+документа: обязательные поля должны быть непустыми строками (исключение — `description`,
+пустая допустима; отсутствующие `tags` ≡ `[]`), нарушение → `InvalidSearchDocumentException`
+→ голый 500 — чтение не fail-open, и битый индекс не должен выглядеть как пустые данные.
+`security.yaml` уже держал строку `^/api/search` (PUBLIC_ACCESS);
 6.6 дописала туда HEAD — роутер отдаёт HEAD с GET-роута, а MethodRequestMatcher сравнивает
 сырой метод без свёртки, и без явного HEAD гостевой HEAD получал бы 401.
 
